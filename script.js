@@ -62,6 +62,8 @@ const CodePreviewer = {
             clearConsoleBtn: document.getElementById(CONTROL_IDS.CLEAR_CONSOLE_BTN),
             singleModeRadio: document.getElementById(CONTROL_IDS.SINGLE_MODE_RADIO),
             multiModeRadio: document.getElementById(CONTROL_IDS.MULTI_MODE_RADIO),
+            singleModeOption: document.querySelector('label[for="single-mode-radio"]') || document.getElementById(CONTROL_IDS.SINGLE_MODE_RADIO).parentElement,
+            multiModeOption: document.querySelector('label[for="multi-mode-radio"]') || document.getElementById(CONTROL_IDS.MULTI_MODE_RADIO).parentElement,
             addFileBtn: document.getElementById(CONTROL_IDS.ADD_FILE_BTN),
             singleFileContainer: document.getElementById(CONTAINER_IDS.SINGLE_FILE),
             multiFileContainer: document.getElementById(CONTAINER_IDS.MULTI_FILE),
@@ -183,6 +185,18 @@ ${initialJS}
 
         this.dom.singleModeRadio.addEventListener('change', () => this.switchMode('single'));
         this.dom.multiModeRadio.addEventListener('change', () => this.switchMode('multi'));
+        
+        // Add click handlers for mode option cards
+        this.dom.singleModeOption.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.dom.singleModeRadio.checked = true;
+            this.switchMode('single');
+        });
+        this.dom.multiModeOption.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.dom.multiModeRadio.checked = true;
+            this.switchMode('multi');
+        });
         
         this.dom.addFileBtn.addEventListener('click', () => this.addNewFile());
     },

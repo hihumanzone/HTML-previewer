@@ -106,8 +106,25 @@ body {
     background-color: var(--secondary-color);
 }
 
+.mode-option input[type="radio"]:checked + span {
+    color: var(--accent-color);
+}
+
+.mode-option:has(input[type="radio"]:checked) {
+    border-color: var(--accent-color);
+    background-color: var(--accent-color);
+    color: var(--bg-color);
+}
+
+.mode-option:has(input[type="radio"]:checked) span,
+.mode-option:has(input[type="radio"]:checked) small {
+    color: var(--bg-color);
+}
+
 .mode-option input[type="radio"] {
-    margin-bottom: 0.3rem;
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
 }
 
 .mode-option span {
