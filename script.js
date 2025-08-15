@@ -283,8 +283,24 @@ ${initialJS}
                     </select>
                     <button class="remove-file-btn" aria-label="Remove file">&times;</button>
                 </div>
+                <div class="editor-toolbar">
+                    <button class="toolbar-btn clear-btn" aria-label="Clear content" title="Clear">
+                        <span class="btn-icon">🗑️</span> Clear
+                    </button>
+                    <button class="toolbar-btn paste-btn" aria-label="Paste from clipboard" title="Paste">
+                        <span class="btn-icon">📋</span> Paste
+                    </button>
+                    <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
+                        <span class="btn-icon">📄</span> Copy
+                    </button>
+                    <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
+                        <span class="btn-icon">📁</span> Collapse
+                    </button>
+                </div>
                 <label for="${fileId}" class="sr-only">Code Editor</label>
-                <textarea id="${fileId}"></textarea>
+                <div class="editor-wrapper">
+                    <textarea id="${fileId}"></textarea>
+                </div>
             </div>
         `;
         
@@ -340,7 +356,7 @@ ${initialJS}
     },
 
     /**
-     * Binds events for a file panel (file type change, remove, etc.).
+     * Binds events for a file panel (file type change, remove, toolbar actions, etc.).
      * @param {HTMLElement} panel - The panel element
      */
     bindFilePanelEvents(panel) {
@@ -371,6 +387,9 @@ ${initialJS}
                 this.removeFile(fileId);
             });
         }
+
+        // Bind toolbar events
+        this.bindToolbarEvents(panel);
     },
 
     /**
@@ -413,6 +432,204 @@ ${initialJS}
             this.bindFilePanelEvents(panel);
         });
         this.updateRemoveButtonsVisibility();
+        
+        // Also bind toolbar events for single-file container
+        const singleFilePanel = document.querySelector('#single-file-container .editor-panel');
+        if (singleFilePanel) {
+            this.bindToolbarEvents(singleFilePanel);
+        }
+    },
+
+    /**
+     * Binds toolbar events for a panel.
+     * @param {HTMLElement} panel - The panel element
+     */
+    bindToolbarEvents(panel) {
+        const clearBtn = panel.querySelector('.clear-btn');
+        const pasteBtn = panel.querySelector('.paste-btn');
+        const copyBtn = panel.querySelector('.copy-btn');
+        const collapseBtn = panel.querySelector('.collapse-btn');
+        
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => this.clearEditor(panel));
+        }
+        
+        if (pasteBtn) {
+            pasteBtn.addEventListener('click', () => this.pasteFromClipboard(panel));
+        }
+        
+        if (copyBtn) {
+            copyBtn.addEventListener('click', () => this.copyToClipboard(panel));
+        }
+        
+        if (collapseBtn) {
+            collapseBtn.addEventListener('click', () => this.toggleEditorCollapse(panel));
+        }
+    },
+
+    /**
+     * Clears the content of an editor.
+     * @param {HTMLElement} panel - The panel element
+     */
+    clearEditor(panel) {
+        const editor = this.getEditorFromPanel(panel);
+        if (editor) {
+            editor.setValue('');
+        }
+    },
+
+    /**
+     * Pastes content from clipboard to an editor.
+     * @param {HTMLElement} panel - The panel element
+     */
+    async pasteFromClipboard(panel) {
+        try {
+            const text = await navigator.clipboard.readText();
+            const editor = this.getEditorFromPanel(panel);
+            if (editor) {
+                editor.setValue(text);
+            }
+        } catch (error) {
+            console.warn('Failed to paste from clipboard:', error);
+            // Fallback: show a message to the user
+            this.showNotification('Unable to paste from clipboard. Please paste manually (Ctrl+V).', 'warn');
+        }
+    },
+
+    /**
+     * Copies editor content to clipboard.
+     * @param {HTMLElement} panel - The panel element
+     */
+    async copyToClipboard(panel) {
+        try {
+            const editor = this.getEditorFromPanel(panel);
+            if (editor) {
+                const content = editor.getValue();
+                await navigator.clipboard.writeText(content);
+                this.showNotification('Content copied to clipboard!', 'success');
+            }
+        } catch (error) {
+            console.warn('Failed to copy to clipboard:', error);
+            this.showNotification('Unable to copy to clipboard. Please copy manually (Ctrl+C).', 'warn');
+        }
+    },
+
+    /**
+     * Toggles the collapse state of an editor.
+     * @param {HTMLElement} panel - The panel element
+     */
+    toggleEditorCollapse(panel) {
+        const editorWrapper = panel.querySelector('.editor-wrapper');
+        const collapseBtn = panel.querySelector('.collapse-btn');
+        
+        if (editorWrapper && collapseBtn) {
+            const isCollapsed = editorWrapper.classList.contains('collapsed');
+            
+            if (isCollapsed) {
+                editorWrapper.classList.remove('collapsed');
+                collapseBtn.classList.remove('collapsed');
+                collapseBtn.innerHTML = '<span class="btn-icon">📁</span> Collapse';
+                
+                // Refresh editor after expanding
+                setTimeout(() => {
+                    const editor = this.getEditorFromPanel(panel);
+                    if (editor && editor.refresh) {
+                        editor.refresh();
+                    }
+                }, 100);
+            } else {
+                editorWrapper.classList.add('collapsed');
+                collapseBtn.classList.add('collapsed');
+                collapseBtn.innerHTML = '<span class="btn-icon">📂</span> Expand';
+            }
+        }
+    },
+
+    /**
+     * Gets the editor instance from a panel.
+     * @param {HTMLElement} panel - The panel element
+     * @returns {Object|null} The editor instance
+     */
+    getEditorFromPanel(panel) {
+        // Check if it's the single-file editor
+        if (panel.closest('#single-file-container')) {
+            return this.state.editors.singleFile;
+        }
+        
+        // Check default editors
+        const textarea = panel.querySelector('textarea');
+        if (textarea) {
+            const textareaId = textarea.id;
+            if (textareaId === 'html-editor') return this.state.editors.html;
+            if (textareaId === 'css-editor') return this.state.editors.css;
+            if (textareaId === 'js-editor') return this.state.editors.js;
+        }
+        
+        // Check dynamic files
+        const fileId = panel.dataset.fileId;
+        if (fileId) {
+            const fileInfo = this.state.files.find(f => f.id === fileId);
+            return fileInfo ? fileInfo.editor : null;
+        }
+        
+        return null;
+    },
+
+    /**
+     * Shows a notification message to the user.
+     * @param {string} message - The message to show
+     * @param {string} type - The type of notification ('success', 'warn', 'error')
+     */
+    showNotification(message, type = 'info') {
+        // Create notification element if it doesn't exist
+        let notification = document.getElementById('notification');
+        if (!notification) {
+            notification = document.createElement('div');
+            notification.id = 'notification';
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: var(--secondary-color);
+                color: var(--primary-color);
+                padding: 1rem;
+                border-radius: 8px;
+                border: 1px solid var(--border-color);
+                z-index: 2000;
+                opacity: 0;
+                transform: translateX(100%);
+                transition: all 0.3s ease;
+                max-width: 300px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            `;
+            document.body.appendChild(notification);
+        }
+        
+        // Set message and type-specific styling
+        notification.textContent = message;
+        notification.className = `notification-${type}`;
+        
+        // Apply type-specific colors
+        if (type === 'success') {
+            notification.style.borderColor = 'var(--accent-color)';
+            notification.style.background = 'rgba(137, 180, 250, 0.1)';
+        } else if (type === 'warn') {
+            notification.style.borderColor = 'var(--warn-color)';
+            notification.style.background = 'rgba(250, 179, 135, 0.1)';
+        } else if (type === 'error') {
+            notification.style.borderColor = 'var(--error-color)';
+            notification.style.background = 'rgba(243, 139, 168, 0.1)';
+        }
+        
+        // Show notification
+        notification.style.opacity = '1';
+        notification.style.transform = 'translateX(0)';
+        
+        // Hide after delay
+        setTimeout(() => {
+            notification.style.opacity = '0';
+            notification.style.transform = 'translateX(100%)';
+        }, 3000);
     },
 
     /**

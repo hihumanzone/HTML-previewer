@@ -298,6 +298,63 @@ body {
 .clear-btn:hover { background-color: var(--secondary-color); }
 
 /* ------------------------- */
+/* --- Editor Toolbar ------ */
+/* ------------------------- */
+.editor-toolbar {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background-color: var(--secondary-color);
+    border-bottom: 1px solid var(--border-color);
+    flex-wrap: wrap;
+}
+
+.toolbar-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    background-color: var(--header-bg);
+    border: 1px solid var(--border-color);
+    color: var(--primary-color);
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: inherit;
+}
+
+.toolbar-btn:hover {
+    background-color: var(--accent-color);
+    color: var(--bg-color);
+    transform: translateY(-1px);
+}
+
+.toolbar-btn:active {
+    transform: translateY(0);
+}
+
+.toolbar-btn .btn-icon {
+    font-size: 0.8rem;
+}
+
+.toolbar-btn.collapsed {
+    background-color: var(--warn-color);
+    color: var(--bg-color);
+}
+
+.editor-wrapper {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s ease;
+}
+
+.editor-wrapper.collapsed {
+    display: none;
+}
+
+/* ------------------------- */
 /* --- Controls & Buttons -- */
 /* ------------------------- */
 .controls { display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap; }

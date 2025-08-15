@@ -44,8 +44,24 @@
                     <div class="panel-header">
                         <span>Complete HTML Document</span>
                     </div>
+                    <div class="editor-toolbar">
+                        <button class="toolbar-btn clear-btn" aria-label="Clear content" title="Clear">
+                            <span class="btn-icon">🗑️</span> Clear
+                        </button>
+                        <button class="toolbar-btn paste-btn" aria-label="Paste from clipboard" title="Paste">
+                            <span class="btn-icon">📋</span> Paste
+                        </button>
+                        <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
+                            <span class="btn-icon">📄</span> Copy
+                        </button>
+                        <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
+                            <span class="btn-icon">📁</span> Collapse
+                        </button>
+                    </div>
                     <label for="single-file-editor" class="sr-only">Complete HTML Code Editor</label>
-                    <textarea id="single-file-editor"></textarea>
+                    <div class="editor-wrapper">
+                        <textarea id="single-file-editor"></textarea>
+                    </div>
                 </div>
             </div>
 
@@ -67,8 +83,24 @@
                             </select>
                             <button class="remove-file-btn" aria-label="Remove file" style="display: none;">&times;</button>
                         </div>
+                        <div class="editor-toolbar">
+                            <button class="toolbar-btn clear-btn" aria-label="Clear content" title="Clear">
+                                <span class="btn-icon">🗑️</span> Clear
+                            </button>
+                            <button class="toolbar-btn paste-btn" aria-label="Paste from clipboard" title="Paste">
+                                <span class="btn-icon">📋</span> Paste
+                            </button>
+                            <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
+                                <span class="btn-icon">📄</span> Copy
+                            </button>
+                            <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
+                                <span class="btn-icon">📁</span> Collapse
+                            </button>
+                        </div>
                         <label for="html-editor" class="sr-only">HTML Code Editor</label>
-                        <textarea id="html-editor"></textarea>
+                        <div class="editor-wrapper">
+                            <textarea id="html-editor"></textarea>
+                        </div>
                     </div>
                     <!-- CSS Panel -->
                     <div class="editor-panel" data-file-type="css">
@@ -81,8 +113,24 @@
                             </select>
                             <button class="remove-file-btn" aria-label="Remove file" style="display: none;">&times;</button>
                         </div>
+                        <div class="editor-toolbar">
+                            <button class="toolbar-btn clear-btn" aria-label="Clear content" title="Clear">
+                                <span class="btn-icon">🗑️</span> Clear
+                            </button>
+                            <button class="toolbar-btn paste-btn" aria-label="Paste from clipboard" title="Paste">
+                                <span class="btn-icon">📋</span> Paste
+                            </button>
+                            <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
+                                <span class="btn-icon">📄</span> Copy
+                            </button>
+                            <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
+                                <span class="btn-icon">📁</span> Collapse
+                            </button>
+                        </div>
                         <label for="css-editor" class="sr-only">CSS Code Editor</label>
-                        <textarea id="css-editor"></textarea>
+                        <div class="editor-wrapper">
+                            <textarea id="css-editor"></textarea>
+                        </div>
                     </div>
                     <!-- JavaScript Panel -->
                     <div class="editor-panel" data-file-type="javascript">
@@ -95,8 +143,24 @@
                             </select>
                             <button class="remove-file-btn" aria-label="Remove file" style="display: none;">&times;</button>
                         </div>
+                        <div class="editor-toolbar">
+                            <button class="toolbar-btn clear-btn" aria-label="Clear content" title="Clear">
+                                <span class="btn-icon">🗑️</span> Clear
+                            </button>
+                            <button class="toolbar-btn paste-btn" aria-label="Paste from clipboard" title="Paste">
+                                <span class="btn-icon">📋</span> Paste
+                            </button>
+                            <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
+                                <span class="btn-icon">📄</span> Copy
+                            </button>
+                            <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
+                                <span class="btn-icon">📁</span> Collapse
+                            </button>
+                        </div>
                         <label for="js-editor" class="sr-only">JavaScript Code Editor</label>
-                        <textarea id="js-editor"></textarea>
+                        <div class="editor-wrapper">
+                            <textarea id="js-editor"></textarea>
+                        </div>
                     </div>
                 </div>
             </div>
