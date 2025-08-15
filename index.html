@@ -66,7 +66,7 @@
                     <button id="add-file-btn" class="add-file-btn" aria-label="Add new file">+ Add File</button>
                 </div>
                 <div class="editor-grid">
-                    <div class="editor-panel" data-file-type="html">
+                    <div class="editor-panel" data-file-type="html" data-file-id="default-html">
                         <div class="panel-header">
                             <input type="text" class="file-name-input" value="index.html" aria-label="HTML file name">
                             <select class="file-type-selector" aria-label="File type">
@@ -74,6 +74,7 @@
                                 <option value="css">CSS</option>
                                 <option value="javascript">JavaScript</option>
                             </select>
+                            <button class="remove-file-btn" aria-label="Remove file">&times;</button>
                         </div>
                         <div class="editor-toolbar">
                             <button class="toolbar-btn clear-btn" aria-label="Clear content" title="Clear">

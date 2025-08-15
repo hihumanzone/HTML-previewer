@@ -341,56 +341,33 @@ ${initialJS}
     removeFile(fileId) {
         const panel = document.querySelector(`[data-file-id="${fileId}"]`);
         if (panel) {
-            // Handle default files by clearing their content instead of removing the panel
-            if (fileId === 'default-css') {
-                if (this.state.editors.css) {
-                    this.state.editors.css.setValue('');
-                }
-                return;
-            } else if (fileId === 'default-js') {
-                if (this.state.editors.js) {
-                    this.state.editors.js.setValue('');
-                }
-                return;
-            }
-            
-            // For dynamically added files, remove the panel completely
+            // Remove the panel completely for all files (including default ones)
             panel.remove();
         }
         
+        // Remove from files array and clear corresponding editor references
         this.state.files = this.state.files.filter(f => f.id !== fileId);
+        
+        // Clear references to default editors if they're being removed
+        if (fileId === 'default-html') {
+            this.state.editors.html = null;
+        } else if (fileId === 'default-css') {
+            this.state.editors.css = null;
+        } else if (fileId === 'default-js') {
+            this.state.editors.js = null;
+        }
         
         this.updateRemoveButtonsVisibility();
     },
 
     updateRemoveButtonsVisibility() {
-        // CSS and JS default files should always have visible delete buttons
-        // HTML file doesn't have a delete button
-        // Dynamic files should have delete buttons visible if there are more than the 3 default panels
+        // All files with data-file-id should have visible delete buttons
         const allPanels = document.querySelectorAll('.editor-panel[data-file-id]');
-        const dynamicPanels = document.querySelectorAll('.editor-panel[data-file-id]:not([data-file-id="default-css"]):not([data-file-id="default-js"])');
         
-        // Always show delete buttons for CSS and JS
-        const cssPanel = document.querySelector('[data-file-id="default-css"]');
-        const jsPanel = document.querySelector('[data-file-id="default-js"]');
-        
-        if (cssPanel) {
-            const cssRemoveBtn = cssPanel.querySelector('.remove-file-btn');
-            if (cssRemoveBtn) cssRemoveBtn.style.display = 'block';
-        }
-        
-        if (jsPanel) {
-            const jsRemoveBtn = jsPanel.querySelector('.remove-file-btn');
-            if (jsRemoveBtn) jsRemoveBtn.style.display = 'block';
-        }
-        
-        // For dynamic panels, show remove buttons only if there are dynamic panels
-        const showDynamicRemoveButtons = dynamicPanels.length > 0;
-        
-        dynamicPanels.forEach(panel => {
+        allPanels.forEach(panel => {
             const removeBtn = panel.querySelector('.remove-file-btn');
             if (removeBtn) {
-                removeBtn.style.display = showDynamicRemoveButtons ? 'block' : 'none';
+                removeBtn.style.display = 'block';
             }
         });
     },
@@ -398,6 +375,31 @@ ${initialJS}
     initExistingFilePanels() {
         const existingPanels = document.querySelectorAll('.editor-panel[data-file-type]');
         existingPanels.forEach(panel => {
+            const fileId = panel.dataset.fileId;
+            const fileType = panel.dataset.fileType;
+            
+            // Add existing panels to the files array if they have file IDs and aren't already tracked
+            if (fileId && !this.state.files.find(f => f.id === fileId)) {
+                let editor = null;
+                
+                // Map to the correct editor instance
+                if (fileId === 'default-html') {
+                    editor = this.state.editors.html;
+                } else if (fileId === 'default-css') {
+                    editor = this.state.editors.css;
+                } else if (fileId === 'default-js') {
+                    editor = this.state.editors.js;
+                }
+                
+                if (editor) {
+                    this.state.files.push({
+                        id: fileId,
+                        editor: editor,
+                        type: fileType
+                    });
+                }
+            }
+            
             this.bindFilePanelEvents(panel);
         });
         this.updateRemoveButtonsVisibility();
