@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Production-Ready Code Previewer</title>
+    <title>Code Previewer</title>
     
     <link rel="stylesheet" href="style.css">
     
@@ -15,7 +15,6 @@
     <div class="container">
         <header class="main-header">
             <h1>Live Code Previewer</h1>
-            <p>A production-ready tool for HTML, CSS, and JavaScript.</p>
         </header>
 
         <main class="main-content">
@@ -23,19 +22,19 @@
                 <div class="mode-selector-header">Input Mode</div>
                 <div class="mode-options">
                     <label class="mode-option">
-                        <input type="radio" name="editor-mode" value="single" id="single-mode-radio">
+                        <input type="radio" name="editor-mode" value="single" id="single-mode-radio" checked>
                         <span>Single-File Mode</span>
                         <small>Complete HTML with embedded CSS and JavaScript</small>
                     </label>
                     <label class="mode-option">
-                        <input type="radio" name="editor-mode" value="multi" id="multi-mode-radio" checked>
+                        <input type="radio" name="editor-mode" value="multi" id="multi-mode-radio">
                         <span>Multi-File Mode</span>
                         <small>Separate files for HTML, CSS, and JavaScript</small>
                     </label>
                 </div>
             </div>
 
-            <div id="single-file-container" class="editor-container" style="display: none;">
+            <div id="single-file-container" class="editor-container">
                 <div class="editor-panel">
                     <div class="panel-header">
                         <span>Complete HTML Document</span>
@@ -61,7 +60,7 @@
                 </div>
             </div>
 
-            <div id="multi-file-container" class="editor-container">
+            <div id="multi-file-container" class="editor-container" style="display: none;">
                 <div class="files-header">
                     <span>Files</span>
                     <button id="add-file-btn" class="add-file-btn" aria-label="Add new file">+ Add File</button>
@@ -75,7 +74,6 @@
                                 <option value="css">CSS</option>
                                 <option value="javascript">JavaScript</option>
                             </select>
-                            <button class="remove-file-btn" aria-label="Remove file" style="display: none;">&times;</button>
                         </div>
                         <div class="editor-toolbar">
                             <button class="toolbar-btn clear-btn" aria-label="Clear content" title="Clear">
@@ -96,7 +94,7 @@
                             <textarea id="html-editor"></textarea>
                         </div>
                     </div>
-                    <div class="editor-panel" data-file-type="css">
+                    <div class="editor-panel" data-file-type="css" data-file-id="default-css">
                         <div class="panel-header">
                             <input type="text" class="file-name-input" value="styles.css" aria-label="CSS file name">
                             <select class="file-type-selector" aria-label="File type">
@@ -104,7 +102,7 @@
                                 <option value="css" selected>CSS</option>
                                 <option value="javascript">JavaScript</option>
                             </select>
-                            <button class="remove-file-btn" aria-label="Remove file" style="display: none;">&times;</button>
+                            <button class="remove-file-btn" aria-label="Remove file">&times;</button>
                         </div>
                         <div class="editor-toolbar">
                             <button class="toolbar-btn clear-btn" aria-label="Clear content" title="Clear">
@@ -125,7 +123,7 @@
                             <textarea id="css-editor"></textarea>
                         </div>
                     </div>
-                    <div class="editor-panel" data-file-type="javascript">
+                    <div class="editor-panel" data-file-type="javascript" data-file-id="default-js">
                         <div class="panel-header">
                             <input type="text" class="file-name-input" value="script.js" aria-label="JavaScript file name">
                             <select class="file-type-selector" aria-label="File type">
@@ -133,7 +131,7 @@
                                 <option value="css">CSS</option>
                                 <option value="javascript" selected>JavaScript</option>
                             </select>
-                            <button class="remove-file-btn" aria-label="Remove file" style="display: none;">&times;</button>
+                            <button class="remove-file-btn" aria-label="Remove file">&times;</button>
                         </div>
                         <div class="editor-toolbar">
                             <button class="toolbar-btn clear-btn" aria-label="Clear content" title="Clear">

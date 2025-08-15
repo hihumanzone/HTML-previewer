@@ -1,6 +1,6 @@
 const CodePreviewer = {
     state: {
-        mode: 'multi',
+        mode: 'single',
         editors: {
             html: null,
             css: null,
@@ -62,6 +62,8 @@ const CodePreviewer = {
             clearConsoleBtn: document.getElementById(CONTROL_IDS.CLEAR_CONSOLE_BTN),
             singleModeRadio: document.getElementById(CONTROL_IDS.SINGLE_MODE_RADIO),
             multiModeRadio: document.getElementById(CONTROL_IDS.MULTI_MODE_RADIO),
+            singleModeOption: document.querySelector('label[for="single-mode-radio"]') || document.getElementById(CONTROL_IDS.SINGLE_MODE_RADIO).parentElement,
+            multiModeOption: document.querySelector('label[for="multi-mode-radio"]') || document.getElementById(CONTROL_IDS.MULTI_MODE_RADIO).parentElement,
             addFileBtn: document.getElementById(CONTROL_IDS.ADD_FILE_BTN),
             singleFileContainer: document.getElementById(CONTAINER_IDS.SINGLE_FILE),
             multiFileContainer: document.getElementById(CONTAINER_IDS.MULTI_FILE),
@@ -184,14 +186,26 @@ ${initialJS}
         this.dom.singleModeRadio.addEventListener('change', () => this.switchMode('single'));
         this.dom.multiModeRadio.addEventListener('change', () => this.switchMode('multi'));
         
+        // Add click handlers for mode option cards
+        this.dom.singleModeOption.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.dom.singleModeRadio.checked = true;
+            this.switchMode('single');
+        });
+        this.dom.multiModeOption.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.dom.multiModeRadio.checked = true;
+            this.switchMode('multi');
+        });
+        
         this.dom.addFileBtn.addEventListener('click', () => this.addNewFile());
     },
 
     initModeToggle() {
-        if (this.dom.multiModeRadio.checked) {
-            this.switchMode('multi');
-        } else if (this.dom.singleModeRadio.checked) {
+        if (this.dom.singleModeRadio.checked) {
             this.switchMode('single');
+        } else if (this.dom.multiModeRadio.checked) {
+            this.switchMode('multi');
         }
     },
 
@@ -327,6 +341,20 @@ ${initialJS}
     removeFile(fileId) {
         const panel = document.querySelector(`[data-file-id="${fileId}"]`);
         if (panel) {
+            // Handle default files by clearing their content instead of removing the panel
+            if (fileId === 'default-css') {
+                if (this.state.editors.css) {
+                    this.state.editors.css.setValue('');
+                }
+                return;
+            } else if (fileId === 'default-js') {
+                if (this.state.editors.js) {
+                    this.state.editors.js.setValue('');
+                }
+                return;
+            }
+            
+            // For dynamically added files, remove the panel completely
             panel.remove();
         }
         
@@ -336,13 +364,33 @@ ${initialJS}
     },
 
     updateRemoveButtonsVisibility() {
-        const allPanels = document.querySelectorAll('.editor-panel');
-        const showRemoveButtons = allPanels.length > 3;
+        // CSS and JS default files should always have visible delete buttons
+        // HTML file doesn't have a delete button
+        // Dynamic files should have delete buttons visible if there are more than the 3 default panels
+        const allPanels = document.querySelectorAll('.editor-panel[data-file-id]');
+        const dynamicPanels = document.querySelectorAll('.editor-panel[data-file-id]:not([data-file-id="default-css"]):not([data-file-id="default-js"])');
         
-        allPanels.forEach(panel => {
+        // Always show delete buttons for CSS and JS
+        const cssPanel = document.querySelector('[data-file-id="default-css"]');
+        const jsPanel = document.querySelector('[data-file-id="default-js"]');
+        
+        if (cssPanel) {
+            const cssRemoveBtn = cssPanel.querySelector('.remove-file-btn');
+            if (cssRemoveBtn) cssRemoveBtn.style.display = 'block';
+        }
+        
+        if (jsPanel) {
+            const jsRemoveBtn = jsPanel.querySelector('.remove-file-btn');
+            if (jsRemoveBtn) jsRemoveBtn.style.display = 'block';
+        }
+        
+        // For dynamic panels, show remove buttons only if there are dynamic panels
+        const showDynamicRemoveButtons = dynamicPanels.length > 0;
+        
+        dynamicPanels.forEach(panel => {
             const removeBtn = panel.querySelector('.remove-file-btn');
             if (removeBtn) {
-                removeBtn.style.display = showRemoveButtons ? 'block' : 'none';
+                removeBtn.style.display = showDynamicRemoveButtons ? 'block' : 'none';
             }
         });
     },
@@ -505,7 +553,31 @@ ${initialJS}
 
     generatePreviewContent() {
         if (this.state.mode === 'single') {
-            return this.state.editors.singleFile ? this.state.editors.singleFile.getValue() : '';
+            const singleFileContent = this.state.editors.singleFile ? this.state.editors.singleFile.getValue() : '';
+            
+            // Inject console capture script into single-file mode content
+            const captureScript = this.console.getCaptureScript();
+            
+            // Look for the closing </head> tag and inject the script before it
+            if (singleFileContent.includes('</head>')) {
+                return singleFileContent.replace('</head>', `${captureScript}\n</head>`);
+            } else {
+                // If no </head> tag found, wrap the content with full HTML structure including console capture
+                return `
+                    <!DOCTYPE html>
+                    <html lang="en">
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <title>Live Preview</title>
+                        ${captureScript}
+                    </head>
+                    <body>
+                        ${singleFileContent}
+                    </body>
+                    </html>
+                `;
+            }
         }
         
         let html = '';
