@@ -5,10 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Production-Ready Code Previewer</title>
     
-    <!-- Main Stylesheet -->
     <link rel="stylesheet" href="style.css">
     
-    <!-- CodeMirror Library CSS (from CDN) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/codemirror.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/theme/dracula.min.css">
 </head>
@@ -21,28 +19,144 @@
         </header>
 
         <main class="main-content">
-            <div class="editor-grid">
-                <!-- HTML Panel -->
-                <div class="editor-panel">
-                    <div class="panel-header">HTML</div>
-                    <label for="html-editor" class="sr-only">HTML Code Editor</label>
-                    <textarea id="html-editor"></textarea>
-                </div>
-                <!-- CSS Panel -->
-                <div class="editor-panel">
-                    <div class="panel-header">CSS</div>
-                    <label for="css-editor" class="sr-only">CSS Code Editor</label>
-                    <textarea id="css-editor"></textarea>
-                </div>
-                <!-- JavaScript Panel -->
-                <div class="editor-panel">
-                    <div class="panel-header">JavaScript</div>
-                    <label for="js-editor" class="sr-only">JavaScript Code Editor</label>
-                    <textarea id="js-editor"></textarea>
+            <div class="mode-selector">
+                <div class="mode-selector-header">Input Mode</div>
+                <div class="mode-options">
+                    <label class="mode-option">
+                        <input type="radio" name="editor-mode" value="single" id="single-mode-radio">
+                        <span>Single-File Mode</span>
+                        <small>Complete HTML with embedded CSS and JavaScript</small>
+                    </label>
+                    <label class="mode-option">
+                        <input type="radio" name="editor-mode" value="multi" id="multi-mode-radio" checked>
+                        <span>Multi-File Mode</span>
+                        <small>Separate files for HTML, CSS, and JavaScript</small>
+                    </label>
                 </div>
             </div>
 
-            <!-- Console Panel -->
+            <div id="single-file-container" class="editor-container" style="display: none;">
+                <div class="editor-panel">
+                    <div class="panel-header">
+                        <span>Complete HTML Document</span>
+                    </div>
+                    <div class="editor-toolbar">
+                        <button class="toolbar-btn clear-btn" aria-label="Clear content" title="Clear">
+                            <span class="btn-icon">🗑️</span> Clear
+                        </button>
+                        <button class="toolbar-btn paste-btn" aria-label="Paste from clipboard" title="Paste">
+                            <span class="btn-icon">📋</span> Paste
+                        </button>
+                        <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
+                            <span class="btn-icon">📄</span> Copy
+                        </button>
+                        <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
+                            <span class="btn-icon">📁</span> Collapse
+                        </button>
+                    </div>
+                    <label for="single-file-editor" class="sr-only">Complete HTML Code Editor</label>
+                    <div class="editor-wrapper">
+                        <textarea id="single-file-editor"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div id="multi-file-container" class="editor-container">
+                <div class="files-header">
+                    <span>Files</span>
+                    <button id="add-file-btn" class="add-file-btn" aria-label="Add new file">+ Add File</button>
+                </div>
+                <div class="editor-grid">
+                    <div class="editor-panel" data-file-type="html">
+                        <div class="panel-header">
+                            <input type="text" class="file-name-input" value="index.html" aria-label="HTML file name">
+                            <select class="file-type-selector" aria-label="File type">
+                                <option value="html" selected>HTML</option>
+                                <option value="css">CSS</option>
+                                <option value="javascript">JavaScript</option>
+                            </select>
+                            <button class="remove-file-btn" aria-label="Remove file" style="display: none;">&times;</button>
+                        </div>
+                        <div class="editor-toolbar">
+                            <button class="toolbar-btn clear-btn" aria-label="Clear content" title="Clear">
+                                <span class="btn-icon">🗑️</span> Clear
+                            </button>
+                            <button class="toolbar-btn paste-btn" aria-label="Paste from clipboard" title="Paste">
+                                <span class="btn-icon">📋</span> Paste
+                            </button>
+                            <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
+                                <span class="btn-icon">📄</span> Copy
+                            </button>
+                            <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
+                                <span class="btn-icon">📁</span> Collapse
+                            </button>
+                        </div>
+                        <label for="html-editor" class="sr-only">HTML Code Editor</label>
+                        <div class="editor-wrapper">
+                            <textarea id="html-editor"></textarea>
+                        </div>
+                    </div>
+                    <div class="editor-panel" data-file-type="css">
+                        <div class="panel-header">
+                            <input type="text" class="file-name-input" value="styles.css" aria-label="CSS file name">
+                            <select class="file-type-selector" aria-label="File type">
+                                <option value="html">HTML</option>
+                                <option value="css" selected>CSS</option>
+                                <option value="javascript">JavaScript</option>
+                            </select>
+                            <button class="remove-file-btn" aria-label="Remove file" style="display: none;">&times;</button>
+                        </div>
+                        <div class="editor-toolbar">
+                            <button class="toolbar-btn clear-btn" aria-label="Clear content" title="Clear">
+                                <span class="btn-icon">🗑️</span> Clear
+                            </button>
+                            <button class="toolbar-btn paste-btn" aria-label="Paste from clipboard" title="Paste">
+                                <span class="btn-icon">📋</span> Paste
+                            </button>
+                            <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
+                                <span class="btn-icon">📄</span> Copy
+                            </button>
+                            <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
+                                <span class="btn-icon">📁</span> Collapse
+                            </button>
+                        </div>
+                        <label for="css-editor" class="sr-only">CSS Code Editor</label>
+                        <div class="editor-wrapper">
+                            <textarea id="css-editor"></textarea>
+                        </div>
+                    </div>
+                    <div class="editor-panel" data-file-type="javascript">
+                        <div class="panel-header">
+                            <input type="text" class="file-name-input" value="script.js" aria-label="JavaScript file name">
+                            <select class="file-type-selector" aria-label="File type">
+                                <option value="html">HTML</option>
+                                <option value="css">CSS</option>
+                                <option value="javascript" selected>JavaScript</option>
+                            </select>
+                            <button class="remove-file-btn" aria-label="Remove file" style="display: none;">&times;</button>
+                        </div>
+                        <div class="editor-toolbar">
+                            <button class="toolbar-btn clear-btn" aria-label="Clear content" title="Clear">
+                                <span class="btn-icon">🗑️</span> Clear
+                            </button>
+                            <button class="toolbar-btn paste-btn" aria-label="Paste from clipboard" title="Paste">
+                                <span class="btn-icon">📋</span> Paste
+                            </button>
+                            <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
+                                <span class="btn-icon">📄</span> Copy
+                            </button>
+                            <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
+                                <span class="btn-icon">📁</span> Collapse
+                            </button>
+                        </div>
+                        <label for="js-editor" class="sr-only">JavaScript Code Editor</label>
+                        <div class="editor-wrapper">
+                            <textarea id="js-editor"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="console-panel">
                 <div class="panel-header">
                     <span>Console</span>
@@ -51,7 +165,6 @@
                 <div id="console-output" role="log" aria-live="polite"></div>
             </div>
 
-            <!-- Action Controls -->
             <div class="controls">
                 <button id="preview-modal-btn" class="btn">Preview in Modal</button>
                 <button id="preview-tab-btn" class="btn">Open in New Tab</button>
@@ -59,7 +172,6 @@
         </main>
     </div>
 
-    <!-- Modal for Preview -->
     <div id="preview-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-hidden="true">
         <div class="modal-content">
             <div class="modal-header">
@@ -70,7 +182,6 @@
         </div>
     </div>
 
-    <!-- CodeMirror Library JS (from CDN) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/mode/xml/xml.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/mode/javascript/javascript.min.js"></script>
@@ -78,7 +189,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/mode/htmlmixed/htmlmixed.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/addon/edit/closetag.min.js"></script>
     
-    <!-- Application Logic -->
     <script src="script.js"></script>
 
 </body>

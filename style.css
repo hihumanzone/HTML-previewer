@@ -1,10 +1,4 @@
-/* ---
-   Main Stylesheet for Code Previewer
-   --- */
 
-/* ------------------------- */
-/* --- Global & Variables -- */
-/* ------------------------- */
 :root {
     --bg-color: #1e1e2e;
     --primary-color: #cdd6f4;
@@ -30,13 +24,13 @@ body {
     line-height: 1.6;
 }
 
-/* For keyboard navigation users */
+
 :focus-visible {
     outline: 2px solid var(--accent-color);
     outline-offset: 2px;
 }
 
-/* Accessibility class to hide elements visually but keep them for screen readers */
+
 .sr-only {
     position: absolute;
     width: 1px;
@@ -49,9 +43,7 @@ body {
     border: 0;
 }
 
-/* ------------------------- */
-/* --- Main Layout --------- */
-/* ------------------------- */
+
 .container {
     max-width: 95%;
     margin: 0 auto;
@@ -76,9 +68,149 @@ body {
     gap: 2rem;
 }
 
-/* ------------------------- */
-/* --- Editors & Panels ---- */
-/* ------------------------- */
+
+.mode-selector {
+    background-color: var(--secondary-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.mode-selector-header {
+    font-weight: bold;
+    font-size: 1.1rem;
+    color: var(--accent-color);
+    margin-bottom: 1rem;
+}
+
+.mode-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+}
+
+.mode-option {
+    display: flex;
+    flex-direction: column;
+    padding: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: border-color 0.2s, background-color 0.2s;
+    background-color: var(--header-bg);
+}
+
+.mode-option:hover {
+    border-color: var(--accent-color);
+    background-color: var(--secondary-color);
+}
+
+.mode-option input[type="radio"] {
+    margin-bottom: 0.5rem;
+}
+
+.mode-option span {
+    font-weight: bold;
+    margin-bottom: 0.25rem;
+}
+
+.mode-option small {
+    color: var(--primary-color);
+    opacity: 0.8;
+}
+
+
+.editor-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.files-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.files-header span {
+    font-weight: bold;
+    font-size: 1.1rem;
+    color: var(--accent-color);
+}
+
+.add-file-btn {
+    background-color: var(--accent-color);
+    color: var(--bg-color);
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.add-file-btn:hover {
+    background-color: #a6caff;
+}
+
+
+.file-name-input {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--accent-color);
+    font-weight: bold;
+    font-size: 0.8rem;
+    text-transform: none;
+    letter-spacing: normal;
+    padding: 0.25rem 0.5rem;
+    border-radius: 3px;
+    min-width: 100px;
+    margin-right: 0.5rem;
+}
+
+.file-name-input:hover,
+.file-name-input:focus {
+    border-color: var(--accent-color);
+    background-color: var(--secondary-color);
+}
+
+.file-type-selector {
+    background-color: var(--secondary-color);
+    color: var(--primary-color);
+    border: 1px solid var(--border-color);
+    padding: 0.25rem 0.5rem;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    margin-right: 0.5rem;
+}
+
+.remove-file-btn {
+    background: none;
+    border: none;
+    color: var(--error-color);
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 3px;
+    transition: background-color 0.2s;
+}
+
+.remove-file-btn:hover {
+    background-color: rgba(243, 139, 168, 0.2);
+}
+
+.panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+
 .editor-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -108,16 +240,14 @@ body {
     align-items: center;
 }
 
-/* CodeMirror specific styles */
+
 .CodeMirror {
     height: 400px;
     font-size: 15px;
     flex-grow: 1;
 }
 
-/* ------------------------- */
-/* --- Console Panel ------- */
-/* ------------------------- */
+
 #console-output {
     height: 150px;
     padding: 0.75rem;
@@ -149,9 +279,62 @@ body {
 }
 .clear-btn:hover { background-color: var(--secondary-color); }
 
-/* ------------------------- */
-/* --- Controls & Buttons -- */
-/* ------------------------- */
+
+.editor-toolbar {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background-color: var(--secondary-color);
+    border-bottom: 1px solid var(--border-color);
+    flex-wrap: wrap;
+}
+
+.toolbar-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    background-color: var(--header-bg);
+    border: 1px solid var(--border-color);
+    color: var(--primary-color);
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: inherit;
+}
+
+.toolbar-btn:hover {
+    background-color: var(--accent-color);
+    color: var(--bg-color);
+    transform: translateY(-1px);
+}
+
+.toolbar-btn:active {
+    transform: translateY(0);
+}
+
+.toolbar-btn .btn-icon {
+    font-size: 0.8rem;
+}
+
+.toolbar-btn.collapsed {
+    background-color: var(--warn-color);
+    color: var(--bg-color);
+}
+
+.editor-wrapper {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s ease;
+}
+
+.editor-wrapper.collapsed {
+    display: none;
+}
+
+
 .controls { display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap; }
 
 .btn {
@@ -167,9 +350,7 @@ body {
 }
 .btn:hover { background-color: #a6caff; transform: translateY(-2px); }
 
-/* ------------------------- */
-/* --- Modal --------------- */
-/* ------------------------- */
+
 .modal-overlay {
     position: fixed; top: 0; left: 0;
     width: 100%; height: 100%;
@@ -220,9 +401,7 @@ body {
     border: none; background-color: #fff;
 }
 
-/* ------------------------- */
-/* --- Responsive Design --- */
-/* ------------------------- */
+
 @media (max-width: 900px) {
     .CodeMirror { height: 350px; }
 }
