@@ -21,24 +21,83 @@
         </header>
 
         <main class="main-content">
-            <div class="editor-grid">
-                <!-- HTML Panel -->
-                <div class="editor-panel">
-                    <div class="panel-header">HTML</div>
-                    <label for="html-editor" class="sr-only">HTML Code Editor</label>
-                    <textarea id="html-editor"></textarea>
+            <!-- Mode Selector -->
+            <div class="mode-selector">
+                <div class="mode-selector-header">Input Mode</div>
+                <div class="mode-options">
+                    <label class="mode-option">
+                        <input type="radio" name="editor-mode" value="single" id="single-mode-radio">
+                        <span>Single-File Mode</span>
+                        <small>Complete HTML with embedded CSS and JavaScript</small>
+                    </label>
+                    <label class="mode-option">
+                        <input type="radio" name="editor-mode" value="multi" id="multi-mode-radio" checked>
+                        <span>Multi-File Mode</span>
+                        <small>Separate files for HTML, CSS, and JavaScript</small>
+                    </label>
                 </div>
-                <!-- CSS Panel -->
+            </div>
+
+            <!-- Single File Editor (hidden by default) -->
+            <div id="single-file-container" class="editor-container" style="display: none;">
                 <div class="editor-panel">
-                    <div class="panel-header">CSS</div>
-                    <label for="css-editor" class="sr-only">CSS Code Editor</label>
-                    <textarea id="css-editor"></textarea>
+                    <div class="panel-header">
+                        <span>Complete HTML Document</span>
+                    </div>
+                    <label for="single-file-editor" class="sr-only">Complete HTML Code Editor</label>
+                    <textarea id="single-file-editor"></textarea>
                 </div>
-                <!-- JavaScript Panel -->
-                <div class="editor-panel">
-                    <div class="panel-header">JavaScript</div>
-                    <label for="js-editor" class="sr-only">JavaScript Code Editor</label>
-                    <textarea id="js-editor"></textarea>
+            </div>
+
+            <!-- Multi File Editor -->
+            <div id="multi-file-container" class="editor-container">
+                <div class="files-header">
+                    <span>Files</span>
+                    <button id="add-file-btn" class="add-file-btn" aria-label="Add new file">+ Add File</button>
+                </div>
+                <div class="editor-grid">
+                    <!-- HTML Panel -->
+                    <div class="editor-panel" data-file-type="html">
+                        <div class="panel-header">
+                            <input type="text" class="file-name-input" value="index.html" aria-label="HTML file name">
+                            <select class="file-type-selector" aria-label="File type">
+                                <option value="html" selected>HTML</option>
+                                <option value="css">CSS</option>
+                                <option value="javascript">JavaScript</option>
+                            </select>
+                            <button class="remove-file-btn" aria-label="Remove file" style="display: none;">&times;</button>
+                        </div>
+                        <label for="html-editor" class="sr-only">HTML Code Editor</label>
+                        <textarea id="html-editor"></textarea>
+                    </div>
+                    <!-- CSS Panel -->
+                    <div class="editor-panel" data-file-type="css">
+                        <div class="panel-header">
+                            <input type="text" class="file-name-input" value="styles.css" aria-label="CSS file name">
+                            <select class="file-type-selector" aria-label="File type">
+                                <option value="html">HTML</option>
+                                <option value="css" selected>CSS</option>
+                                <option value="javascript">JavaScript</option>
+                            </select>
+                            <button class="remove-file-btn" aria-label="Remove file" style="display: none;">&times;</button>
+                        </div>
+                        <label for="css-editor" class="sr-only">CSS Code Editor</label>
+                        <textarea id="css-editor"></textarea>
+                    </div>
+                    <!-- JavaScript Panel -->
+                    <div class="editor-panel" data-file-type="javascript">
+                        <div class="panel-header">
+                            <input type="text" class="file-name-input" value="script.js" aria-label="JavaScript file name">
+                            <select class="file-type-selector" aria-label="File type">
+                                <option value="html">HTML</option>
+                                <option value="css">CSS</option>
+                                <option value="javascript" selected>JavaScript</option>
+                            </select>
+                            <button class="remove-file-btn" aria-label="Remove file" style="display: none;">&times;</button>
+                        </div>
+                        <label for="js-editor" class="sr-only">JavaScript Code Editor</label>
+                        <textarea id="js-editor"></textarea>
+                    </div>
                 </div>
             </div>
 
