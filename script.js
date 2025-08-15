@@ -1,26 +1,18 @@
-/**
- * CodePreviewer
- * A self-contained module for a multi-panel HTML/CSS/JS code editor and previewer.
- */
-
 const CodePreviewer = {
-    // Application state
     state: {
-        mode: 'multi', // 'single' or 'multi'
+        mode: 'multi',
         editors: {
             html: null,
             css: null,
             js: null,
             singleFile: null,
         },
-        files: [], // For multi-file mode dynamic files
-        nextFileId: 4, // Start from 4 since we have 3 default files
+        files: [],
+        nextFileId: 4,
     },
 
-    // Cached DOM elements
     dom: {},
 
-    // Application constants
     constants: {
         EDITOR_IDS: {
             HTML: 'html-editor',
@@ -49,9 +41,6 @@ const CodePreviewer = {
         CONSOLE_MESSAGE_TYPE: 'console',
     },
 
-    /**
-     * Initializes the application.
-     */
     init() {
         this.cacheDOMElements();
         this.initEditors();
@@ -61,9 +50,6 @@ const CodePreviewer = {
         this.console.init(this.dom.consoleOutput, this.dom.clearConsoleBtn, this.dom.previewFrame);
     },
 
-    /**
-     * Queries and caches all necessary DOM elements for performance.
-     */
     cacheDOMElements() {
         const { EDITOR_IDS, CONTROL_IDS, MODAL_IDS, CONSOLE_ID, CONTAINER_IDS } = this.constants;
         this.dom = {
@@ -87,11 +73,7 @@ const CodePreviewer = {
         };
     },
 
-    /**
-     * Initializes CodeMirror instances for each panel.
-     */
     initEditors() {
-        // Check if CodeMirror is available
         if (typeof CodeMirror === 'undefined') {
             console.warn('CodeMirror not available, using fallback textarea editors');
             this.initFallbackEditors();
@@ -106,7 +88,6 @@ const CodePreviewer = {
             lineWrapping: true,
         });
 
-        // Initialize default editors
         if (this.dom.htmlEditor) {
             this.state.editors.html = CodeMirror.fromTextArea(this.dom.htmlEditor, editorConfig('htmlmixed'));
         }
@@ -123,31 +104,21 @@ const CodePreviewer = {
         this.setDefaultContent();
     },
 
-    /**
-     * Fallback editor initialization when CodeMirror is not available.
-     */
     initFallbackEditors() {
-        // Create mock editors that work with regular textareas
         const createMockEditor = (textarea) => {
             if (!textarea) return null;
             
-            // Style the textarea to look better
-            textarea.style.fontFamily = 'monospace';
-            textarea.style.fontSize = '14px';
-            textarea.style.lineHeight = '1.5';
-            textarea.style.resize = 'none';
-            textarea.style.border = 'none';
-            textarea.style.outline = 'none';
-            textarea.style.background = '#282a36';
-            textarea.style.color = '#f8f8f2';
-            textarea.style.padding = '1rem';
-            textarea.style.width = '100%';
-            textarea.style.height = '400px';
+            Object.assign(textarea.style, {
+                fontFamily: 'monospace', fontSize: '14px', lineHeight: '1.5',
+                resize: 'none', border: 'none', outline: 'none',
+                background: '#282a36', color: '#f8f8f2', padding: '1rem',
+                width: '100%', height: '400px'
+            });
             
             return {
                 setValue: (value) => textarea.value = value,
                 getValue: () => textarea.value,
-                refresh: () => {}, // No-op for mock
+                refresh: () => {},
             };
         };
 
@@ -159,15 +130,11 @@ const CodePreviewer = {
         this.setDefaultContent();
     },
     
-    /**
-     * Sets initial content for the editors to provide a demo.
-     */
     setDefaultContent() {
         const initialHTML = `<h1>Hello, World!</h1>\n<p>This is a test of the live previewer.</p>\n<button onclick="testFunction()">Run JS</button>`;
         const initialCSS = `body { \n  font-family: sans-serif; \n  padding: 2rem;\n  color: #333;\n}\nbutton {\n  padding: 8px 16px;\n  border-radius: 4px;\n  cursor: pointer;\n}`;
-        const initialJS = `console.log("Preview initialized.");\n\nfunction testFunction() {\n  console.log("Button was clicked!");\n  // This will throw an error to test the console\n  try {\n    undefinedFunction();\n  } catch(e) {\n    console.error("Caught an error:", e.message);\n  }\n}`;
+        const initialJS = `console.log("Preview initialized.");\n\nfunction testFunction() {\n  console.log("Button was clicked!");\n  try {\n    undefinedFunction();\n  } catch(e) {\n    console.error("Caught an error:", e.message);\n  }\n}`;
         
-        // Set content for multi-file mode
         if (this.state.editors.html) {
             this.state.editors.html.setValue(initialHTML);
         }
@@ -178,7 +145,6 @@ const CodePreviewer = {
             this.state.editors.js.setValue(initialJS);
         }
 
-        // Set content for single-file mode
         const singleFileContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -202,9 +168,6 @@ ${initialJS}
         }
     },
 
-    /**
-     * Binds all application event listeners.
-     */
     bindEvents() {
         this.dom.modalBtn.addEventListener('click', () => this.renderPreview('modal'));
         this.dom.tabBtn.addEventListener('click', () => this.renderPreview('tab'));
@@ -218,19 +181,13 @@ ${initialJS}
             }
         });
 
-        // Mode switching events
         this.dom.singleModeRadio.addEventListener('change', () => this.switchMode('single'));
         this.dom.multiModeRadio.addEventListener('change', () => this.switchMode('multi'));
         
-        // Add file button
         this.dom.addFileBtn.addEventListener('click', () => this.addNewFile());
     },
 
-    /**
-     * Initializes mode toggle functionality.
-     */
     initModeToggle() {
-        // Set initial mode based on radio button
         if (this.dom.multiModeRadio.checked) {
             this.switchMode('multi');
         } else if (this.dom.singleModeRadio.checked) {
@@ -238,10 +195,6 @@ ${initialJS}
         }
     },
 
-    /**
-     * Switches between single-file and multi-file modes.
-     * @param {string} mode - 'single' or 'multi'
-     */
     switchMode(mode) {
         this.state.mode = mode;
         
@@ -253,7 +206,6 @@ ${initialJS}
             this.dom.multiFileContainer.style.display = 'flex';
         }
 
-        // Refresh CodeMirror instances when switching modes
         setTimeout(() => {
             if (mode === 'single' && this.state.editors.singleFile) {
                 this.state.editors.singleFile.refresh();
@@ -265,9 +217,6 @@ ${initialJS}
         }, 100);
     },
 
-    /**
-     * Adds a new file to the multi-file editor.
-     */
     addNewFile() {
         const fileId = `file-${this.state.nextFileId++}`;
         const fileName = `newfile.html`;
@@ -306,12 +255,10 @@ ${initialJS}
         
         this.dom.editorGrid.insertAdjacentHTML('beforeend', panelHTML);
         
-        // Initialize editor for the new textarea
         const newTextarea = document.getElementById(fileId);
         let newEditor;
         
         if (typeof CodeMirror !== 'undefined') {
-            // Use CodeMirror if available
             newEditor = CodeMirror.fromTextArea(newTextarea, {
                 lineNumbers: true,
                 mode: 'htmlmixed',
@@ -320,45 +267,32 @@ ${initialJS}
                 lineWrapping: true,
             });
         } else {
-            // Use fallback mock editor
-            newTextarea.style.fontFamily = 'monospace';
-            newTextarea.style.fontSize = '14px';
-            newTextarea.style.lineHeight = '1.5';
-            newTextarea.style.resize = 'none';
-            newTextarea.style.border = 'none';
-            newTextarea.style.outline = 'none';
-            newTextarea.style.background = '#282a36';
-            newTextarea.style.color = '#f8f8f2';
-            newTextarea.style.padding = '1rem';
-            newTextarea.style.width = '100%';
-            newTextarea.style.height = '400px';
+            Object.assign(newTextarea.style, {
+                fontFamily: 'monospace', fontSize: '14px', lineHeight: '1.5',
+                resize: 'none', border: 'none', outline: 'none',
+                background: '#282a36', color: '#f8f8f2', padding: '1rem',
+                width: '100%', height: '400px'
+            });
             
             newEditor = {
                 setValue: (value) => newTextarea.value = value,
                 getValue: () => newTextarea.value,
                 refresh: () => {},
-                setOption: () => {}, // No-op for mock
+                setOption: () => {},
             };
         }
         
-        // Store reference to the editor
         this.state.files.push({
             id: fileId,
             editor: newEditor,
             type: 'html'
         });
         
-        // Bind events for the new panel
         this.bindFilePanelEvents(document.querySelector(`[data-file-id="${fileId}"]`));
         
-        // Show remove buttons for all files if more than 3
         this.updateRemoveButtonsVisibility();
     },
 
-    /**
-     * Binds events for a file panel (file type change, remove, toolbar actions, etc.).
-     * @param {HTMLElement} panel - The panel element
-     */
     bindFilePanelEvents(panel) {
         const typeSelector = panel.querySelector('.file-type-selector');
         const removeBtn = panel.querySelector('.remove-file-btn');
@@ -369,7 +303,6 @@ ${initialJS}
                 const newType = e.target.value;
                 panel.dataset.fileType = newType;
                 
-                // Update CodeMirror mode
                 const fileInfo = this.state.files.find(f => f.id === fileId);
                 if (fileInfo) {
                     fileInfo.type = newType;
@@ -388,29 +321,20 @@ ${initialJS}
             });
         }
 
-        // Bind toolbar events
         this.bindToolbarEvents(panel);
     },
 
-    /**
-     * Removes a file from the multi-file editor.
-     * @param {string} fileId - The ID of the file to remove
-     */
     removeFile(fileId) {
         const panel = document.querySelector(`[data-file-id="${fileId}"]`);
         if (panel) {
             panel.remove();
         }
         
-        // Remove from state
         this.state.files = this.state.files.filter(f => f.id !== fileId);
         
         this.updateRemoveButtonsVisibility();
     },
 
-    /**
-     * Updates visibility of remove buttons based on file count.
-     */
     updateRemoveButtonsVisibility() {
         const allPanels = document.querySelectorAll('.editor-panel');
         const showRemoveButtons = allPanels.length > 3;
@@ -423,9 +347,6 @@ ${initialJS}
         });
     },
 
-    /**
-     * Initializes events for existing file panels.
-     */
     initExistingFilePanels() {
         const existingPanels = document.querySelectorAll('.editor-panel[data-file-type]');
         existingPanels.forEach(panel => {
@@ -433,17 +354,12 @@ ${initialJS}
         });
         this.updateRemoveButtonsVisibility();
         
-        // Also bind toolbar events for single-file container
         const singleFilePanel = document.querySelector('#single-file-container .editor-panel');
         if (singleFilePanel) {
             this.bindToolbarEvents(singleFilePanel);
         }
     },
 
-    /**
-     * Binds toolbar events for a panel.
-     * @param {HTMLElement} panel - The panel element
-     */
     bindToolbarEvents(panel) {
         const clearBtn = panel.querySelector('.clear-btn');
         const pasteBtn = panel.querySelector('.paste-btn');
@@ -467,10 +383,6 @@ ${initialJS}
         }
     },
 
-    /**
-     * Clears the content of an editor.
-     * @param {HTMLElement} panel - The panel element
-     */
     clearEditor(panel) {
         const editor = this.getEditorFromPanel(panel);
         if (editor) {
@@ -478,10 +390,6 @@ ${initialJS}
         }
     },
 
-    /**
-     * Pastes content from clipboard to an editor.
-     * @param {HTMLElement} panel - The panel element
-     */
     async pasteFromClipboard(panel) {
         try {
             const text = await navigator.clipboard.readText();
@@ -491,15 +399,10 @@ ${initialJS}
             }
         } catch (error) {
             console.warn('Failed to paste from clipboard:', error);
-            // Fallback: show a message to the user
             this.showNotification('Unable to paste from clipboard. Please paste manually (Ctrl+V).', 'warn');
         }
     },
 
-    /**
-     * Copies editor content to clipboard.
-     * @param {HTMLElement} panel - The panel element
-     */
     async copyToClipboard(panel) {
         try {
             const editor = this.getEditorFromPanel(panel);
@@ -514,10 +417,6 @@ ${initialJS}
         }
     },
 
-    /**
-     * Toggles the collapse state of an editor.
-     * @param {HTMLElement} panel - The panel element
-     */
     toggleEditorCollapse(panel) {
         const editorWrapper = panel.querySelector('.editor-wrapper');
         const collapseBtn = panel.querySelector('.collapse-btn');
@@ -530,7 +429,6 @@ ${initialJS}
                 collapseBtn.classList.remove('collapsed');
                 collapseBtn.innerHTML = '<span class="btn-icon">📁</span> Collapse';
                 
-                // Refresh editor after expanding
                 setTimeout(() => {
                     const editor = this.getEditorFromPanel(panel);
                     if (editor && editor.refresh) {
@@ -545,18 +443,11 @@ ${initialJS}
         }
     },
 
-    /**
-     * Gets the editor instance from a panel.
-     * @param {HTMLElement} panel - The panel element
-     * @returns {Object|null} The editor instance
-     */
     getEditorFromPanel(panel) {
-        // Check if it's the single-file editor
         if (panel.closest('#single-file-container')) {
             return this.state.editors.singleFile;
         }
         
-        // Check default editors
         const textarea = panel.querySelector('textarea');
         if (textarea) {
             const textareaId = textarea.id;
@@ -565,7 +456,6 @@ ${initialJS}
             if (textareaId === 'js-editor') return this.state.editors.js;
         }
         
-        // Check dynamic files
         const fileId = panel.dataset.fileId;
         if (fileId) {
             const fileInfo = this.state.files.find(f => f.id === fileId);
@@ -575,79 +465,53 @@ ${initialJS}
         return null;
     },
 
-    /**
-     * Shows a notification message to the user.
-     * @param {string} message - The message to show
-     * @param {string} type - The type of notification ('success', 'warn', 'error')
-     */
     showNotification(message, type = 'info') {
-        // Create notification element if it doesn't exist
         let notification = document.getElementById('notification');
         if (!notification) {
             notification = document.createElement('div');
             notification.id = 'notification';
             notification.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                background: var(--secondary-color);
-                color: var(--primary-color);
-                padding: 1rem;
-                border-radius: 8px;
-                border: 1px solid var(--border-color);
-                z-index: 2000;
-                opacity: 0;
-                transform: translateX(100%);
-                transition: all 0.3s ease;
-                max-width: 300px;
+                position: fixed; top: 20px; right: 20px; background: var(--secondary-color);
+                color: var(--primary-color); padding: 1rem; border-radius: 8px;
+                border: 1px solid var(--border-color); z-index: 2000; opacity: 0;
+                transform: translateX(100%); transition: all 0.3s ease; max-width: 300px;
                 box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             `;
             document.body.appendChild(notification);
         }
         
-        // Set message and type-specific styling
         notification.textContent = message;
         notification.className = `notification-${type}`;
         
-        // Apply type-specific colors
-        if (type === 'success') {
-            notification.style.borderColor = 'var(--accent-color)';
-            notification.style.background = 'rgba(137, 180, 250, 0.1)';
-        } else if (type === 'warn') {
-            notification.style.borderColor = 'var(--warn-color)';
-            notification.style.background = 'rgba(250, 179, 135, 0.1)';
-        } else if (type === 'error') {
-            notification.style.borderColor = 'var(--error-color)';
-            notification.style.background = 'rgba(243, 139, 168, 0.1)';
+        const colors = {
+            success: { border: 'var(--accent-color)', bg: 'rgba(137, 180, 250, 0.1)' },
+            warn: { border: 'var(--warn-color)', bg: 'rgba(250, 179, 135, 0.1)' },
+            error: { border: 'var(--error-color)', bg: 'rgba(243, 139, 168, 0.1)' }
+        };
+        
+        if (colors[type]) {
+            notification.style.borderColor = colors[type].border;
+            notification.style.background = colors[type].bg;
         }
         
-        // Show notification
         notification.style.opacity = '1';
         notification.style.transform = 'translateX(0)';
         
-        // Hide after delay
         setTimeout(() => {
             notification.style.opacity = '0';
             notification.style.transform = 'translateX(100%)';
         }, 3000);
     },
 
-    /**
-     * Generates the complete HTML document for preview.
-     * @returns {string} The full HTML string.
-     */
     generatePreviewContent() {
         if (this.state.mode === 'single') {
-            // In single-file mode, return the content as-is
             return this.state.editors.singleFile ? this.state.editors.singleFile.getValue() : '';
         }
         
-        // Multi-file mode - collect HTML, CSS, and JavaScript from all files
         let html = '';
         let css = '';
         let js = '';
         
-        // Get content from default editors
         if (this.state.editors.html) {
             html += this.state.editors.html.getValue();
         }
@@ -658,7 +522,6 @@ ${initialJS}
             js += this.state.editors.js.getValue();
         }
         
-        // Get content from dynamic files
         this.state.files.forEach(file => {
             const content = file.editor.getValue();
             if (file.type === 'html') {
@@ -683,7 +546,6 @@ ${initialJS}
             <body>
                 ${html}
                 <script>
-                    // Wrap user code in a try-catch block to handle syntax errors gracefully
                     try {
                         ${js}
                     } catch (err) {
@@ -695,16 +557,11 @@ ${initialJS}
         `;
     },
 
-    /**
-     * Renders the preview in the specified target.
-     * @param {'modal' | 'tab'} target - The destination for the preview.
-     */
     renderPreview(target) {
         const content = this.generatePreviewContent();
         
         if (target === 'modal') {
             this.console.clear();
-            // Use srcdoc for security and efficiency in iframes
             this.dom.previewFrame.srcdoc = content;
             this.toggleModal(true);
         } else if (target === 'tab') {
@@ -712,24 +569,16 @@ ${initialJS}
                 const blob = new Blob([content], { type: 'text/html' });
                 const url = URL.createObjectURL(blob);
                 window.open(url, '_blank');
-                // The browser will automatically revoke the URL when the tab is closed.
             } catch (e) {
                 console.error("Failed to create or open new tab:", e);
             }
         }
     },
 
-    /**
-     * Shows or hides the preview modal with accessibility considerations.
-     * @param {boolean} show - True to show, false to hide.
-     */
     toggleModal(show) {
         this.dom.modalOverlay.setAttribute('aria-hidden', !show);
     },
 
-    /**
-     * Console-related functionalities.
-     */
     console: {
         init(outputEl, clearBtn, previewFrame) {
             this.outputEl = outputEl;
@@ -754,20 +603,14 @@ ${initialJS}
 
             el.textContent = `> ${messageText}`;
             this.outputEl.appendChild(el);
-            // Auto-scroll to the bottom
             this.outputEl.scrollTop = this.outputEl.scrollHeight;
         },
         handleMessage(event) {
-            // Security: Ensure the message is from our preview iframe and has the correct type
             const { CONSOLE_MESSAGE_TYPE } = CodePreviewer.constants;
             if (event.source === this.previewFrame.contentWindow && event.data.type === CONSOLE_MESSAGE_TYPE) {
                 this.log(event.data);
             }
         },
-        /**
-         * Returns the script to be injected into the iframe to capture console logs and errors.
-         * @returns {string} The script tag as a string.
-         */
         getCaptureScript() {
             const MESSAGE_TYPE = CodePreviewer.constants.CONSOLE_MESSAGE_TYPE;
             return `
@@ -800,5 +643,4 @@ ${initialJS}
     },
 };
 
-// Start the application once the DOM is ready
 document.addEventListener('DOMContentLoaded', () => CodePreviewer.init());

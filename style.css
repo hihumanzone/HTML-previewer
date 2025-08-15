@@ -1,10 +1,4 @@
-/* ---
-   Main Stylesheet for Code Previewer
-   --- */
 
-/* ------------------------- */
-/* --- Global & Variables -- */
-/* ------------------------- */
 :root {
     --bg-color: #1e1e2e;
     --primary-color: #cdd6f4;
@@ -30,13 +24,13 @@ body {
     line-height: 1.6;
 }
 
-/* For keyboard navigation users */
+
 :focus-visible {
     outline: 2px solid var(--accent-color);
     outline-offset: 2px;
 }
 
-/* Accessibility class to hide elements visually but keep them for screen readers */
+
 .sr-only {
     position: absolute;
     width: 1px;
@@ -49,9 +43,7 @@ body {
     border: 0;
 }
 
-/* ------------------------- */
-/* --- Main Layout --------- */
-/* ------------------------- */
+
 .container {
     max-width: 95%;
     margin: 0 auto;
@@ -76,9 +68,7 @@ body {
     gap: 2rem;
 }
 
-/* ------------------------- */
-/* --- Mode Selector ------- */
-/* ------------------------- */
+
 .mode-selector {
     background-color: var(--secondary-color);
     border: 1px solid var(--border-color);
@@ -130,9 +120,7 @@ body {
     opacity: 0.8;
 }
 
-/* ------------------------- */
-/* --- Editor Containers --- */
-/* ------------------------- */
+
 .editor-container {
     display: flex;
     flex-direction: column;
@@ -168,9 +156,7 @@ body {
     background-color: #a6caff;
 }
 
-/* ------------------------- */
-/* --- Enhanced Panels ----- */
-/* ------------------------- */
+
 .file-name-input {
     background: transparent;
     border: 1px solid transparent;
@@ -224,9 +210,7 @@ body {
     gap: 0.5rem;
 }
 
-/* ------------------------- */
-/* --- Editors & Panels ---- */
-/* ------------------------- */
+
 .editor-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -256,16 +240,14 @@ body {
     align-items: center;
 }
 
-/* CodeMirror specific styles */
+
 .CodeMirror {
     height: 400px;
     font-size: 15px;
     flex-grow: 1;
 }
 
-/* ------------------------- */
-/* --- Console Panel ------- */
-/* ------------------------- */
+
 #console-output {
     height: 150px;
     padding: 0.75rem;
@@ -297,9 +279,7 @@ body {
 }
 .clear-btn:hover { background-color: var(--secondary-color); }
 
-/* ------------------------- */
-/* --- Editor Toolbar ------ */
-/* ------------------------- */
+
 .editor-toolbar {
     display: flex;
     gap: 0.5rem;
@@ -354,9 +334,7 @@ body {
     display: none;
 }
 
-/* ------------------------- */
-/* --- Controls & Buttons -- */
-/* ------------------------- */
+
 .controls { display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap; }
 
 .btn {
@@ -372,9 +350,7 @@ body {
 }
 .btn:hover { background-color: #a6caff; transform: translateY(-2px); }
 
-/* ------------------------- */
-/* --- Modal --------------- */
-/* ------------------------- */
+
 .modal-overlay {
     position: fixed; top: 0; left: 0;
     width: 100%; height: 100%;
@@ -425,9 +401,7 @@ body {
     border: none; background-color: #fff;
 }
 
-/* ------------------------- */
-/* --- Responsive Design --- */
-/* ------------------------- */
+
 @media (max-width: 900px) {
     .CodeMirror { height: 350px; }
 }
