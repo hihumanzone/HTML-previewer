@@ -1068,10 +1068,9 @@ const CodePreviewer = {
         const styles = [];
         let remainingContent = content;
         
-        // Extract all <style> tags and their content
         remainingContent = remainingContent.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (match, styleContent) => {
             styles.push(styleContent);
-            return ''; // Remove the style tag from the content
+            return '';
         });
         
         return {
@@ -1114,13 +1113,11 @@ const CodePreviewer = {
         this.state.files.forEach(file => {
             const content = file.editor.getValue();
             if (file.type === 'html') {
-                // First extract any embedded styles
                 const { styles, contentWithoutStyles } = this.extractStylesFromHTML(content);
                 if (styles) {
                     css += '\n' + styles;
                 }
                 
-                // Then extract HTML content and process scripts
                 let htmlContent = this.extractHTMLContent(contentWithoutStyles);
                 htmlContent = this.processHTMLScripts(htmlContent, jsFiles, moduleFiles);
                 html += '\n' + htmlContent;
