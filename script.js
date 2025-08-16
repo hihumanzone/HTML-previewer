@@ -62,8 +62,8 @@ const CodePreviewer = {
             clearConsoleBtn: document.getElementById(CONTROL_IDS.CLEAR_CONSOLE_BTN),
             singleModeRadio: document.getElementById(CONTROL_IDS.SINGLE_MODE_RADIO),
             multiModeRadio: document.getElementById(CONTROL_IDS.MULTI_MODE_RADIO),
-            singleModeOption: document.querySelector('label[for="single-mode-radio"]') || document.getElementById(CONTROL_IDS.SINGLE_MODE_RADIO).parentElement,
-            multiModeOption: document.querySelector('label[for="multi-mode-radio"]') || document.getElementById(CONTROL_IDS.MULTI_MODE_RADIO).parentElement,
+            singleModeOption: document.querySelector('label[for="single-mode-radio"]') || this.getSafeParentElement(CONTROL_IDS.SINGLE_MODE_RADIO),
+            multiModeOption: document.querySelector('label[for="multi-mode-radio"]') || this.getSafeParentElement(CONTROL_IDS.MULTI_MODE_RADIO),
             addFileBtn: document.getElementById(CONTROL_IDS.ADD_FILE_BTN),
             singleFileContainer: document.getElementById(CONTAINER_IDS.SINGLE_FILE),
             multiFileContainer: document.getElementById(CONTAINER_IDS.MULTI_FILE),
@@ -73,6 +73,11 @@ const CodePreviewer = {
             consoleOutput: document.getElementById(CONSOLE_ID),
             editorGrid: document.querySelector('.editor-grid'),
         };
+    },
+
+    getSafeParentElement(elementId) {
+        const element = document.getElementById(elementId);
+        return element ? element.parentElement : null;
     },
 
     initEditors() {
@@ -147,23 +152,23 @@ const CodePreviewer = {
             this.state.editors.js.setValue(initialJS);
         }
 
-        const singleFileContent = `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Page</title>
-    <style>
-${initialCSS}
-    </style>
-</head>
-<body>
-    ${initialHTML}
-    <script>
-${initialJS}
-    </script>
-</body>
-</html>`;
+        const singleFileContent = '<!DOCTYPE html>\n' +
+            '<html lang="en">\n' +
+            '<head>\n' +
+            '    <meta charset="UTF-8">\n' +
+            '    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
+            '    <title>My Page</title>\n' +
+            '    <style>\n' +
+            initialCSS + '\n' +
+            '    </style>\n' +
+            '</head>\n' +
+            '<body>\n' +
+            '    ' + initialHTML + '\n' +
+            '    <script>\n' +
+            initialJS + '\n' +
+            '    </script>\n' +
+            '</body>\n' +
+            '</html>';
         
         if (this.state.editors.singleFile) {
             this.state.editors.singleFile.setValue(singleFileContent);
@@ -177,6 +182,7 @@ ${initialJS}
         this.dom.modalOverlay.addEventListener('click', (e) => {
             if (e.target === this.dom.modalOverlay) this.toggleModal(false);
         });
+        
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && this.dom.modalOverlay.getAttribute('aria-hidden') === 'false') {
                 this.toggleModal(false);
@@ -186,7 +192,6 @@ ${initialJS}
         this.dom.singleModeRadio.addEventListener('change', () => this.switchMode('single'));
         this.dom.multiModeRadio.addEventListener('change', () => this.switchMode('multi'));
         
-        // Add click handlers for mode option cards
         this.dom.singleModeOption.addEventListener('click', (e) => {
             e.preventDefault();
             this.dom.singleModeRadio.checked = true;
@@ -231,6 +236,71 @@ ${initialJS}
         }, 100);
     },
 
+    isModuleFile(content, filename) {
+        if (filename && (filename.endsWith('.mjs') || filename.endsWith('.esm.js'))) {
+            return true;
+        }
+        
+        if (content) {
+            const modulePatterns = [
+                /^\s*import\s+/m,
+                /^\s*export\s+/m,
+                /import\s*\(/,
+                /export\s*\{/,
+                /export\s+default\s+/,
+                /export\s+\*/
+            ];
+            
+            return modulePatterns.some(pattern => pattern.test(content));
+        }
+        
+        return false;
+    },
+
+    autoDetectFileType(filename, content) {
+        if (!filename) return 'javascript';
+        
+        const extension = filename.split('.').pop().toLowerCase();
+        
+        switch (extension) {
+            case 'html':
+            case 'htm':
+            case 'xhtml':
+                return 'html';
+            case 'css':
+            case 'scss':
+            case 'sass':
+            case 'less':
+                return 'css';
+            case 'mjs':
+            case 'esm':
+                return 'javascript-module';
+            case 'js':
+            case 'jsx':
+            case 'ts':
+            case 'tsx':
+                return this.isModuleFile(content, filename) ? 'javascript-module' : 'javascript';
+            case 'json':
+                return 'javascript';
+            default:
+                if (content) {
+                    if (/<\s*html/i.test(content)) return 'html';
+                    if (/^\s*[\.\#\@]|\s*\w+\s*\{/m.test(content)) return 'css';
+                    if (this.isModuleFile(content, filename)) return 'javascript-module';
+                }
+                return 'javascript';
+        }
+    },
+
+    getFileNameFromPanel(fileId) {
+        const panel = document.querySelector(`[data-file-id="${fileId}"]`);
+        if (panel) {
+            const nameInput = panel.querySelector('.file-name-input');
+            return nameInput ? nameInput.value : null;
+        }
+        return null;
+    },
+
     addNewFile() {
         const fileId = `file-${this.state.nextFileId++}`;
         const fileName = `newfile.html`;
@@ -243,6 +313,7 @@ ${initialJS}
                         <option value="html" selected>HTML</option>
                         <option value="css">CSS</option>
                         <option value="javascript">JavaScript</option>
+                        <option value="javascript-module">JavaScript Module</option>
                     </select>
                     <button class="remove-file-btn" aria-label="Remove file">&times;</button>
                 </div>
@@ -310,7 +381,33 @@ ${initialJS}
     bindFilePanelEvents(panel) {
         const typeSelector = panel.querySelector('.file-type-selector');
         const removeBtn = panel.querySelector('.remove-file-btn');
+        const fileNameInput = panel.querySelector('.file-name-input');
         const fileId = panel.dataset.fileId;
+        
+        if (fileNameInput) {
+            fileNameInput.addEventListener('blur', (e) => {
+                const filename = e.target.value;
+                const fileInfo = this.state.files.find(f => f.id === fileId);
+                
+                if (fileInfo && typeSelector) {
+                    const currentContent = fileInfo.editor.getValue();
+                    const suggestedType = this.autoDetectFileType(filename, currentContent);
+                    
+                    if (suggestedType !== typeSelector.value) {
+                        typeSelector.value = suggestedType;
+                        panel.dataset.fileType = suggestedType;
+                        fileInfo.type = suggestedType;
+                        
+                        if (typeof CodeMirror !== 'undefined' && fileInfo.editor.setOption) {
+                            const mode = suggestedType === 'html' ? 'htmlmixed' : 
+                                       suggestedType === 'css' ? 'css' : 'javascript';
+                            fileInfo.editor.setOption('mode', mode);
+                            fileInfo.editor.setOption('autoCloseTags', suggestedType === 'html');
+                        }
+                    }
+                }
+            });
+        }
         
         if (typeSelector) {
             typeSelector.addEventListener('change', (e) => {
@@ -321,7 +418,8 @@ ${initialJS}
                 if (fileInfo) {
                     fileInfo.type = newType;
                     if (typeof CodeMirror !== 'undefined' && fileInfo.editor.setOption) {
-                        const mode = newType === 'html' ? 'htmlmixed' : newType === 'css' ? 'css' : 'javascript';
+                        const mode = newType === 'html' ? 'htmlmixed' : 
+                                   newType === 'css' ? 'css' : 'javascript';
                         fileInfo.editor.setOption('mode', mode);
                         fileInfo.editor.setOption('autoCloseTags', newType === 'html');
                     }
@@ -341,56 +439,29 @@ ${initialJS}
     removeFile(fileId) {
         const panel = document.querySelector(`[data-file-id="${fileId}"]`);
         if (panel) {
-            // Handle default files by clearing their content instead of removing the panel
-            if (fileId === 'default-css') {
-                if (this.state.editors.css) {
-                    this.state.editors.css.setValue('');
-                }
-                return;
-            } else if (fileId === 'default-js') {
-                if (this.state.editors.js) {
-                    this.state.editors.js.setValue('');
-                }
-                return;
-            }
-            
-            // For dynamically added files, remove the panel completely
             panel.remove();
         }
         
         this.state.files = this.state.files.filter(f => f.id !== fileId);
         
+        if (fileId === 'default-html') {
+            this.state.editors.html = null;
+        } else if (fileId === 'default-css') {
+            this.state.editors.css = null;
+        } else if (fileId === 'default-js') {
+            this.state.editors.js = null;
+        }
+        
         this.updateRemoveButtonsVisibility();
     },
 
     updateRemoveButtonsVisibility() {
-        // CSS and JS default files should always have visible delete buttons
-        // HTML file doesn't have a delete button
-        // Dynamic files should have delete buttons visible if there are more than the 3 default panels
         const allPanels = document.querySelectorAll('.editor-panel[data-file-id]');
-        const dynamicPanels = document.querySelectorAll('.editor-panel[data-file-id]:not([data-file-id="default-css"]):not([data-file-id="default-js"])');
         
-        // Always show delete buttons for CSS and JS
-        const cssPanel = document.querySelector('[data-file-id="default-css"]');
-        const jsPanel = document.querySelector('[data-file-id="default-js"]');
-        
-        if (cssPanel) {
-            const cssRemoveBtn = cssPanel.querySelector('.remove-file-btn');
-            if (cssRemoveBtn) cssRemoveBtn.style.display = 'block';
-        }
-        
-        if (jsPanel) {
-            const jsRemoveBtn = jsPanel.querySelector('.remove-file-btn');
-            if (jsRemoveBtn) jsRemoveBtn.style.display = 'block';
-        }
-        
-        // For dynamic panels, show remove buttons only if there are dynamic panels
-        const showDynamicRemoveButtons = dynamicPanels.length > 0;
-        
-        dynamicPanels.forEach(panel => {
+        allPanels.forEach(panel => {
             const removeBtn = panel.querySelector('.remove-file-btn');
             if (removeBtn) {
-                removeBtn.style.display = showDynamicRemoveButtons ? 'block' : 'none';
+                removeBtn.style.display = 'block';
             }
         });
     },
@@ -398,6 +469,29 @@ ${initialJS}
     initExistingFilePanels() {
         const existingPanels = document.querySelectorAll('.editor-panel[data-file-type]');
         existingPanels.forEach(panel => {
+            const fileId = panel.dataset.fileId;
+            const fileType = panel.dataset.fileType;
+            
+            if (fileId && !this.state.files.find(f => f.id === fileId)) {
+                let editor = null;
+                
+                if (fileId === 'default-html') {
+                    editor = this.state.editors.html;
+                } else if (fileId === 'default-css') {
+                    editor = this.state.editors.css;
+                } else if (fileId === 'default-js') {
+                    editor = this.state.editors.js;
+                }
+                
+                if (editor) {
+                    this.state.files.push({
+                        id: fileId,
+                        editor: editor,
+                        type: fileType
+                    });
+                }
+            }
+            
             this.bindFilePanelEvents(panel);
         });
         this.updateRemoveButtonsVisibility();
@@ -551,82 +645,201 @@ ${initialJS}
         }, 3000);
     },
 
-    generatePreviewContent() {
-        if (this.state.mode === 'single') {
-            const singleFileContent = this.state.editors.singleFile ? this.state.editors.singleFile.getValue() : '';
-            
-            // Inject console capture script into single-file mode content
-            const captureScript = this.console.getCaptureScript();
-            
-            // Look for the closing </head> tag and inject the script before it
-            if (singleFileContent.includes('</head>')) {
-                return singleFileContent.replace('</head>', `${captureScript}\n</head>`);
-            } else {
-                // If no </head> tag found, wrap the content with full HTML structure including console capture
-                return `
-                    <!DOCTYPE html>
-                    <html lang="en">
-                    <head>
-                        <meta charset="UTF-8">
-                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                        <title>Live Preview</title>
-                        ${captureScript}
-                    </head>
-                    <body>
-                        ${singleFileContent}
-                    </body>
-                    </html>
-                `;
+    generateSingleFilePreview() {
+        const singleFileContent = this.state.editors.singleFile ? this.state.editors.singleFile.getValue() : '';
+        const captureScript = this.console.getCaptureScript();
+        
+        if (singleFileContent.includes('</head>')) {
+            return singleFileContent.replace('</head>', captureScript + '\n</head>');
+        } else {
+            return '<!DOCTYPE html>\n' +
+                '<html lang="en">\n' +
+                '<head>\n' +
+                '    <meta charset="UTF-8">\n' +
+                '    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
+                '    <title>Live Preview</title>\n' +
+                '    ' + captureScript + '\n' +
+                '</head>\n' +
+                '<body>\n' +
+                '    ' + singleFileContent + '\n' +
+                '</body>\n' +
+                '</html>';
+        }
+    },
+
+    extractHTMLContent(content) {
+        const bodyMatch = content.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+        if (bodyMatch) {
+            return bodyMatch[1];
+        } else {
+            const bodyStartMatch = content.match(/<body[^>]*>([\s\S]*)/i);
+            if (bodyStartMatch) {
+                let htmlContent = bodyStartMatch[1];
+                htmlContent = htmlContent.replace(/<\/body>\s*<\/html>\s*$/i, '');
+                return htmlContent;
             }
         }
+        return content;
+    },
+
+    processHTMLScripts(htmlContent, jsFiles, moduleFiles) {
+        const scriptTags = [];
+        htmlContent = htmlContent.replace(/<script(?:\s+type\s*=\s*['"](?:text\/javascript|application\/javascript)['"])?[^>]*>([\s\S]*?)<\/script>/gi, (match, scriptContent) => {
+            if (this.isModuleFile(scriptContent)) {
+                moduleFiles.push({
+                    content: scriptContent,
+                    filename: 'inline-module.mjs'
+                });
+                return '';
+            } else {
+                jsFiles.push({
+                    content: scriptContent,
+                    filename: 'inline-script.js'
+                });
+                return '';
+            }
+        });
         
+        htmlContent = htmlContent.replace(/<script[^>]*src\s*=\s*['"][^'"]*\.js['"][^>]*><\/script>/gi, '');
+        htmlContent = htmlContent.replace(/<script[^>]*src\s*=\s*['"][^'"]*\.mjs['"][^>]*><\/script>/gi, '');
+        htmlContent = htmlContent.replace(/<link[^>]*rel\s*=\s*['"]stylesheet['"][^>]*>/gi, '');
+        
+        return htmlContent;
+    },
+
+    collectFileContents() {
         let html = '';
         let css = '';
-        let js = '';
-        
-        if (this.state.editors.html) {
-            html += this.state.editors.html.getValue();
-        }
-        if (this.state.editors.css) {
-            css += this.state.editors.css.getValue();
-        }
-        if (this.state.editors.js) {
-            js += this.state.editors.js.getValue();
-        }
+        let jsFiles = [];
+        let moduleFiles = [];
         
         this.state.files.forEach(file => {
             const content = file.editor.getValue();
             if (file.type === 'html') {
-                html += '\n' + content;
+                let htmlContent = this.extractHTMLContent(content);
+                htmlContent = this.processHTMLScripts(htmlContent, jsFiles, moduleFiles);
+                html += '\n' + htmlContent;
             } else if (file.type === 'css') {
                 css += '\n' + content;
             } else if (file.type === 'javascript') {
-                js += '\n' + content;
+                const filename = this.getFileNameFromPanel(file.id) || 'script.js';
+                if (this.isModuleFile(content, filename)) {
+                    moduleFiles.push({
+                        content: content,
+                        filename: filename
+                    });
+                } else {
+                    jsFiles.push({
+                        content: content,
+                        filename: filename
+                    });
+                }
+            } else if (file.type === 'javascript-module') {
+                moduleFiles.push({
+                    content: content,
+                    filename: this.getFileNameFromPanel(file.id) || 'module.mjs'
+                });
             }
         });
 
-        return `
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Live Preview</title>
-                ${this.console.getCaptureScript()}
-                <style>${css}</style>
-            </head>
-            <body>
-                ${html}
-                <script>
-                    try {
-                        ${js}
-                    } catch (err) {
-                        console.error(err);
+        return { html, css, jsFiles, moduleFiles };
+    },
+
+    processModuleFiles(moduleFiles) {
+        if (moduleFiles.length === 0) return '';
+
+        let combinedModuleContent = '';
+        let globalFunctions = [];
+        
+        moduleFiles.forEach((file, index) => {
+            let processedContent = file.content;
+            
+            processedContent = processedContent.replace(/import\s*\{[^}]+\}\s*from\s*['"][^'"]+['"];?\s*\n?/g, '');
+            processedContent = processedContent.replace(/import\s+\*\s+as\s+\w+\s+from\s*['"][^'"]+['"];?\s*\n?/g, '');
+            processedContent = processedContent.replace(/import\s+\w+\s+from\s*['"][^'"]+['"];?\s*\n?/g, '');
+            
+            processedContent = processedContent.replace(/export\s+function\s+(\w+)/g, (match, funcName) => {
+                globalFunctions.push(funcName);
+                return `function ${funcName}`;
+            });
+            processedContent = processedContent.replace(/export\s+const\s+(\w+)\s*=/g, 'const $1 =');
+            processedContent = processedContent.replace(/export\s+let\s+(\w+)\s*=/g, 'let $1 =');
+            processedContent = processedContent.replace(/export\s+var\s+(\w+)\s*=/g, 'var $1 =');
+            processedContent = processedContent.replace(/export\s+\{[^}]+\};?\s*\n?/g, '');
+            processedContent = processedContent.replace(/export\s+default\s+/g, '');
+            
+            const functionMatches = processedContent.match(/function\s+(\w+)\s*\(/g);
+            if (functionMatches) {
+                functionMatches.forEach(match => {
+                    const funcName = match.match(/function\s+(\w+)\s*\(/)[1];
+                    if (!globalFunctions.includes(funcName)) {
+                        globalFunctions.push(funcName);
                     }
-                </script>
-            </body>
-            </html>
-        `;
+                });
+            }
+            
+            combinedModuleContent += '\n' + processedContent + '\n';
+        });
+        
+        if (globalFunctions.length > 0) {
+            combinedModuleContent += '\n';
+            globalFunctions.forEach(funcName => {
+                combinedModuleContent += 'if (typeof ' + funcName + ' !== \'undefined\') { window.' + funcName + ' = ' + funcName + '; }\n';
+            });
+        }
+        
+        if (combinedModuleContent.trim() !== '') {
+            return '<script type="module">\n' + combinedModuleContent + '\n</script>\n';
+        }
+        
+        return '';
+    },
+
+    processJavaScriptFiles(jsFiles) {
+        if (jsFiles.length === 0) return '';
+
+        const regularJS = jsFiles.map(file => {
+            return 'try {\n' +
+                   file.content + '\n' +
+                   '} catch (err) {\n' +
+                   '    console.error(\'Error in ' + file.filename + ':\', err);\n' +
+                   '}\n';
+        }).join('\n');
+        
+        if (regularJS.trim()) {
+            return '<script>\n' + regularJS + '</script>\n';
+        }
+        
+        return '';
+    },
+
+    generateMultiFilePreview() {
+        const { html, css, jsFiles, moduleFiles } = this.collectFileContents();
+        const moduleScript = this.processModuleFiles(moduleFiles);
+        const jsScript = this.processJavaScriptFiles(jsFiles);
+
+        return '<!DOCTYPE html>\n' +
+            '<html lang="en">\n' +
+            '<head>\n' +
+            '    <meta charset="UTF-8">\n' +
+            '    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
+            '    <title>Live Preview</title>\n' +
+            '    ' + this.console.getCaptureScript() + '\n' +
+            '    <style>' + css + '</style>\n' +
+            '</head>\n' +
+            '<body>\n' +
+            '    ' + html + '\n' +
+            '    ' + moduleScript + '\n' +
+            '    ' + jsScript + '\n' +
+            '</body>\n' +
+            '</html>';
+    },
+
+    generatePreviewContent() {
+        if (this.state.mode === 'single') {
+            return this.generateSingleFilePreview();
+        }
+        return this.generateMultiFilePreview();
     },
 
     renderPreview(target) {
@@ -665,7 +878,6 @@ ${initialJS}
             const el = document.createElement('div');
             el.className = `log-message log-type-${logData.level}`;
             
-            // Sanitize and format the message content
             const messageText = logData.message.map(arg => {
                 if (typeof arg === 'object' && arg !== null) {
                     try { return JSON.stringify(arg, null, 2); } catch (e) { return 'Unserializable Object'; }
@@ -685,32 +897,31 @@ ${initialJS}
         },
         getCaptureScript() {
             const MESSAGE_TYPE = CodePreviewer.constants.CONSOLE_MESSAGE_TYPE;
-            return `
-            <script>
-                (function() {
-                    const postLog = (level, args) => {
-                        const formattedArgs = args.map(arg => {
-                            if (arg instanceof Error) return { message: arg.message, stack: arg.stack };
-                            try { return JSON.parse(JSON.stringify(arg)); } catch (e) { return 'Unserializable Object'; }
-                        });
-                        window.parent.postMessage({ type: '${MESSAGE_TYPE}', level, message: formattedArgs }, '*');
-                    };
-                    const originalConsole = { ...window.console };
-                    ['log', 'warn', 'error'].forEach(level => {
-                        window.console[level] = (...args) => {
-                            postLog(level, Array.from(args));
-                            originalConsole[level](...args);
-                        };
-                    });
-                    window.onerror = (message, source, lineno, colno, error) => {
-                        postLog('error', [message, 'at ' + source.split('/').pop() + ':' + lineno + ':' + colno]);
-                        return true;
-                    };
-                    window.addEventListener('unhandledrejection', e => {
-                        postLog('error', ['Unhandled promise rejection:', e.reason]);
-                    });
-                })();
-            <\/script>`;
+            return '<script>\n' +
+                '(function() {\n' +
+                '    const postLog = (level, args) => {\n' +
+                '        const formattedArgs = args.map(arg => {\n' +
+                '            if (arg instanceof Error) return { message: arg.message, stack: arg.stack };\n' +
+                '            try { return JSON.parse(JSON.stringify(arg)); } catch (e) { return \'Unserializable Object\'; }\n' +
+                '        });\n' +
+                '        window.parent.postMessage({ type: \'' + MESSAGE_TYPE + '\', level, message: formattedArgs }, \'*\');\n' +
+                '    };\n' +
+                '    const originalConsole = { ...window.console };\n' +
+                '    [\'log\', \'warn\', \'error\'].forEach(level => {\n' +
+                '        window.console[level] = (...args) => {\n' +
+                '            postLog(level, Array.from(args));\n' +
+                '            originalConsole[level](...args);\n' +
+                '        };\n' +
+                '    });\n' +
+                '    window.onerror = (message, source, lineno, colno, error) => {\n' +
+                '        postLog(\'error\', [message, \'at \' + source.split(\'/\').pop() + \':\' + lineno + \':\' + colno]);\n' +
+                '        return true;\n' +
+                '    };\n' +
+                '    window.addEventListener(\'unhandledrejection\', e => {\n' +
+                '        postLog(\'error\', [\'Unhandled promise rejection:\', e.reason]);\n' +
+                '    });\n' +
+                '})();\n' +
+                '</script>';
         },
     },
 };
