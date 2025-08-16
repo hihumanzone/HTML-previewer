@@ -779,14 +779,14 @@ ${initialJS}
                     });
                 }
                 
-                combinedModuleContent += `\n// === ${file.filename} ===\n${processedContent}\n`;
+                combinedModuleContent += '\n// === ' + file.filename + ' ===\n' + processedContent + '\n';
             });
             
             // Make functions globally available for inline event handlers
             if (globalFunctions.length > 0) {
-                combinedModuleContent += `\n// Make functions globally available\n`;
+                combinedModuleContent += '\n// Make functions globally available\n';
                 globalFunctions.forEach(funcName => {
-                    combinedModuleContent += `if (typeof ${funcName} !== 'undefined') { window.${funcName} = ${funcName}; }\n`;
+                    combinedModuleContent += 'if (typeof ' + funcName + ' !== \'undefined\') { window.' + funcName + ' = ' + funcName + '; }\n';
                 });
             }
             
@@ -804,14 +804,12 @@ ${initialJS}
         // Add regular JavaScript files
         if (jsFiles.length > 0) {
             const regularJS = jsFiles.map(file => {
-                return `
-                    // === ${file.filename} ===
-                    try {
-                        ${file.content}
-                    } catch (err) {
-                        console.error('Error in ${file.filename}:', err);
-                    }
-                `;
+                return '\n                    // === ' + file.filename + ' ===\n' +
+                       '                    try {\n' +
+                       '                        ' + file.content + '\n' +
+                       '                    } catch (err) {\n' +
+                       '                        console.error(\'Error in ' + file.filename + ':\', err);\n' +
+                       '                    }\n';
             }).join('\n');
             
             if (regularJS.trim()) {
