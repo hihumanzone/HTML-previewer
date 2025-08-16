@@ -713,13 +713,13 @@ ${initialJS}
                         htmlContent = bodyStartMatch[1];
                         // Remove any trailing </body> and </html> tags
                         htmlContent = htmlContent.replace(/<\/body>\s*<\/html>\s*$/i, '');
-                    } else {
-                        // No body tags found, remove script/link tags that reference external files
-                        htmlContent = htmlContent.replace(/<script[^>]*src\s*=\s*['"][^'"]*\.js['"][^>]*><\/script>/gi, '');
-                        htmlContent = htmlContent.replace(/<script[^>]*src\s*=\s*['"][^'"]*\.mjs['"][^>]*><\/script>/gi, '');
-                        htmlContent = htmlContent.replace(/<link[^>]*rel\s*=\s*['"]stylesheet['"][^>]*>/gi, '');
                     }
                 }
+                
+                // Always remove script/link tags that reference external files since we inline them
+                htmlContent = htmlContent.replace(/<script[^>]*src\s*=\s*['"][^'"]*\.js['"][^>]*><\/script>/gi, '');
+                htmlContent = htmlContent.replace(/<script[^>]*src\s*=\s*['"][^'"]*\.mjs['"][^>]*><\/script>/gi, '');
+                htmlContent = htmlContent.replace(/<link[^>]*rel\s*=\s*['"]stylesheet['"][^>]*>/gi, '');
                 
                 html += '\n' + htmlContent;
             } else if (file.type === 'css') {
