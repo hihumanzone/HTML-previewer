@@ -698,7 +698,30 @@ ${initialJS}
         this.state.files.forEach(file => {
             const content = file.editor.getValue();
             if (file.type === 'html') {
-                html += '\n' + content;
+                let htmlContent = content;
+                
+                // Extract only the body content from HTML files in multi-file mode
+                // Look for the content between <body> and </body> tags (case insensitive)
+                const bodyMatch = htmlContent.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+                if (bodyMatch) {
+                    htmlContent = bodyMatch[1]; // Get just the body content
+                } else {
+                    // If no body tags found, check if this is a complete HTML document
+                    // and try to extract content after the opening <body> tag
+                    const bodyStartMatch = htmlContent.match(/<body[^>]*>([\s\S]*)/i);
+                    if (bodyStartMatch) {
+                        htmlContent = bodyStartMatch[1];
+                        // Remove any trailing </body> and </html> tags
+                        htmlContent = htmlContent.replace(/<\/body>\s*<\/html>\s*$/i, '');
+                    } else {
+                        // No body tags found, remove script/link tags that reference external files
+                        htmlContent = htmlContent.replace(/<script[^>]*src\s*=\s*['"][^'"]*\.js['"][^>]*><\/script>/gi, '');
+                        htmlContent = htmlContent.replace(/<script[^>]*src\s*=\s*['"][^'"]*\.mjs['"][^>]*><\/script>/gi, '');
+                        htmlContent = htmlContent.replace(/<link[^>]*rel\s*=\s*['"]stylesheet['"][^>]*>/gi, '');
+                    }
+                }
+                
+                html += '\n' + htmlContent;
             } else if (file.type === 'css') {
                 css += '\n' + content;
             } else if (file.type === 'javascript') {
@@ -726,10 +749,15 @@ ${initialJS}
             moduleFiles.forEach((file, index) => {
                 let processedContent = file.content;
                 
-                // Remove import statements
+                // Remove import statements but preserve side-effect imports and dynamic imports
+                // Remove named imports: import { name } from 'module'
                 processedContent = processedContent.replace(/import\s*\{[^}]+\}\s*from\s*['"][^'"]+['"];?\s*\n?/g, '');
+                // Remove namespace imports: import * as name from 'module'
                 processedContent = processedContent.replace(/import\s+\*\s+as\s+\w+\s+from\s*['"][^'"]+['"];?\s*\n?/g, '');
+                // Remove default imports: import name from 'module'
                 processedContent = processedContent.replace(/import\s+\w+\s+from\s*['"][^'"]+['"];?\s*\n?/g, '');
+                // Keep side-effect imports: import 'module' - these should remain as they load external scripts
+                // Keep dynamic imports: await import() - these should remain as they're runtime imports
                 
                 // Extract exported function names and convert exports to regular declarations
                 processedContent = processedContent.replace(/export\s+function\s+(\w+)/g, (match, funcName) => {
