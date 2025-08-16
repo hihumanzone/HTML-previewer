@@ -182,6 +182,7 @@ const CodePreviewer = {
         this.dom.modalOverlay.addEventListener('click', (e) => {
             if (e.target === this.dom.modalOverlay) this.toggleModal(false);
         });
+        
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && this.dom.modalOverlay.getAttribute('aria-hidden') === 'false') {
                 this.toggleModal(false);
@@ -191,7 +192,6 @@ const CodePreviewer = {
         this.dom.singleModeRadio.addEventListener('change', () => this.switchMode('single'));
         this.dom.multiModeRadio.addEventListener('change', () => this.switchMode('multi'));
         
-        // Add click handlers for mode option cards
         this.dom.singleModeOption.addEventListener('click', (e) => {
             e.preventDefault();
             this.dom.singleModeRadio.checked = true;
@@ -236,22 +236,19 @@ const CodePreviewer = {
         }, 100);
     },
 
-    // Detect if JavaScript code contains module syntax or if filename suggests module
     isModuleFile(content, filename) {
-        // Check file extension for explicit module files
         if (filename && (filename.endsWith('.mjs') || filename.endsWith('.esm.js'))) {
             return true;
         }
         
-        // Check content for import/export statements
         if (content) {
             const modulePatterns = [
-                /^\s*import\s+/m,           // import statements
-                /^\s*export\s+/m,           // export statements
-                /import\s*\(/,              // dynamic imports
-                /export\s*\{/,              // export destructuring
-                /export\s+default\s+/,      // export default
-                /export\s+\*/               // export all
+                /^\s*import\s+/m,
+                /^\s*export\s+/m,
+                /import\s*\(/,
+                /export\s*\{/,
+                /export\s+default\s+/,
+                /export\s+\*/
             ];
             
             return modulePatterns.some(pattern => pattern.test(content));
@@ -260,7 +257,6 @@ const CodePreviewer = {
         return false;
     },
 
-    // Auto-determine file type based on filename and content
     autoDetectFileType(filename, content) {
         if (!filename) return 'javascript';
         
@@ -283,13 +279,10 @@ const CodePreviewer = {
             case 'jsx':
             case 'ts':
             case 'tsx':
-                // Auto-detect if JS file should be a module
                 return this.isModuleFile(content, filename) ? 'javascript-module' : 'javascript';
             case 'json':
-                // Treat JSON as JavaScript for syntax highlighting
                 return 'javascript';
             default:
-                // For unknown extensions, try to detect based on content
                 if (content) {
                     if (/<\s*html/i.test(content)) return 'html';
                     if (/^\s*[\.\#\@]|\s*\w+\s*\{/m.test(content)) return 'css';
@@ -391,7 +384,6 @@ const CodePreviewer = {
         const fileNameInput = panel.querySelector('.file-name-input');
         const fileId = panel.dataset.fileId;
         
-        // Auto-detect file type when filename changes
         if (fileNameInput) {
             fileNameInput.addEventListener('blur', (e) => {
                 const filename = e.target.value;
@@ -401,7 +393,6 @@ const CodePreviewer = {
                     const currentContent = fileInfo.editor.getValue();
                     const suggestedType = this.autoDetectFileType(filename, currentContent);
                     
-                    // Auto-switch file type based on extension for all files
                     if (suggestedType !== typeSelector.value) {
                         typeSelector.value = suggestedType;
                         panel.dataset.fileType = suggestedType;
@@ -448,14 +439,11 @@ const CodePreviewer = {
     removeFile(fileId) {
         const panel = document.querySelector(`[data-file-id="${fileId}"]`);
         if (panel) {
-            // Remove the panel completely for all files (including default ones)
             panel.remove();
         }
         
-        // Remove from files array and clear corresponding editor references
         this.state.files = this.state.files.filter(f => f.id !== fileId);
         
-        // Clear references to default editors if they're being removed
         if (fileId === 'default-html') {
             this.state.editors.html = null;
         } else if (fileId === 'default-css') {
@@ -468,7 +456,6 @@ const CodePreviewer = {
     },
 
     updateRemoveButtonsVisibility() {
-        // All files with data-file-id should have visible delete buttons
         const allPanels = document.querySelectorAll('.editor-panel[data-file-id]');
         
         allPanels.forEach(panel => {
@@ -485,11 +472,9 @@ const CodePreviewer = {
             const fileId = panel.dataset.fileId;
             const fileType = panel.dataset.fileType;
             
-            // Add existing panels to the files array if they have file IDs and aren't already tracked
             if (fileId && !this.state.files.find(f => f.id === fileId)) {
                 let editor = null;
                 
-                // Map to the correct editor instance
                 if (fileId === 'default-html') {
                     editor = this.state.editors.html;
                 } else if (fileId === 'default-css') {
@@ -660,86 +645,79 @@ const CodePreviewer = {
         }, 3000);
     },
 
-    generatePreviewContent() {
-        if (this.state.mode === 'single') {
-            const singleFileContent = this.state.editors.singleFile ? this.state.editors.singleFile.getValue() : '';
-            
-            // Inject console capture script into single-file mode content
-            const captureScript = this.console.getCaptureScript();
-            
-            // Look for the closing </head> tag and inject the script before it
-            if (singleFileContent.includes('</head>')) {
-                return singleFileContent.replace('</head>', captureScript + '\n</head>');
-            } else {
-                // If no </head> tag found, wrap the content with full HTML structure including console capture
-                return '<!DOCTYPE html>\n' +
-                    '<html lang="en">\n' +
-                    '<head>\n' +
-                    '    <meta charset="UTF-8">\n' +
-                    '    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
-                    '    <title>Live Preview</title>\n' +
-                    '    ' + captureScript + '\n' +
-                    '</head>\n' +
-                    '<body>\n' +
-                    '    ' + singleFileContent + '\n' +
-                    '</body>\n' +
-                    '</html>';
+    generateSingleFilePreview() {
+        const singleFileContent = this.state.editors.singleFile ? this.state.editors.singleFile.getValue() : '';
+        const captureScript = this.console.getCaptureScript();
+        
+        if (singleFileContent.includes('</head>')) {
+            return singleFileContent.replace('</head>', captureScript + '\n</head>');
+        } else {
+            return '<!DOCTYPE html>\n' +
+                '<html lang="en">\n' +
+                '<head>\n' +
+                '    <meta charset="UTF-8">\n' +
+                '    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
+                '    <title>Live Preview</title>\n' +
+                '    ' + captureScript + '\n' +
+                '</head>\n' +
+                '<body>\n' +
+                '    ' + singleFileContent + '\n' +
+                '</body>\n' +
+                '</html>';
+        }
+    },
+
+    extractHTMLContent(content) {
+        const bodyMatch = content.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+        if (bodyMatch) {
+            return bodyMatch[1];
+        } else {
+            const bodyStartMatch = content.match(/<body[^>]*>([\s\S]*)/i);
+            if (bodyStartMatch) {
+                let htmlContent = bodyStartMatch[1];
+                htmlContent = htmlContent.replace(/<\/body>\s*<\/html>\s*$/i, '');
+                return htmlContent;
             }
         }
+        return content;
+    },
+
+    processHTMLScripts(htmlContent, jsFiles, moduleFiles) {
+        const scriptTags = [];
+        htmlContent = htmlContent.replace(/<script(?:\s+type\s*=\s*['"](?:text\/javascript|application\/javascript)['"])?[^>]*>([\s\S]*?)<\/script>/gi, (match, scriptContent) => {
+            if (this.isModuleFile(scriptContent)) {
+                moduleFiles.push({
+                    content: scriptContent,
+                    filename: 'inline-module.mjs'
+                });
+                return '';
+            } else {
+                jsFiles.push({
+                    content: scriptContent,
+                    filename: 'inline-script.js'
+                });
+                return '';
+            }
+        });
         
+        htmlContent = htmlContent.replace(/<script[^>]*src\s*=\s*['"][^'"]*\.js['"][^>]*><\/script>/gi, '');
+        htmlContent = htmlContent.replace(/<script[^>]*src\s*=\s*['"][^'"]*\.mjs['"][^>]*><\/script>/gi, '');
+        htmlContent = htmlContent.replace(/<link[^>]*rel\s*=\s*['"]stylesheet['"][^>]*>/gi, '');
+        
+        return htmlContent;
+    },
+
+    collectFileContents() {
         let html = '';
         let css = '';
         let jsFiles = [];
         let moduleFiles = [];
         
-        // Separate regular JS files and module files
         this.state.files.forEach(file => {
             const content = file.editor.getValue();
             if (file.type === 'html') {
-                let htmlContent = content;
-                
-                // Extract only the body content from HTML files in multi-file mode
-                // Look for the content between <body> and </body> tags (case insensitive)
-                const bodyMatch = htmlContent.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-                if (bodyMatch) {
-                    htmlContent = bodyMatch[1]; // Get just the body content
-                } else {
-                    // If no body tags found, check if this is a complete HTML document
-                    // and try to extract content after the opening <body> tag
-                    const bodyStartMatch = htmlContent.match(/<body[^>]*>([\s\S]*)/i);
-                    if (bodyStartMatch) {
-                        htmlContent = bodyStartMatch[1];
-                        // Remove any trailing </body> and </html> tags
-                        htmlContent = htmlContent.replace(/<\/body>\s*<\/html>\s*$/i, '');
-                    }
-                }
-                
-                // Extract and process any script tags that might contain module syntax
-                const scriptTags = [];
-                htmlContent = htmlContent.replace(/<script(?:\s+type\s*=\s*['"](?:text\/javascript|application\/javascript)['"])?[^>]*>([\s\S]*?)<\/script>/gi, (match, scriptContent) => {
-                    // Check if this script contains import/export statements
-                    if (this.isModuleFile(scriptContent)) {
-                        // Process as module and add to moduleFiles
-                        moduleFiles.push({
-                            content: scriptContent,
-                            filename: 'inline-module.mjs'
-                        });
-                        return ''; // Remove the script tag from HTML
-                    } else {
-                        // Keep as regular script or add to jsFiles for processing
-                        jsFiles.push({
-                            content: scriptContent,
-                            filename: 'inline-script.js'
-                        });
-                        return ''; // Remove the script tag from HTML
-                    }
-                });
-                
-                // Always remove script/link tags that reference external files since we inline them
-                htmlContent = htmlContent.replace(/<script[^>]*src\s*=\s*['"][^'"]*\.js['"][^>]*><\/script>/gi, '');
-                htmlContent = htmlContent.replace(/<script[^>]*src\s*=\s*['"][^'"]*\.mjs['"][^>]*><\/script>/gi, '');
-                htmlContent = htmlContent.replace(/<link[^>]*rel\s*=\s*['"]stylesheet['"][^>]*>/gi, '');
-                
+                let htmlContent = this.extractHTMLContent(content);
+                htmlContent = this.processHTMLScripts(htmlContent, jsFiles, moduleFiles);
                 html += '\n' + htmlContent;
             } else if (file.type === 'css') {
                 css += '\n' + content;
@@ -756,83 +734,81 @@ const CodePreviewer = {
             }
         });
 
-        // Create script tags
-        let scriptTags = '';
+        return { html, css, jsFiles, moduleFiles };
+    },
+
+    processModuleFiles(moduleFiles) {
+        if (moduleFiles.length === 0) return '';
+
+        let combinedModuleContent = '';
+        let globalFunctions = [];
         
-        // Handle ES modules by combining them into a single module context
-        if (moduleFiles.length > 0) {
-            let combinedModuleContent = '// Combined ES Module\n';
-            let globalFunctions = []; // Track functions to make globally available
+        moduleFiles.forEach((file, index) => {
+            let processedContent = file.content;
             
-            // Process each module to remove import/export statements and inline the code
-            moduleFiles.forEach((file, index) => {
-                let processedContent = file.content;
-                
-                // Remove import statements but preserve side-effect imports and dynamic imports
-                // Remove named imports: import { name } from 'module'
-                processedContent = processedContent.replace(/import\s*\{[^}]+\}\s*from\s*['"][^'"]+['"];?\s*\n?/g, '');
-                // Remove namespace imports: import * as name from 'module'
-                processedContent = processedContent.replace(/import\s+\*\s+as\s+\w+\s+from\s*['"][^'"]+['"];?\s*\n?/g, '');
-                // Remove default imports: import name from 'module'
-                processedContent = processedContent.replace(/import\s+\w+\s+from\s*['"][^'"]+['"];?\s*\n?/g, '');
-                // Keep side-effect imports: import 'module' - these should remain as they load external scripts
-                // Keep dynamic imports: await import() - these should remain as they're runtime imports
-                
-                // Extract exported function names and convert exports to regular declarations
-                processedContent = processedContent.replace(/export\s+function\s+(\w+)/g, (match, funcName) => {
-                    globalFunctions.push(funcName);
-                    return `function ${funcName}`;
-                });
-                processedContent = processedContent.replace(/export\s+const\s+(\w+)\s*=/g, 'const $1 =');
-                processedContent = processedContent.replace(/export\s+let\s+(\w+)\s*=/g, 'let $1 =');
-                processedContent = processedContent.replace(/export\s+var\s+(\w+)\s*=/g, 'var $1 =');
-                processedContent = processedContent.replace(/export\s+\{[^}]+\};?\s*\n?/g, '');
-                processedContent = processedContent.replace(/export\s+default\s+/g, '');
-                
-                // Also capture regular function declarations to make them globally available
-                const functionMatches = processedContent.match(/function\s+(\w+)\s*\(/g);
-                if (functionMatches) {
-                    functionMatches.forEach(match => {
-                        const funcName = match.match(/function\s+(\w+)\s*\(/)[1];
-                        if (!globalFunctions.includes(funcName)) {
-                            globalFunctions.push(funcName);
-                        }
-                    });
-                }
-                
-                combinedModuleContent += '\n// === ' + file.filename + ' ===\n' + processedContent + '\n';
+            processedContent = processedContent.replace(/import\s*\{[^}]+\}\s*from\s*['"][^'"]+['"];?\s*\n?/g, '');
+            processedContent = processedContent.replace(/import\s+\*\s+as\s+\w+\s+from\s*['"][^'"]+['"];?\s*\n?/g, '');
+            processedContent = processedContent.replace(/import\s+\w+\s+from\s*['"][^'"]+['"];?\s*\n?/g, '');
+            
+            processedContent = processedContent.replace(/export\s+function\s+(\w+)/g, (match, funcName) => {
+                globalFunctions.push(funcName);
+                return `function ${funcName}`;
             });
+            processedContent = processedContent.replace(/export\s+const\s+(\w+)\s*=/g, 'const $1 =');
+            processedContent = processedContent.replace(/export\s+let\s+(\w+)\s*=/g, 'let $1 =');
+            processedContent = processedContent.replace(/export\s+var\s+(\w+)\s*=/g, 'var $1 =');
+            processedContent = processedContent.replace(/export\s+\{[^}]+\};?\s*\n?/g, '');
+            processedContent = processedContent.replace(/export\s+default\s+/g, '');
             
-            // Make functions globally available for inline event handlers
-            if (globalFunctions.length > 0) {
-                combinedModuleContent += '\n// Make functions globally available\n';
-                globalFunctions.forEach(funcName => {
-                    combinedModuleContent += 'if (typeof ' + funcName + ' !== \'undefined\') { window.' + funcName + ' = ' + funcName + '; }\n';
+            const functionMatches = processedContent.match(/function\s+(\w+)\s*\(/g);
+            if (functionMatches) {
+                functionMatches.forEach(match => {
+                    const funcName = match.match(/function\s+(\w+)\s*\(/)[1];
+                    if (!globalFunctions.includes(funcName)) {
+                        globalFunctions.push(funcName);
+                    }
                 });
             }
             
-            if (combinedModuleContent.trim() !== '// Combined ES Module') {
-                scriptTags += '<script type="module">\n' +
-                    combinedModuleContent + '\n' +
-                    '</script>\n';
-            }
+            combinedModuleContent += '\n' + processedContent + '\n';
+        });
+        
+        if (globalFunctions.length > 0) {
+            combinedModuleContent += '\n';
+            globalFunctions.forEach(funcName => {
+                combinedModuleContent += 'if (typeof ' + funcName + ' !== \'undefined\') { window.' + funcName + ' = ' + funcName + '; }\n';
+            });
         }
         
-        // Add regular JavaScript files
-        if (jsFiles.length > 0) {
-            const regularJS = jsFiles.map(file => {
-                return '// === ' + file.filename + ' ===\n' +
-                       'try {\n' +
-                       file.content + '\n' +
-                       '} catch (err) {\n' +
-                       '    console.error(\'Error in ' + file.filename + ':\', err);\n' +
-                       '}\n';
-            }).join('\n');
-            
-            if (regularJS.trim()) {
-                scriptTags += '<script>\n' + regularJS + '</script>\n';
-            }
+        if (combinedModuleContent.trim() !== '') {
+            return '<script type="module">\n' + combinedModuleContent + '\n</script>\n';
         }
+        
+        return '';
+    },
+
+    processJavaScriptFiles(jsFiles) {
+        if (jsFiles.length === 0) return '';
+
+        const regularJS = jsFiles.map(file => {
+            return 'try {\n' +
+                   file.content + '\n' +
+                   '} catch (err) {\n' +
+                   '    console.error(\'Error in ' + file.filename + ':\', err);\n' +
+                   '}\n';
+        }).join('\n');
+        
+        if (regularJS.trim()) {
+            return '<script>\n' + regularJS + '</script>\n';
+        }
+        
+        return '';
+    },
+
+    generateMultiFilePreview() {
+        const { html, css, jsFiles, moduleFiles } = this.collectFileContents();
+        const moduleScript = this.processModuleFiles(moduleFiles);
+        const jsScript = this.processJavaScriptFiles(jsFiles);
 
         return '<!DOCTYPE html>\n' +
             '<html lang="en">\n' +
@@ -845,9 +821,17 @@ const CodePreviewer = {
             '</head>\n' +
             '<body>\n' +
             '    ' + html + '\n' +
-            '    ' + scriptTags + '\n' +
+            '    ' + moduleScript + '\n' +
+            '    ' + jsScript + '\n' +
             '</body>\n' +
             '</html>';
+    },
+
+    generatePreviewContent() {
+        if (this.state.mode === 'single') {
+            return this.generateSingleFilePreview();
+        }
+        return this.generateMultiFilePreview();
     },
 
     renderPreview(target) {
@@ -886,7 +870,6 @@ const CodePreviewer = {
             const el = document.createElement('div');
             el.className = `log-message log-type-${logData.level}`;
             
-            // Sanitize and format the message content
             const messageText = logData.message.map(arg => {
                 if (typeof arg === 'object' && arg !== null) {
                     try { return JSON.stringify(arg, null, 2); } catch (e) { return 'Unserializable Object'; }
