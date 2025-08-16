@@ -204,7 +204,6 @@ const CodePreviewer = {
             }
         });
 
-        // Code modal event bindings
         const codeModal = document.getElementById('code-modal');
         const codeModalCloseBtn = codeModal?.querySelector('.close-btn');
         
@@ -364,6 +363,9 @@ const CodePreviewer = {
                     <button class="toolbar-btn expand-btn" aria-label="Expand code view" title="Expand">
                         <span class="btn-icon">🔍</span> Expand
                     </button>
+                    <button class="toolbar-btn export-btn" aria-label="Export file" title="Export">
+                        <span class="btn-icon">💾</span> Export
+                    </button>
                     <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
                         <span class="btn-icon">📁</span> Collapse
                     </button>
@@ -416,7 +418,6 @@ const CodePreviewer = {
     },
 
     importFile() {
-        // Create a hidden file input element
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
         fileInput.accept = '.html,.htm,.css,.js,.mjs,.jsx,.ts,.tsx';
@@ -427,13 +428,10 @@ const CodePreviewer = {
             if (!file) return;
             
             try {
-                // Read file content
                 const content = await this.readFileContent(file);
                 
-                // Auto-detect file type based on filename and content
                 const detectedType = this.autoDetectFileType(file.name, content);
                 
-                // Create new file with imported content
                 this.addNewFileWithContent(file.name, detectedType, content);
                 
             } catch (error) {
@@ -441,11 +439,9 @@ const CodePreviewer = {
                 alert('Error importing file. Please try again.');
             }
             
-            // Clean up
             document.body.removeChild(fileInput);
         });
         
-        // Add to DOM and trigger click
         document.body.appendChild(fileInput);
         fileInput.click();
     },
@@ -487,6 +483,9 @@ const CodePreviewer = {
                     <button class="toolbar-btn expand-btn" aria-label="Expand code view" title="Expand">
                         <span class="btn-icon">🔍</span> Expand
                     </button>
+                    <button class="toolbar-btn export-btn" aria-label="Export file" title="Export">
+                        <span class="btn-icon">💾</span> Export
+                    </button>
                     <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
                         <span class="btn-icon">📁</span> Collapse
                     </button>
@@ -515,7 +514,6 @@ const CodePreviewer = {
                 lineWrapping: true,
             });
             
-            // Set the imported content
             newEditor.setValue(content);
         } else {
             Object.assign(newTextarea.style, {
@@ -532,7 +530,6 @@ const CodePreviewer = {
                 setOption: () => {},
             };
             
-            // Set the imported content
             newEditor.setValue(content);
         }
         
@@ -676,6 +673,7 @@ const CodePreviewer = {
         const pasteBtn = panel.querySelector('.paste-btn');
         const copyBtn = panel.querySelector('.copy-btn');
         const expandBtn = panel.querySelector('.expand-btn');
+        const exportBtn = panel.querySelector('.export-btn');
         const collapseBtn = panel.querySelector('.collapse-btn');
         
         if (clearBtn) {
@@ -692,6 +690,10 @@ const CodePreviewer = {
         
         if (expandBtn) {
             expandBtn.addEventListener('click', () => this.expandCode(panel));
+        }
+        
+        if (exportBtn) {
+            exportBtn.addEventListener('click', () => this.exportFile(panel));
         }
         
         if (collapseBtn) {
@@ -733,6 +735,78 @@ const CodePreviewer = {
         }
     },
 
+    exportFile(panel) {
+        try {
+            const editor = this.getEditorFromPanel(panel);
+            if (!editor) return;
+
+            const content = editor.getValue();
+            let fileName = 'untitled.txt';
+            let mimeType = 'text/plain';
+
+            if (panel.closest('#single-file-container')) {
+                fileName = 'index.html';
+                mimeType = 'text/html';
+            } else {
+                const fileNameInput = panel.querySelector('.file-name-input');
+                const fileType = panel.dataset.fileType;
+                
+                if (fileNameInput && fileNameInput.value.trim()) {
+                    fileName = fileNameInput.value.trim();
+                } else {
+                    switch (fileType) {
+                        case 'html':
+                            fileName = 'untitled.html';
+                            break;
+                        case 'css':
+                            fileName = 'untitled.css';
+                            break;
+                        case 'javascript':
+                        case 'javascript-module':
+                            fileName = 'untitled.js';
+                            break;
+                        default:
+                            fileName = 'untitled.txt';
+                    }
+                }
+
+                switch (fileType) {
+                    case 'html':
+                        mimeType = 'text/html';
+                        break;
+                    case 'css':
+                        mimeType = 'text/css';
+                        break;
+                    case 'javascript':
+                    case 'javascript-module':
+                        mimeType = 'text/javascript';
+                        break;
+                    default:
+                        mimeType = 'text/plain';
+                }
+            }
+
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            
+            const downloadLink = document.createElement('a');
+            downloadLink.href = url;
+            downloadLink.download = fileName;
+            downloadLink.style.display = 'none';
+            
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+            
+            URL.revokeObjectURL(url);
+            
+            this.showNotification(`File "${fileName}" downloaded successfully!`, 'success');
+        } catch (error) {
+            console.error('Failed to export file:', error);
+            this.showNotification('Unable to export file. Please try again.', 'error');
+        }
+    },
+
     expandCode(panel) {
         const editor = this.getEditorFromPanel(panel);
         if (!editor) return;
@@ -741,7 +815,6 @@ const CodePreviewer = {
         let fileName = 'Code';
         let language = 'text';
 
-        // Get file info for title and language
         if (panel.closest('#single-file-container')) {
             fileName = 'Complete HTML Document';
             language = 'htmlmixed';
@@ -776,13 +849,10 @@ const CodePreviewer = {
                 return;
             }
 
-            // Store reference to source panel for saving
             this.state.currentCodeModalSource = sourcePanel;
 
-            // Update modal title
             modalTitle.textContent = `Code View - ${fileName}`;
 
-            // Initialize or update CodeMirror in modal (if available)
             if (window.CodeMirror) {
                 if (!this.state.codeModalEditor) {
                     this.state.codeModalEditor = window.CodeMirror.fromTextArea(editorTextarea, {
@@ -799,10 +869,8 @@ const CodePreviewer = {
                     this.state.codeModalEditor.setOption('readOnly', false); // Make editable
                 }
 
-                // Set content
                 this.state.codeModalEditor.setValue(content);
             } else {
-                // Fallback to plain textarea
                 editorTextarea.value = content;
                 editorTextarea.readOnly = false; // Make editable
                 editorTextarea.style.display = 'block';
@@ -818,11 +886,9 @@ const CodePreviewer = {
                 editorTextarea.style.resize = 'none';
             }
 
-            // Show modal
             modal.style.display = 'flex';
             modal.setAttribute('aria-hidden', 'false');
 
-            // Refresh CodeMirror after showing modal (if available)
             if (window.CodeMirror && this.state.codeModalEditor) {
                 setTimeout(() => {
                     this.state.codeModalEditor.refresh();
@@ -839,7 +905,6 @@ const CodePreviewer = {
             modal.style.display = 'none';
             modal.setAttribute('aria-hidden', 'true');
         }
-        // Clear the source panel reference
         this.state.currentCodeModalSource = null;
     },
 
@@ -852,7 +917,6 @@ const CodePreviewer = {
 
             let content = '';
             
-            // Get content from modal editor
             if (window.CodeMirror && this.state.codeModalEditor) {
                 content = this.state.codeModalEditor.getValue();
             } else {
@@ -860,12 +924,10 @@ const CodePreviewer = {
                 content = editorTextarea.value;
             }
 
-            // Get the original editor and update its content
             const sourceEditor = this.getEditorFromPanel(this.state.currentCodeModalSource);
             if (sourceEditor) {
                 sourceEditor.setValue(content);
                 
-                // Refresh the editor to ensure proper display
                 if (sourceEditor.refresh) {
                     setTimeout(() => {
                         sourceEditor.refresh();
@@ -873,7 +935,6 @@ const CodePreviewer = {
                 }
             }
 
-            // Close the modal after saving
             this.closeCodeModal();
         } catch (error) {
             console.error('Error saving code from modal:', error);
@@ -1184,7 +1245,6 @@ const CodePreviewer = {
     toggleModal(show) {
         this.dom.modalOverlay.setAttribute('aria-hidden', !show);
         if (show) {
-            // Reset console visibility when opening modal
             this.dom.modalConsolePanel.classList.add('hidden');
             this.dom.toggleConsoleBtn.classList.remove('active');
             this.dom.toggleConsoleBtn.textContent = '📋 Console';
