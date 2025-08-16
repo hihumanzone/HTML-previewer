@@ -152,23 +152,23 @@ const CodePreviewer = {
             this.state.editors.js.setValue(initialJS);
         }
 
-        const singleFileContent = `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Page</title>
-    <style>
-${initialCSS}
-    </style>
-</head>
-<body>
-    ${initialHTML}
-    <script>
-${initialJS}
-    </script>
-</body>
-</html>`;
+        const singleFileContent = '<!DOCTYPE html>\n' +
+            '<html lang="en">\n' +
+            '<head>\n' +
+            '    <meta charset="UTF-8">\n' +
+            '    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
+            '    <title>My Page</title>\n' +
+            '    <style>\n' +
+            initialCSS + '\n' +
+            '    </style>\n' +
+            '</head>\n' +
+            '<body>\n' +
+            '    ' + initialHTML + '\n' +
+            '    <script>\n' +
+            initialJS + '\n' +
+            '    </script>\n' +
+            '</body>\n' +
+            '</html>';
         
         if (this.state.editors.singleFile) {
             this.state.editors.singleFile.setValue(singleFileContent);
