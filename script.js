@@ -332,6 +332,9 @@ const CodePreviewer = {
                     <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
                         <span class="btn-icon">📄</span> Copy
                     </button>
+                    <button class="toolbar-btn popup-btn" aria-label="Open in popup" title="Open in Popup">
+                        <span class="btn-icon">🔗</span> Popup
+                    </button>
                     <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
                         <span class="btn-icon">📁</span> Collapse
                     </button>
@@ -511,6 +514,7 @@ const CodePreviewer = {
         const clearBtn = panel.querySelector('.clear-btn');
         const pasteBtn = panel.querySelector('.paste-btn');
         const copyBtn = panel.querySelector('.copy-btn');
+        const popupBtn = panel.querySelector('.popup-btn');
         const collapseBtn = panel.querySelector('.collapse-btn');
         
         if (clearBtn) {
@@ -523,6 +527,10 @@ const CodePreviewer = {
         
         if (copyBtn) {
             copyBtn.addEventListener('click', () => this.copyToClipboard(panel));
+        }
+        
+        if (popupBtn) {
+            popupBtn.addEventListener('click', () => this.openPanelInPopup(panel));
         }
         
         if (collapseBtn) {
@@ -562,6 +570,111 @@ const CodePreviewer = {
             console.warn('Failed to copy to clipboard:', error);
             this.showNotification('Unable to copy to clipboard. Please copy manually (Ctrl+C).', 'warn');
         }
+    },
+
+    openPanelInPopup(panel) {
+        // Generate preview for the specific panel
+        const content = this.generatePanelPreview(panel);
+        
+        try {
+            const blob = new Blob([content], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            window.open(url, '_blank');
+        } catch (e) {
+            console.error("Failed to create or open new tab:", e);
+        }
+    },
+
+    generatePanelPreview(panel) {
+        const editor = this.getEditorFromPanel(panel);
+        if (!editor) return '';
+
+        const content = editor.getValue();
+        
+        // Check if this is the single file editor
+        if (panel.closest('#single-file-container')) {
+            const captureScript = this.console.getCaptureScript();
+            
+            if (content.includes('</head>')) {
+                return content.replace('</head>', captureScript + '\n</head>');
+            } else {
+                return '<!DOCTYPE html>\n' +
+                    '<html lang="en">\n' +
+                    '<head>\n' +
+                    '    <meta charset="UTF-8">\n' +
+                    '    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
+                    '    <title>Live Preview</title>\n' +
+                    '    ' + captureScript + '\n' +
+                    '</head>\n' +
+                    '<body>\n' +
+                    '    ' + content + '\n' +
+                    '</body>\n' +
+                    '</html>';
+            }
+        }
+
+        // For multi-file mode, get file type
+        const fileId = panel.dataset.fileId;
+        const fileType = panel.dataset.fileType;
+        
+        if (fileType === 'html') {
+            const htmlContent = this.extractHTMLContent(content);
+            return '<!DOCTYPE html>\n' +
+                '<html lang="en">\n' +
+                '<head>\n' +
+                '    <meta charset="UTF-8">\n' +
+                '    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
+                '    <title>HTML Preview</title>\n' +
+                '    ' + this.console.getCaptureScript() + '\n' +
+                '</head>\n' +
+                '<body>\n' +
+                '    ' + htmlContent + '\n' +
+                '</body>\n' +
+                '</html>';
+        } else if (fileType === 'css') {
+            return '<!DOCTYPE html>\n' +
+                '<html lang="en">\n' +
+                '<head>\n' +
+                '    <meta charset="UTF-8">\n' +
+                '    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
+                '    <title>CSS Preview</title>\n' +
+                '    <style>' + content + '</style>\n' +
+                '</head>\n' +
+                '<body>\n' +
+                '    <h1>CSS Preview</h1>\n' +
+                '    <p>This page shows how your CSS styles render.</p>\n' +
+                '    <div class="sample-content">\n' +
+                '        <h2>Sample Content</h2>\n' +
+                '        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>\n' +
+                '        <button>Sample Button</button>\n' +
+                '        <ul><li>List item 1</li><li>List item 2</li></ul>\n' +
+                '    </div>\n' +
+                '</body>\n' +
+                '</html>';
+        } else if (fileType === 'javascript' || fileType === 'javascript-module') {
+            return '<!DOCTYPE html>\n' +
+                '<html lang="en">\n' +
+                '<head>\n' +
+                '    <meta charset="UTF-8">\n' +
+                '    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
+                '    <title>JavaScript Preview</title>\n' +
+                '    ' + this.console.getCaptureScript() + '\n' +
+                '</head>\n' +
+                '<body>\n' +
+                '    <h1>JavaScript Preview</h1>\n' +
+                '    <p>Check the browser console for JavaScript output.</p>\n' +
+                '    <script>\n' +
+                'try {\n' +
+                content + '\n' +
+                '} catch (err) {\n' +
+                '    console.error(\'JavaScript Error:\', err);\n' +
+                '}\n' +
+                '    </script>\n' +
+                '</body>\n' +
+                '</html>';
+        }
+        
+        return '';
     },
 
     toggleEditorCollapse(panel) {

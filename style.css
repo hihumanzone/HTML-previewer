@@ -261,6 +261,11 @@ body {
     cursor: pointer;
     padding: 0.25rem;
     border-radius: 3px;
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 .remove-file-btn:hover {
     background-color: rgba(243, 139, 168, 0.2);
@@ -279,6 +284,7 @@ body {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 1rem;
+    align-items: start;
 }
 
 .editor-panel, .console-panel {
@@ -288,6 +294,11 @@ body {
     display: flex;
     flex-direction: column;
     background-color: var(--header-bg);
+}
+
+/* Prevent collapsed panels from stretching */
+.editor-panel:has(.editor-wrapper.collapsed) {
+    align-self: start;
 }
 
 .panel-header {
@@ -338,6 +349,7 @@ body {
 }
 
 /* Modal styles */
+.modal-overlay {
     position: fixed; 
     top: 0; 
     left: 0;
@@ -464,6 +476,12 @@ body {
     border: none;
     line-height: 1;
     padding: 0.25rem;
+    width: 2.5rem;
+    height: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
 }
 .close-btn:hover { 
     color: var(--accent-color); 
