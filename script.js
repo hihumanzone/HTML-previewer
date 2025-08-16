@@ -586,16 +586,8 @@ ${initialJS}
         let css = '';
         let js = '';
         
-        if (this.state.editors.html) {
-            html += this.state.editors.html.getValue();
-        }
-        if (this.state.editors.css) {
-            css += this.state.editors.css.getValue();
-        }
-        if (this.state.editors.js) {
-            js += this.state.editors.js.getValue();
-        }
-        
+        // Use only the files array to avoid duplicate content
+        // since default files are now properly tracked in this.state.files
         this.state.files.forEach(file => {
             const content = file.editor.getValue();
             if (file.type === 'html') {
