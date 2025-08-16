@@ -79,6 +79,7 @@ const CodePreviewer = {
             consoleOutput: document.getElementById(CONSOLE_ID),
             modalConsolePanel: document.getElementById(MODAL_CONSOLE_PANEL_ID),
             editorGrid: document.querySelector('.editor-grid'),
+            saveCodeBtn: document.getElementById('save-code-btn'),
         };
     },
 
@@ -209,6 +210,10 @@ const CodePreviewer = {
         
         if (codeModalCloseBtn) {
             codeModalCloseBtn.addEventListener('click', () => this.closeCodeModal());
+        }
+        
+        if (this.dom.saveCodeBtn) {
+            this.dom.saveCodeBtn.addEventListener('click', () => this.saveCodeModal());
         }
         
         if (codeModal) {
@@ -757,10 +762,10 @@ const CodePreviewer = {
             }
         }
 
-        this.openCodeModal(content, fileName, language);
+        this.openCodeModal(content, fileName, language, panel);
     },
 
-    openCodeModal(content, fileName, language) {
+    openCodeModal(content, fileName, language, sourcePanel) {
         try {
             const modal = document.getElementById('code-modal');
             const modalTitle = document.getElementById('code-modal-title');
@@ -770,6 +775,9 @@ const CodePreviewer = {
                 console.error('Code modal elements not found');
                 return;
             }
+
+            // Store reference to source panel for saving
+            this.state.currentCodeModalSource = sourcePanel;
 
             // Update modal title
             modalTitle.textContent = `Code View - ${fileName}`;
@@ -781,13 +789,14 @@ const CodePreviewer = {
                         lineNumbers: true,
                         mode: language,
                         theme: 'dracula',
-                        readOnly: true,
+                        readOnly: false, // Make editable
                         lineWrapping: true,
                         autoCloseTags: true,
                         viewportMargin: Infinity,
                     });
                 } else {
                     this.state.codeModalEditor.setOption('mode', language);
+                    this.state.codeModalEditor.setOption('readOnly', false); // Make editable
                 }
 
                 // Set content
@@ -795,7 +804,7 @@ const CodePreviewer = {
             } else {
                 // Fallback to plain textarea
                 editorTextarea.value = content;
-                editorTextarea.readOnly = true;
+                editorTextarea.readOnly = false; // Make editable
                 editorTextarea.style.display = 'block';
                 editorTextarea.style.width = '100%';
                 editorTextarea.style.height = '100%';
@@ -829,6 +838,45 @@ const CodePreviewer = {
         if (modal) {
             modal.style.display = 'none';
             modal.setAttribute('aria-hidden', 'true');
+        }
+        // Clear the source panel reference
+        this.state.currentCodeModalSource = null;
+    },
+
+    saveCodeModal() {
+        try {
+            if (!this.state.currentCodeModalSource) {
+                console.error('No source panel reference found for saving');
+                return;
+            }
+
+            let content = '';
+            
+            // Get content from modal editor
+            if (window.CodeMirror && this.state.codeModalEditor) {
+                content = this.state.codeModalEditor.getValue();
+            } else {
+                const editorTextarea = document.getElementById('code-modal-editor');
+                content = editorTextarea.value;
+            }
+
+            // Get the original editor and update its content
+            const sourceEditor = this.getEditorFromPanel(this.state.currentCodeModalSource);
+            if (sourceEditor) {
+                sourceEditor.setValue(content);
+                
+                // Refresh the editor to ensure proper display
+                if (sourceEditor.refresh) {
+                    setTimeout(() => {
+                        sourceEditor.refresh();
+                    }, 100);
+                }
+            }
+
+            // Close the modal after saving
+            this.closeCodeModal();
+        } catch (error) {
+            console.error('Error saving code from modal:', error);
         }
     },
 
