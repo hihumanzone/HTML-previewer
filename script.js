@@ -705,21 +705,7 @@ ${initialJS}
         if (moduleFiles.length > 0) {
             let combinedModuleContent = '// Combined ES Module\n';
             
-            // First, add all exports/declarations from all modules without any code that uses them
-            moduleFiles.forEach((file, index) => {
-                let moduleContent = file.content;
-                
-                // Extract export statements and convert them to declarations
-                const exportMatches = moduleContent.match(/export\s+(function|const|let|var)\s+\w+[^;]*[;}]/g) || [];
-                exportMatches.forEach(exportStmt => {
-                    const declaration = exportStmt.replace(/^export\s+/, '');
-                    combinedModuleContent += declaration + '\n';
-                });
-                
-                combinedModuleContent += `\n// === ${file.filename} (declarations) ===\n`;
-            });
-            
-            // Then, add all the remaining code (without imports/exports)
+            // Process each module to remove import/export statements and inline the code
             moduleFiles.forEach((file, index) => {
                 let processedContent = file.content;
                 
@@ -728,20 +714,15 @@ ${initialJS}
                 processedContent = processedContent.replace(/import\s+\*\s+as\s+\w+\s+from\s*['"][^'"]+['"];?\s*\n?/g, '');
                 processedContent = processedContent.replace(/import\s+\w+\s+from\s*['"][^'"]+['"];?\s*\n?/g, '');
                 
-                // Remove export statements that we already processed
-                processedContent = processedContent.replace(/export\s+(function|const|let|var)\s+\w+[^;]*[;}]/g, '');
+                // Convert exports to regular declarations/assignments
+                processedContent = processedContent.replace(/export\s+function\s+(\w+)/g, 'function $1');
+                processedContent = processedContent.replace(/export\s+const\s+(\w+)\s*=/g, 'const $1 =');
+                processedContent = processedContent.replace(/export\s+let\s+(\w+)\s*=/g, 'let $1 =');
+                processedContent = processedContent.replace(/export\s+var\s+(\w+)\s*=/g, 'var $1 =');
                 processedContent = processedContent.replace(/export\s+\{[^}]+\};?\s*\n?/g, '');
                 processedContent = processedContent.replace(/export\s+default\s+/g, '');
                 
-                // Remove empty lines and comments-only lines
-                processedContent = processedContent
-                    .split('\n')
-                    .filter(line => line.trim() && !line.trim().startsWith('//'))
-                    .join('\n');
-                
-                if (processedContent.trim()) {
-                    combinedModuleContent += `\n// === ${file.filename} (execution) ===\n${processedContent}\n`;
-                }
+                combinedModuleContent += `\n// === ${file.filename} ===\n${processedContent}\n`;
             });
             
             if (combinedModuleContent.trim() !== '// Combined ES Module') {
