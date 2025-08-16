@@ -9,6 +9,7 @@ const CodePreviewer = {
         },
         files: [],
         nextFileId: 4,
+        codeModalEditor: null,
     },
 
     dom: {},
@@ -24,9 +25,11 @@ const CodePreviewer = {
             MODAL_BTN: 'preview-modal-btn',
             TAB_BTN: 'preview-tab-btn',
             CLEAR_CONSOLE_BTN: 'clear-console-btn',
+            TOGGLE_CONSOLE_BTN: 'toggle-console-btn',
             SINGLE_MODE_RADIO: 'single-mode-radio',
             MULTI_MODE_RADIO: 'multi-mode-radio',
             ADD_FILE_BTN: 'add-file-btn',
+            IMPORT_FILE_BTN: 'import-file-btn',
         },
         CONTAINER_IDS: {
             SINGLE_FILE: 'single-file-container',
@@ -38,6 +41,7 @@ const CodePreviewer = {
             CLOSE_BTN: '.close-btn',
         },
         CONSOLE_ID: 'console-output',
+        MODAL_CONSOLE_PANEL_ID: 'modal-console-panel',
         CONSOLE_MESSAGE_TYPE: 'console',
     },
 
@@ -51,7 +55,7 @@ const CodePreviewer = {
     },
 
     cacheDOMElements() {
-        const { EDITOR_IDS, CONTROL_IDS, MODAL_IDS, CONSOLE_ID, CONTAINER_IDS } = this.constants;
+        const { EDITOR_IDS, CONTROL_IDS, MODAL_IDS, CONSOLE_ID, MODAL_CONSOLE_PANEL_ID, CONTAINER_IDS } = this.constants;
         this.dom = {
             htmlEditor: document.getElementById(EDITOR_IDS.HTML),
             cssEditor: document.getElementById(EDITOR_IDS.CSS),
@@ -60,18 +64,22 @@ const CodePreviewer = {
             modalBtn: document.getElementById(CONTROL_IDS.MODAL_BTN),
             tabBtn: document.getElementById(CONTROL_IDS.TAB_BTN),
             clearConsoleBtn: document.getElementById(CONTROL_IDS.CLEAR_CONSOLE_BTN),
+            toggleConsoleBtn: document.getElementById(CONTROL_IDS.TOGGLE_CONSOLE_BTN),
             singleModeRadio: document.getElementById(CONTROL_IDS.SINGLE_MODE_RADIO),
             multiModeRadio: document.getElementById(CONTROL_IDS.MULTI_MODE_RADIO),
             singleModeOption: document.querySelector('label[for="single-mode-radio"]') || this.getSafeParentElement(CONTROL_IDS.SINGLE_MODE_RADIO),
             multiModeOption: document.querySelector('label[for="multi-mode-radio"]') || this.getSafeParentElement(CONTROL_IDS.MULTI_MODE_RADIO),
             addFileBtn: document.getElementById(CONTROL_IDS.ADD_FILE_BTN),
+            importFileBtn: document.getElementById(CONTROL_IDS.IMPORT_FILE_BTN),
             singleFileContainer: document.getElementById(CONTAINER_IDS.SINGLE_FILE),
             multiFileContainer: document.getElementById(CONTAINER_IDS.MULTI_FILE),
             modalOverlay: document.getElementById(MODAL_IDS.OVERLAY),
             previewFrame: document.getElementById(MODAL_IDS.FRAME),
-            closeModalBtn: document.querySelector(MODAL_IDS.CLOSE_BTN),
+            closeModalBtn: document.querySelector('.modal-header .close-btn'),
             consoleOutput: document.getElementById(CONSOLE_ID),
+            modalConsolePanel: document.getElementById(MODAL_CONSOLE_PANEL_ID),
             editorGrid: document.querySelector('.editor-grid'),
+            saveCodeBtn: document.getElementById('save-code-btn'),
         };
     },
 
@@ -179,6 +187,7 @@ const CodePreviewer = {
         this.dom.modalBtn.addEventListener('click', () => this.renderPreview('modal'));
         this.dom.tabBtn.addEventListener('click', () => this.renderPreview('tab'));
         this.dom.closeModalBtn.addEventListener('click', () => this.toggleModal(false));
+        this.dom.toggleConsoleBtn.addEventListener('click', () => this.toggleConsole());
         this.dom.modalOverlay.addEventListener('click', (e) => {
             if (e.target === this.dom.modalOverlay) this.toggleModal(false);
         });
@@ -187,7 +196,30 @@ const CodePreviewer = {
             if (e.key === 'Escape' && this.dom.modalOverlay.getAttribute('aria-hidden') === 'false') {
                 this.toggleModal(false);
             }
+            if (e.key === 'Escape') {
+                const codeModal = document.getElementById('code-modal');
+                if (codeModal && codeModal.getAttribute('aria-hidden') === 'false') {
+                    this.closeCodeModal();
+                }
+            }
         });
+
+        const codeModal = document.getElementById('code-modal');
+        const codeModalCloseBtn = codeModal?.querySelector('.close-btn');
+        
+        if (codeModalCloseBtn) {
+            codeModalCloseBtn.addEventListener('click', () => this.closeCodeModal());
+        }
+        
+        if (this.dom.saveCodeBtn) {
+            this.dom.saveCodeBtn.addEventListener('click', () => this.saveCodeModal());
+        }
+        
+        if (codeModal) {
+            codeModal.addEventListener('click', (e) => {
+                if (e.target === codeModal) this.closeCodeModal();
+            });
+        }
 
         this.dom.singleModeRadio.addEventListener('change', () => this.switchMode('single'));
         this.dom.multiModeRadio.addEventListener('change', () => this.switchMode('multi'));
@@ -204,6 +236,7 @@ const CodePreviewer = {
         });
         
         this.dom.addFileBtn.addEventListener('click', () => this.addNewFile());
+        this.dom.importFileBtn.addEventListener('click', () => this.importFile());
     },
 
     initModeToggle() {
@@ -327,6 +360,12 @@ const CodePreviewer = {
                     <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
                         <span class="btn-icon">📄</span> Copy
                     </button>
+                    <button class="toolbar-btn expand-btn" aria-label="Expand code view" title="Expand">
+                        <span class="btn-icon">🔍</span> Expand
+                    </button>
+                    <button class="toolbar-btn export-btn" aria-label="Export file" title="Export">
+                        <span class="btn-icon">💾</span> Export
+                    </button>
                     <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
                         <span class="btn-icon">📁</span> Collapse
                     </button>
@@ -371,6 +410,133 @@ const CodePreviewer = {
             id: fileId,
             editor: newEditor,
             type: 'html'
+        });
+        
+        this.bindFilePanelEvents(document.querySelector(`[data-file-id="${fileId}"]`));
+        
+        this.updateRemoveButtonsVisibility();
+    },
+
+    importFile() {
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.html,.htm,.css,.js,.mjs,.jsx,.ts,.tsx';
+        fileInput.style.display = 'none';
+        
+        fileInput.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            try {
+                const content = await this.readFileContent(file);
+                
+                const detectedType = this.autoDetectFileType(file.name, content);
+                
+                this.addNewFileWithContent(file.name, detectedType, content);
+                
+            } catch (error) {
+                console.error('Error importing file:', error);
+                alert('Error importing file. Please try again.');
+            }
+            
+            document.body.removeChild(fileInput);
+        });
+        
+        document.body.appendChild(fileInput);
+        fileInput.click();
+    },
+
+    readFileContent(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.onerror = (e) => reject(e);
+            reader.readAsText(file);
+        });
+    },
+
+    addNewFileWithContent(fileName, fileType, content) {
+        const fileId = `file-${this.state.nextFileId++}`;
+        
+        const panelHTML = `
+            <div class="editor-panel" data-file-type="${fileType}" data-file-id="${fileId}">
+                <div class="panel-header">
+                    <input type="text" class="file-name-input" value="${fileName}" aria-label="File name">
+                    <select class="file-type-selector" aria-label="File type">
+                        <option value="html" ${fileType === 'html' ? 'selected' : ''}>HTML</option>
+                        <option value="css" ${fileType === 'css' ? 'selected' : ''}>CSS</option>
+                        <option value="javascript" ${fileType === 'javascript' ? 'selected' : ''}>JavaScript</option>
+                        <option value="javascript-module" ${fileType === 'javascript-module' ? 'selected' : ''}>JavaScript Module</option>
+                    </select>
+                    <button class="remove-file-btn" aria-label="Remove file">&times;</button>
+                </div>
+                <div class="editor-toolbar">
+                    <button class="toolbar-btn clear-btn" aria-label="Clear content" title="Clear">
+                        <span class="btn-icon">🗑️</span> Clear
+                    </button>
+                    <button class="toolbar-btn paste-btn" aria-label="Paste from clipboard" title="Paste">
+                        <span class="btn-icon">📋</span> Paste
+                    </button>
+                    <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
+                        <span class="btn-icon">📄</span> Copy
+                    </button>
+                    <button class="toolbar-btn expand-btn" aria-label="Expand code view" title="Expand">
+                        <span class="btn-icon">🔍</span> Expand
+                    </button>
+                    <button class="toolbar-btn export-btn" aria-label="Export file" title="Export">
+                        <span class="btn-icon">💾</span> Export
+                    </button>
+                    <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
+                        <span class="btn-icon">📁</span> Collapse
+                    </button>
+                </div>
+                <label for="${fileId}" class="sr-only">Code Editor</label>
+                <div class="editor-wrapper">
+                    <textarea id="${fileId}"></textarea>
+                </div>
+            </div>
+        `;
+        
+        this.dom.editorGrid.insertAdjacentHTML('beforeend', panelHTML);
+        
+        const newTextarea = document.getElementById(fileId);
+        let newEditor;
+        
+        if (typeof CodeMirror !== 'undefined') {
+            const mode = fileType === 'html' ? 'htmlmixed' : 
+                       fileType === 'css' ? 'css' : 'javascript';
+            
+            newEditor = CodeMirror.fromTextArea(newTextarea, {
+                lineNumbers: true,
+                mode: mode,
+                theme: 'dracula',
+                autoCloseTags: fileType === 'html',
+                lineWrapping: true,
+            });
+            
+            newEditor.setValue(content);
+        } else {
+            Object.assign(newTextarea.style, {
+                fontFamily: 'monospace', fontSize: '14px', lineHeight: '1.5',
+                resize: 'none', border: 'none', outline: 'none',
+                background: '#282a36', color: '#f8f8f2', padding: '1rem',
+                width: '100%', height: '400px'
+            });
+            
+            newEditor = {
+                setValue: (value) => newTextarea.value = value,
+                getValue: () => newTextarea.value,
+                refresh: () => {},
+                setOption: () => {},
+            };
+            
+            newEditor.setValue(content);
+        }
+        
+        this.state.files.push({
+            id: fileId,
+            editor: newEditor,
+            type: fileType
         });
         
         this.bindFilePanelEvents(document.querySelector(`[data-file-id="${fileId}"]`));
@@ -506,6 +672,8 @@ const CodePreviewer = {
         const clearBtn = panel.querySelector('.clear-btn');
         const pasteBtn = panel.querySelector('.paste-btn');
         const copyBtn = panel.querySelector('.copy-btn');
+        const expandBtn = panel.querySelector('.expand-btn');
+        const exportBtn = panel.querySelector('.export-btn');
         const collapseBtn = panel.querySelector('.collapse-btn');
         
         if (clearBtn) {
@@ -518,6 +686,14 @@ const CodePreviewer = {
         
         if (copyBtn) {
             copyBtn.addEventListener('click', () => this.copyToClipboard(panel));
+        }
+        
+        if (expandBtn) {
+            expandBtn.addEventListener('click', () => this.expandCode(panel));
+        }
+        
+        if (exportBtn) {
+            exportBtn.addEventListener('click', () => this.exportFile(panel));
         }
         
         if (collapseBtn) {
@@ -556,6 +732,212 @@ const CodePreviewer = {
         } catch (error) {
             console.warn('Failed to copy to clipboard:', error);
             this.showNotification('Unable to copy to clipboard. Please copy manually (Ctrl+C).', 'warn');
+        }
+    },
+
+    exportFile(panel) {
+        try {
+            const editor = this.getEditorFromPanel(panel);
+            if (!editor) return;
+
+            const content = editor.getValue();
+            let fileName = 'untitled.txt';
+            let mimeType = 'text/plain';
+
+            if (panel.closest('#single-file-container')) {
+                fileName = 'index.html';
+                mimeType = 'text/html';
+            } else {
+                const fileNameInput = panel.querySelector('.file-name-input');
+                const fileType = panel.dataset.fileType;
+                
+                if (fileNameInput && fileNameInput.value.trim()) {
+                    fileName = fileNameInput.value.trim();
+                } else {
+                    switch (fileType) {
+                        case 'html':
+                            fileName = 'untitled.html';
+                            break;
+                        case 'css':
+                            fileName = 'untitled.css';
+                            break;
+                        case 'javascript':
+                        case 'javascript-module':
+                            fileName = 'untitled.js';
+                            break;
+                        default:
+                            fileName = 'untitled.txt';
+                    }
+                }
+
+                switch (fileType) {
+                    case 'html':
+                        mimeType = 'text/html';
+                        break;
+                    case 'css':
+                        mimeType = 'text/css';
+                        break;
+                    case 'javascript':
+                    case 'javascript-module':
+                        mimeType = 'text/javascript';
+                        break;
+                    default:
+                        mimeType = 'text/plain';
+                }
+            }
+
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            
+            const downloadLink = document.createElement('a');
+            downloadLink.href = url;
+            downloadLink.download = fileName;
+            downloadLink.style.display = 'none';
+            
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+            
+            URL.revokeObjectURL(url);
+            
+            this.showNotification(`File "${fileName}" downloaded successfully!`, 'success');
+        } catch (error) {
+            console.error('Failed to export file:', error);
+            this.showNotification('Unable to export file. Please try again.', 'error');
+        }
+    },
+
+    expandCode(panel) {
+        const editor = this.getEditorFromPanel(panel);
+        if (!editor) return;
+
+        const content = editor.getValue();
+        let fileName = 'Code';
+        let language = 'text';
+
+        if (panel.closest('#single-file-container')) {
+            fileName = 'Complete HTML Document';
+            language = 'htmlmixed';
+        } else {
+            const fileNameInput = panel.querySelector('.file-name-input');
+            const fileType = panel.dataset.fileType;
+            
+            if (fileNameInput) {
+                fileName = fileNameInput.value || 'Untitled';
+            }
+            
+            if (fileType === 'html') {
+                language = 'htmlmixed';
+            } else if (fileType === 'css') {
+                language = 'css';
+            } else if (fileType === 'javascript' || fileType === 'javascript-module') {
+                language = 'javascript';
+            }
+        }
+
+        this.openCodeModal(content, fileName, language, panel);
+    },
+
+    openCodeModal(content, fileName, language, sourcePanel) {
+        try {
+            const modal = document.getElementById('code-modal');
+            const modalTitle = document.getElementById('code-modal-title');
+            const editorTextarea = document.getElementById('code-modal-editor');
+
+            if (!modal || !modalTitle || !editorTextarea) {
+                console.error('Code modal elements not found');
+                return;
+            }
+
+            this.state.currentCodeModalSource = sourcePanel;
+
+            modalTitle.textContent = `Code View - ${fileName}`;
+
+            if (window.CodeMirror) {
+                if (!this.state.codeModalEditor) {
+                    this.state.codeModalEditor = window.CodeMirror.fromTextArea(editorTextarea, {
+                        lineNumbers: true,
+                        mode: language,
+                        theme: 'dracula',
+                        readOnly: false, // Make editable
+                        lineWrapping: true,
+                        autoCloseTags: true,
+                        viewportMargin: Infinity,
+                    });
+                } else {
+                    this.state.codeModalEditor.setOption('mode', language);
+                    this.state.codeModalEditor.setOption('readOnly', false); // Make editable
+                }
+
+                this.state.codeModalEditor.setValue(content);
+            } else {
+                editorTextarea.value = content;
+                editorTextarea.readOnly = false; // Make editable
+                editorTextarea.style.display = 'block';
+                editorTextarea.style.width = '100%';
+                editorTextarea.style.height = '100%';
+                editorTextarea.style.fontFamily = 'monospace';
+                editorTextarea.style.fontSize = '14px';
+                editorTextarea.style.border = 'none';
+                editorTextarea.style.outline = 'none';
+                editorTextarea.style.padding = '10px';
+                editorTextarea.style.backgroundColor = '#282a36';
+                editorTextarea.style.color = '#f8f8f2';
+                editorTextarea.style.resize = 'none';
+            }
+
+            modal.style.display = 'flex';
+            modal.setAttribute('aria-hidden', 'false');
+
+            if (window.CodeMirror && this.state.codeModalEditor) {
+                setTimeout(() => {
+                    this.state.codeModalEditor.refresh();
+                }, 100);
+            }
+        } catch (error) {
+            console.error('Error in openCodeModal:', error);
+        }
+    },
+
+    closeCodeModal() {
+        const modal = document.getElementById('code-modal');
+        if (modal) {
+            modal.style.display = 'none';
+            modal.setAttribute('aria-hidden', 'true');
+        }
+        this.state.currentCodeModalSource = null;
+    },
+
+    saveCodeModal() {
+        try {
+            if (!this.state.currentCodeModalSource) {
+                console.error('No source panel reference found for saving');
+                return;
+            }
+
+            let content = '';
+            
+            if (window.CodeMirror && this.state.codeModalEditor) {
+                content = this.state.codeModalEditor.getValue();
+            } else {
+                const editorTextarea = document.getElementById('code-modal-editor');
+                content = editorTextarea.value;
+            }
+
+            const sourceEditor = this.getEditorFromPanel(this.state.currentCodeModalSource);
+            if (sourceEditor) {
+                sourceEditor.setValue(content);
+                
+                if (sourceEditor.refresh) {
+                    setTimeout(() => {
+                        sourceEditor.refresh();
+                    }, 100);
+                }
+            }
+
+            this.closeCodeModal();
+        } catch (error) {
+            console.error('Error saving code from modal:', error);
         }
     },
 
@@ -862,6 +1244,25 @@ const CodePreviewer = {
 
     toggleModal(show) {
         this.dom.modalOverlay.setAttribute('aria-hidden', !show);
+        if (show) {
+            this.dom.modalConsolePanel.classList.add('hidden');
+            this.dom.toggleConsoleBtn.classList.remove('active');
+            this.dom.toggleConsoleBtn.textContent = '📋 Console';
+        }
+    },
+
+    toggleConsole() {
+        const isHidden = this.dom.modalConsolePanel.classList.contains('hidden');
+        
+        if (isHidden) {
+            this.dom.modalConsolePanel.classList.remove('hidden');
+            this.dom.toggleConsoleBtn.classList.add('active');
+            this.dom.toggleConsoleBtn.textContent = '📋 Hide Console';
+        } else {
+            this.dom.modalConsolePanel.classList.add('hidden');
+            this.dom.toggleConsoleBtn.classList.remove('active');
+            this.dom.toggleConsoleBtn.textContent = '📋 Console';
+        }
     },
 
     console: {

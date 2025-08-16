@@ -49,6 +49,12 @@
                         <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
                             <span class="btn-icon">📄</span> Copy
                         </button>
+                        <button class="toolbar-btn expand-btn" aria-label="Expand code view" title="Expand">
+                            <span class="btn-icon">🔍</span> Expand
+                        </button>
+                        <button class="toolbar-btn export-btn" aria-label="Export file" title="Export">
+                            <span class="btn-icon">💾</span> Export
+                        </button>
                         <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
                             <span class="btn-icon">📁</span> Collapse
                         </button>
@@ -63,7 +69,10 @@
             <div id="multi-file-container" class="editor-container" style="display: none;">
                 <div class="files-header">
                     <span>Files</span>
-                    <button id="add-file-btn" class="add-file-btn" aria-label="Add new file">+ Add File</button>
+                    <div class="files-header-buttons">
+                        <button id="import-file-btn" class="import-file-btn" aria-label="Import file">📁 Import</button>
+                        <button id="add-file-btn" class="add-file-btn" aria-label="Add new file">+ Add File</button>
+                    </div>
                 </div>
                 <div class="editor-grid">
                     <div class="editor-panel" data-file-type="html" data-file-id="default-html">
@@ -86,6 +95,12 @@
                             </button>
                             <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
                                 <span class="btn-icon">📄</span> Copy
+                            </button>
+                            <button class="toolbar-btn expand-btn" aria-label="Expand code view" title="Expand">
+                                <span class="btn-icon">🔍</span> Expand
+                            </button>
+                            <button class="toolbar-btn export-btn" aria-label="Export file" title="Export">
+                                <span class="btn-icon">💾</span> Export
                             </button>
                             <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
                                 <span class="btn-icon">📁</span> Collapse
@@ -117,6 +132,12 @@
                             <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
                                 <span class="btn-icon">📄</span> Copy
                             </button>
+                            <button class="toolbar-btn expand-btn" aria-label="Expand code view" title="Expand">
+                                <span class="btn-icon">🔍</span> Expand
+                            </button>
+                            <button class="toolbar-btn export-btn" aria-label="Export file" title="Export">
+                                <span class="btn-icon">💾</span> Export
+                            </button>
                             <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
                                 <span class="btn-icon">📁</span> Collapse
                             </button>
@@ -147,6 +168,12 @@
                             <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
                                 <span class="btn-icon">📄</span> Copy
                             </button>
+                            <button class="toolbar-btn expand-btn" aria-label="Expand code view" title="Expand">
+                                <span class="btn-icon">🔍</span> Expand
+                            </button>
+                            <button class="toolbar-btn export-btn" aria-label="Export file" title="Export">
+                                <span class="btn-icon">💾</span> Export
+                            </button>
                             <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
                                 <span class="btn-icon">📁</span> Collapse
                             </button>
@@ -157,14 +184,6 @@
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <div class="console-panel">
-                <div class="panel-header">
-                    <span>Console</span>
-                    <button id="clear-console-btn" class="clear-btn" aria-label="Clear console output">Clear</button>
-                </div>
-                <div id="console-output" role="log" aria-live="polite"></div>
             </div>
 
             <div class="controls">
@@ -178,9 +197,38 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2 id="modal-title">Live Preview</h2>
-                <button class="close-btn" aria-label="Close preview modal">&times;</button>
+                <div class="modal-controls">
+                    <button id="toggle-console-btn" class="toggle-console-btn" aria-label="Toggle console visibility">📋 Console</button>
+                    <button class="close-btn" aria-label="Close preview modal">&times;</button>
+                </div>
             </div>
-            <iframe id="preview-frame" sandbox="allow-scripts allow-same-origin" title="Code Preview"></iframe>
+            <div class="modal-body">
+                <iframe id="preview-frame" sandbox="allow-scripts allow-same-origin" title="Code Preview"></iframe>
+                <div id="modal-console-panel" class="modal-console-panel">
+                    <div class="console-header">
+                        <span>Console</span>
+                        <button id="clear-console-btn" class="clear-btn" aria-label="Clear console output">Clear</button>
+                    </div>
+                    <div id="console-output" role="log" aria-live="polite"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="code-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="code-modal-title" aria-hidden="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="code-modal-title">Code View</h2>
+                <div class="modal-controls">
+                    <button id="save-code-btn" class="save-btn" aria-label="Save changes">💾 Save</button>
+                    <button class="close-btn" aria-label="Close code modal">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div id="code-modal-editor-container">
+                    <textarea id="code-modal-editor"></textarea>
+                </div>
+            </div>
         </div>
     </div>
 

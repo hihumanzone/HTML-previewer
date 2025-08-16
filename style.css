@@ -47,25 +47,26 @@ body {
 .container {
     max-width: 95%;
     margin: 0 auto;
-    padding: 2rem 1.5rem;
+    padding: 1rem 1rem;
 }
 
 .main-header {
     text-align: center;
-    margin-bottom: 2.5rem;
-    padding-bottom: 1.5rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
     border-bottom: 1px solid var(--border-color);
 }
 
 .main-header h1 {
     color: var(--accent-color);
     margin-bottom: 0.5rem;
+    font-size: 1.5rem;
 }
 
 .main-content {
     display: flex;
     flex-direction: column;
-    gap: 2rem;
+    gap: 1.5rem;
 }
 
 
@@ -73,8 +74,8 @@ body {
     background-color: var(--secondary-color);
     border: 1px solid var(--border-color);
     border-radius: 6px;
-    padding: 0.75rem;
-    margin-bottom: 1.5rem;
+    padding: 0.5rem;
+    margin-bottom: 1rem;
 }
 
 .mode-selector-header {
@@ -141,7 +142,7 @@ body {
 .editor-container {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 1rem;
 }
 
 .files-header {
@@ -158,8 +159,14 @@ body {
     color: var(--accent-color);
 }
 
+.files-header-buttons {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
 /* Button base styles */
-.btn, .add-file-btn, .toolbar-btn, .clear-btn {
+.btn, .add-file-btn, .import-file-btn, .toolbar-btn, .clear-btn {
     border: none;
     border-radius: 4px;
     cursor: pointer;
@@ -178,14 +185,21 @@ body {
     background-color: #a6caff; 
 }
 
-.add-file-btn {
+.add-file-btn, .import-file-btn {
     background-color: var(--accent-color);
     color: var(--bg-color);
     padding: 0.5rem 1rem;
     font-size: 0.9rem;
 }
-.add-file-btn:hover {
+.add-file-btn:hover, .import-file-btn:hover {
     background-color: #a6caff;
+}
+
+.import-file-btn {
+    background-color: #fab387;
+}
+.import-file-btn:hover {
+    background-color: #fcc78a;
 }
 
 .clear-btn {
@@ -260,6 +274,11 @@ body {
     cursor: pointer;
     padding: 0.25rem;
     border-radius: 3px;
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 .remove-file-btn:hover {
     background-color: rgba(243, 139, 168, 0.2);
@@ -277,7 +296,8 @@ body {
 .editor-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 1.5rem;
+    gap: 1rem;
+    align-items: start;
 }
 
 .editor-panel, .console-panel {
@@ -287,6 +307,11 @@ body {
     display: flex;
     flex-direction: column;
     background-color: var(--header-bg);
+}
+
+/* Prevent collapsed panels from stretching */
+.editor-panel:has(.editor-wrapper.collapsed) {
+    align-self: start;
 }
 
 .panel-header {
@@ -305,32 +330,10 @@ body {
 
 
 .CodeMirror {
-    height: 400px;
+    height: 350px;
     font-size: 15px;
     flex-grow: 1;
 }
-
-
-#console-output {
-    height: 150px;
-    padding: 0.75rem;
-    overflow-y: auto;
-    font-family: 'Menlo', 'Consolas', monospace;
-    font-size: 0.9rem;
-}
-
-#console-output .log-message {
-    padding: 2px 0;
-    white-space: pre-wrap;
-    word-break: break-all;
-    border-bottom: 1px solid var(--secondary-color);
-}
-#console-output .log-message:last-child { border-bottom: none; }
-#console-output .log-type-log { color: var(--primary-color); }
-#console-output .log-type-error { color: var(--error-color); }
-#console-output .log-type-warn { color: var(--warn-color); }
-
-
 
 
 .editor-toolbar {
@@ -342,8 +345,6 @@ body {
     flex-wrap: wrap;
 }
 
-
-
 .editor-wrapper {
     flex-grow: 1;
     display: flex;
@@ -353,7 +354,6 @@ body {
     display: none;
 }
 
-
 .controls { 
     display: flex; 
     justify-content: center; 
@@ -361,9 +361,7 @@ body {
     flex-wrap: wrap; 
 }
 
-
-
-
+/* Modal styles */
 .modal-overlay {
     position: fixed; 
     top: 0; 
@@ -404,6 +402,84 @@ body {
     border-bottom: 1px solid var(--border-color);
 }
 
+.modal-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.toggle-console-btn {
+    background-color: var(--accent-color);
+    color: var(--bg-color);
+    border: none;
+    border-radius: 4px;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.toggle-console-btn:hover {
+    background-color: #a6caff;
+}
+.toggle-console-btn.active {
+    background-color: var(--warn-color);
+}
+
+.modal-body {
+    display: flex;
+    flex-direction: column;
+    height: calc(100% - 60px);
+}
+
+.modal-console-panel {
+    background-color: var(--header-bg);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    height: 200px;
+    transition: height 0.3s ease;
+}
+
+.modal-console-panel.hidden {
+    height: 0;
+    overflow: hidden;
+}
+
+.console-header {
+    background-color: var(--header-bg);
+    padding: 0.4rem 1rem;
+    font-weight: bold;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--accent-color);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#console-output {
+    height: 100%;
+    padding: 0.75rem;
+    overflow-y: auto;
+    font-family: 'Menlo', 'Consolas', monospace;
+    font-size: 0.85rem;
+    background-color: var(--bg-color);
+}
+
+#console-output .log-message {
+    padding: 2px 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+    border-bottom: 1px solid var(--secondary-color);
+}
+#console-output .log-message:last-child { border-bottom: none; }
+#console-output .log-type-log { color: var(--primary-color); }
+#console-output .log-type-error { color: var(--error-color); }
+#console-output .log-type-warn { color: var(--warn-color); }
+
 .close-btn {
     font-size: 1.75rem; 
     font-weight: bold;
@@ -413,19 +489,69 @@ body {
     border: none;
     line-height: 1;
     padding: 0.25rem;
+    width: 2.5rem;
+    height: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
 }
 .close-btn:hover { 
     color: var(--accent-color); 
 }
 
-#preview-frame {
-    width: 100%; height: 100%;
-    border: none; background-color: #fff;
+.save-btn {
+    font-size: 0.9rem;
+    font-weight: bold;
+    cursor: pointer;
+    color: var(--bg-color);
+    background: var(--accent-color);
+    border: none;
+    padding: 8px 12px;
+    margin-right: 8px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background-color 0.2s ease;
+}
+.save-btn:hover {
+    background: var(--secondary-color);
 }
 
+#preview-frame {
+    width: 100%; 
+    flex: 1;
+    border: none; 
+    background-color: #fff;
+}
+
+/* Code Modal Styles */
+#code-modal-editor-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+#code-modal-editor-container .CodeMirror {
+    height: 100%;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+#code-modal-editor-container .CodeMirror-scroll {
+    max-height: none;
+}
 
 @media (max-width: 900px) {
-    .CodeMirror { height: 350px; }
+    .CodeMirror { height: 300px; }
+    
+    #code-modal-editor-container .CodeMirror {
+        height: 100%;
+        font-size: 13px;
+    }
+}
 }
 
 @media (max-width: 500px) {
