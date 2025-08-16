@@ -231,6 +231,66 @@ ${initialJS}
         }, 100);
     },
 
+    // Detect if JavaScript code contains module syntax or if filename suggests module
+    isModuleFile(content, filename) {
+        // Check file extension for explicit module files
+        if (filename && (filename.endsWith('.mjs') || filename.endsWith('.esm.js'))) {
+            return true;
+        }
+        
+        // Check content for import/export statements
+        if (content) {
+            const modulePatterns = [
+                /^\s*import\s+/m,           // import statements
+                /^\s*export\s+/m,           // export statements
+                /import\s*\(/,              // dynamic imports
+                /export\s*\{/,              // export destructuring
+                /export\s+default\s+/,      // export default
+                /export\s+\*/               // export all
+            ];
+            
+            return modulePatterns.some(pattern => pattern.test(content));
+        }
+        
+        return false;
+    },
+
+    // Auto-determine file type based on filename and content
+    autoDetectFileType(filename, content) {
+        if (!filename) return 'javascript';
+        
+        const extension = filename.split('.').pop().toLowerCase();
+        
+        switch (extension) {
+            case 'html':
+            case 'htm':
+                return 'html';
+            case 'css':
+                return 'css';
+            case 'mjs':
+            case 'esm':
+                return 'javascript-module';
+            case 'js':
+                // Auto-detect if JS file should be a module
+                return this.isModuleFile(content, filename) ? 'javascript-module' : 'javascript';
+            default:
+                // For unknown extensions, try to detect based on content
+                if (content && /<\s*html/i.test(content)) return 'html';
+                if (content && /^\s*[\.\#\@]|\s*\w+\s*\{/m.test(content)) return 'css';
+                if (content && this.isModuleFile(content, filename)) return 'javascript-module';
+                return 'javascript';
+        }
+    },
+
+    getFileNameFromPanel(fileId) {
+        const panel = document.querySelector(`[data-file-id="${fileId}"]`);
+        if (panel) {
+            const nameInput = panel.querySelector('.file-name-input');
+            return nameInput ? nameInput.value : null;
+        }
+        return null;
+    },
+
     addNewFile() {
         const fileId = `file-${this.state.nextFileId++}`;
         const fileName = `newfile.html`;
@@ -243,6 +303,7 @@ ${initialJS}
                         <option value="html" selected>HTML</option>
                         <option value="css">CSS</option>
                         <option value="javascript">JavaScript</option>
+                        <option value="javascript-module">JavaScript Module</option>
                     </select>
                     <button class="remove-file-btn" aria-label="Remove file">&times;</button>
                 </div>
@@ -310,7 +371,36 @@ ${initialJS}
     bindFilePanelEvents(panel) {
         const typeSelector = panel.querySelector('.file-type-selector');
         const removeBtn = panel.querySelector('.remove-file-btn');
+        const fileNameInput = panel.querySelector('.file-name-input');
         const fileId = panel.dataset.fileId;
+        
+        // Auto-detect file type when filename changes
+        if (fileNameInput) {
+            fileNameInput.addEventListener('blur', (e) => {
+                const filename = e.target.value;
+                const fileInfo = this.state.files.find(f => f.id === fileId);
+                
+                if (fileInfo && typeSelector) {
+                    const currentContent = fileInfo.editor.getValue();
+                    const suggestedType = this.autoDetectFileType(filename, currentContent);
+                    
+                    // Only auto-change if current type is the default or if it's a clear module file
+                    if (typeSelector.value === 'html' || 
+                        (filename.endsWith('.mjs') && typeSelector.value === 'javascript')) {
+                        typeSelector.value = suggestedType;
+                        panel.dataset.fileType = suggestedType;
+                        fileInfo.type = suggestedType;
+                        
+                        if (typeof CodeMirror !== 'undefined' && fileInfo.editor.setOption) {
+                            const mode = suggestedType === 'html' ? 'htmlmixed' : 
+                                       suggestedType === 'css' ? 'css' : 'javascript';
+                            fileInfo.editor.setOption('mode', mode);
+                            fileInfo.editor.setOption('autoCloseTags', suggestedType === 'html');
+                        }
+                    }
+                }
+            });
+        }
         
         if (typeSelector) {
             typeSelector.addEventListener('change', (e) => {
@@ -321,7 +411,8 @@ ${initialJS}
                 if (fileInfo) {
                     fileInfo.type = newType;
                     if (typeof CodeMirror !== 'undefined' && fileInfo.editor.setOption) {
-                        const mode = newType === 'html' ? 'htmlmixed' : newType === 'css' ? 'css' : 'javascript';
+                        const mode = newType === 'html' ? 'htmlmixed' : 
+                                   newType === 'css' ? 'css' : 'javascript';
                         fileInfo.editor.setOption('mode', mode);
                         fileInfo.editor.setOption('autoCloseTags', newType === 'html');
                     }
@@ -584,10 +675,10 @@ ${initialJS}
         
         let html = '';
         let css = '';
-        let js = '';
+        let jsFiles = [];
+        let moduleFiles = [];
         
-        // Use only the files array to avoid duplicate content
-        // since default files are now properly tracked in this.state.files
+        // Separate regular JS files and module files
         this.state.files.forEach(file => {
             const content = file.editor.getValue();
             if (file.type === 'html') {
@@ -595,9 +686,92 @@ ${initialJS}
             } else if (file.type === 'css') {
                 css += '\n' + content;
             } else if (file.type === 'javascript') {
-                js += '\n' + content;
+                jsFiles.push({
+                    content: content,
+                    filename: this.getFileNameFromPanel(file.id) || 'script.js'
+                });
+            } else if (file.type === 'javascript-module') {
+                moduleFiles.push({
+                    content: content,
+                    filename: this.getFileNameFromPanel(file.id) || 'module.mjs'
+                });
             }
         });
+
+        // Create script tags
+        let scriptTags = '';
+        
+        // Handle ES modules by combining them into a single module context
+        if (moduleFiles.length > 0) {
+            let combinedModuleContent = '// Combined ES Module\n';
+            
+            // First, add all exports/declarations from all modules without any code that uses them
+            moduleFiles.forEach((file, index) => {
+                let moduleContent = file.content;
+                
+                // Extract export statements and convert them to declarations
+                const exportMatches = moduleContent.match(/export\s+(function|const|let|var)\s+\w+[^;]*[;}]/g) || [];
+                exportMatches.forEach(exportStmt => {
+                    const declaration = exportStmt.replace(/^export\s+/, '');
+                    combinedModuleContent += declaration + '\n';
+                });
+                
+                combinedModuleContent += `\n// === ${file.filename} (declarations) ===\n`;
+            });
+            
+            // Then, add all the remaining code (without imports/exports)
+            moduleFiles.forEach((file, index) => {
+                let processedContent = file.content;
+                
+                // Remove import statements
+                processedContent = processedContent.replace(/import\s*\{[^}]+\}\s*from\s*['"][^'"]+['"];?\s*\n?/g, '');
+                processedContent = processedContent.replace(/import\s+\*\s+as\s+\w+\s+from\s*['"][^'"]+['"];?\s*\n?/g, '');
+                processedContent = processedContent.replace(/import\s+\w+\s+from\s*['"][^'"]+['"];?\s*\n?/g, '');
+                
+                // Remove export statements that we already processed
+                processedContent = processedContent.replace(/export\s+(function|const|let|var)\s+\w+[^;]*[;}]/g, '');
+                processedContent = processedContent.replace(/export\s+\{[^}]+\};?\s*\n?/g, '');
+                processedContent = processedContent.replace(/export\s+default\s+/g, '');
+                
+                // Remove empty lines and comments-only lines
+                processedContent = processedContent
+                    .split('\n')
+                    .filter(line => line.trim() && !line.trim().startsWith('//'))
+                    .join('\n');
+                
+                if (processedContent.trim()) {
+                    combinedModuleContent += `\n// === ${file.filename} (execution) ===\n${processedContent}\n`;
+                }
+            });
+            
+            if (combinedModuleContent.trim() !== '// Combined ES Module') {
+                scriptTags += `<script type="module">
+                    try {
+                        ${combinedModuleContent}
+                    } catch (err) {
+                        console.error('Error in combined module:', err);
+                    }
+                </script>\n`;
+            }
+        }
+        
+        // Add regular JavaScript files
+        if (jsFiles.length > 0) {
+            const regularJS = jsFiles.map(file => {
+                return `
+                    // === ${file.filename} ===
+                    try {
+                        ${file.content}
+                    } catch (err) {
+                        console.error('Error in ${file.filename}:', err);
+                    }
+                `;
+            }).join('\n');
+            
+            if (regularJS.trim()) {
+                scriptTags += `<script>${regularJS}</script>\n`;
+            }
+        }
 
         return `
             <!DOCTYPE html>
@@ -611,13 +785,7 @@ ${initialJS}
             </head>
             <body>
                 ${html}
-                <script>
-                    try {
-                        ${js}
-                    } catch (err) {
-                        console.error(err);
-                    }
-                </script>
+                ${scriptTags}
             </body>
             </html>
         `;
