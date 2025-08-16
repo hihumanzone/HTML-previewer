@@ -714,6 +714,27 @@ const CodePreviewer = {
                     }
                 }
                 
+                // Extract and process any script tags that might contain module syntax
+                const scriptTags = [];
+                htmlContent = htmlContent.replace(/<script(?:\s+type\s*=\s*['"](?:text\/javascript|application\/javascript)['"])?[^>]*>([\s\S]*?)<\/script>/gi, (match, scriptContent) => {
+                    // Check if this script contains import/export statements
+                    if (this.isModuleFile(scriptContent)) {
+                        // Process as module and add to moduleFiles
+                        moduleFiles.push({
+                            content: scriptContent,
+                            filename: 'inline-module.mjs'
+                        });
+                        return ''; // Remove the script tag from HTML
+                    } else {
+                        // Keep as regular script or add to jsFiles for processing
+                        jsFiles.push({
+                            content: scriptContent,
+                            filename: 'inline-script.js'
+                        });
+                        return ''; // Remove the script tag from HTML
+                    }
+                });
+                
                 // Always remove script/link tags that reference external files since we inline them
                 htmlContent = htmlContent.replace(/<script[^>]*src\s*=\s*['"][^'"]*\.js['"][^>]*><\/script>/gi, '');
                 htmlContent = htmlContent.replace(/<script[^>]*src\s*=\s*['"][^'"]*\.mjs['"][^>]*><\/script>/gi, '');
