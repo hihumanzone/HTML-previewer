@@ -49,8 +49,8 @@
                         <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
                             <span class="btn-icon">📄</span> Copy
                         </button>
-                        <button class="toolbar-btn popup-btn" aria-label="Open in popup" title="Open in Popup">
-                            <span class="btn-icon">🔗</span> Popup
+                        <button class="toolbar-btn expand-btn" aria-label="Expand code view" title="Expand">
+                            <span class="btn-icon">🔍</span> Expand
                         </button>
                         <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
                             <span class="btn-icon">📁</span> Collapse
@@ -90,8 +90,8 @@
                             <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
                                 <span class="btn-icon">📄</span> Copy
                             </button>
-                            <button class="toolbar-btn popup-btn" aria-label="Open in popup" title="Open in Popup">
-                                <span class="btn-icon">🔗</span> Popup
+                            <button class="toolbar-btn expand-btn" aria-label="Expand code view" title="Expand">
+                                <span class="btn-icon">🔍</span> Expand
                             </button>
                             <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
                                 <span class="btn-icon">📁</span> Collapse
@@ -123,8 +123,8 @@
                             <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
                                 <span class="btn-icon">📄</span> Copy
                             </button>
-                            <button class="toolbar-btn popup-btn" aria-label="Open in popup" title="Open in Popup">
-                                <span class="btn-icon">🔗</span> Popup
+                            <button class="toolbar-btn expand-btn" aria-label="Expand code view" title="Expand">
+                                <span class="btn-icon">🔍</span> Expand
                             </button>
                             <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
                                 <span class="btn-icon">📁</span> Collapse
@@ -156,8 +156,8 @@
                             <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
                                 <span class="btn-icon">📄</span> Copy
                             </button>
-                            <button class="toolbar-btn popup-btn" aria-label="Open in popup" title="Open in Popup">
-                                <span class="btn-icon">🔗</span> Popup
+                            <button class="toolbar-btn expand-btn" aria-label="Expand code view" title="Expand">
+                                <span class="btn-icon">🔍</span> Expand
                             </button>
                             <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
                                 <span class="btn-icon">📁</span> Collapse
@@ -195,6 +195,22 @@
                         <button id="clear-console-btn" class="clear-btn" aria-label="Clear console output">Clear</button>
                     </div>
                     <div id="console-output" role="log" aria-live="polite"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="code-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="code-modal-title" aria-hidden="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="code-modal-title">Code View</h2>
+                <div class="modal-controls">
+                    <button class="close-btn" aria-label="Close code modal">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div id="code-modal-editor-container">
+                    <textarea id="code-modal-editor"></textarea>
                 </div>
             </div>
         </div>
