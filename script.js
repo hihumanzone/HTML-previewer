@@ -1064,6 +1064,18 @@ const CodePreviewer = {
         return content;
     },
 
+    isFullHTMLDocument(content) {
+        // Check if content contains the essential elements of a full HTML document
+        const hasDoctype = /<!doctype\s+html/i.test(content);
+        const hasHtmlTag = /<html[^>]*>/i.test(content);
+        const hasHeadTag = /<head[^>]*>/i.test(content);
+        const hasBodyTag = /<body[^>]*>/i.test(content);
+        
+        // Consider it a full document if it has at least DOCTYPE and HTML tags
+        // or if it has HTML, HEAD, and BODY tags
+        return (hasDoctype && hasHtmlTag) || (hasHtmlTag && hasHeadTag && hasBodyTag);
+    },
+
     extractStylesFromHTML(content) {
         const styles = [];
         let remainingContent = content;
@@ -1147,6 +1159,102 @@ const CodePreviewer = {
         return { html, css, jsFiles, moduleFiles };
     },
 
+    detectFullDocumentMode() {
+        // Check if any HTML file contains a full document structure
+        for (let file of this.state.files) {
+            if (file.type === 'html') {
+                const content = file.editor.getValue();
+                if (this.isFullHTMLDocument(content)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    },
+
+    createVirtualFileSystem() {
+        // Create a mapping of filenames to their content for serving linked assets
+        const fileSystem = new Map();
+        
+        this.state.files.forEach(file => {
+            const filename = this.getFileNameFromPanel(file.id);
+            if (filename && file.editor) {
+                const content = file.editor.getValue();
+                fileSystem.set(filename, {
+                    content: content,
+                    type: file.type
+                });
+            }
+        });
+        
+        return fileSystem;
+    },
+
+    replaceAssetReferences(htmlContent, fileSystem) {
+        // Replace script src and link href references with inline content
+        // This handles cases like <script src="script.js"> and <link href="styles.css">
+        
+        // Handle CSS links
+        htmlContent = htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.css)["']([^>]*?)>/gi, (match, before, filename, after) => {
+            const file = fileSystem.get(filename);
+            if (file && file.type === 'css') {
+                return `<style>${file.content}</style>`;
+            }
+            return match; // Keep original if file not found
+        });
+        
+        // Handle JavaScript scripts
+        htmlContent = htmlContent.replace(/<script([^>]*?)src\s*=\s*["']([^"']+\.(?:js|mjs))["']([^>]*?)><\/script>/gi, (match, before, filename, after) => {
+            const file = fileSystem.get(filename);
+            if (file && (file.type === 'javascript' || file.type === 'javascript-module')) {
+                const scriptType = file.type === 'javascript-module' ? ' type="module"' : '';
+                return `<script${scriptType}>${file.content}</script>`;
+            }
+            return match; // Keep original if file not found
+        });
+        
+        return htmlContent;
+    },
+
+    generateFullDocumentPreview() {
+        // Find the main HTML file (first HTML file with full document structure)
+        let mainHtmlContent = '';
+        
+        for (let file of this.state.files) {
+            if (file.type === 'html') {
+                const content = file.editor.getValue();
+                if (this.isFullHTMLDocument(content)) {
+                    mainHtmlContent = content;
+                    break;
+                }
+            }
+        }
+        
+        if (!mainHtmlContent) {
+            // Fallback to regular multi-file preview if no full document found
+            return this.generateMultiFilePreview();
+        }
+        
+        // Create virtual file system for linked assets
+        const fileSystem = this.createVirtualFileSystem();
+        
+        // Replace asset references with inline content
+        let processedHtml = this.replaceAssetReferences(mainHtmlContent, fileSystem);
+        
+        // Inject console script for debugging
+        const captureScript = this.console.getCaptureScript();
+        if (processedHtml.includes('</head>')) {
+            processedHtml = processedHtml.replace('</head>', captureScript + '\n</head>');
+        } else if (processedHtml.includes('<head>')) {
+            processedHtml = processedHtml.replace('<head>', '<head>\n' + captureScript);
+        } else {
+            // If no head tag, inject at the beginning of the document
+            processedHtml = processedHtml.replace(/<html[^>]*>/i, '$&\n<head>\n' + captureScript + '\n</head>');
+        }
+        
+        return processedHtml;
+    },
+
     processModuleFiles(moduleFiles) {
         if (moduleFiles.length === 0) return '';
 
@@ -1216,6 +1324,12 @@ const CodePreviewer = {
     },
 
     generateMultiFilePreview() {
+        // Check if we should use full-document mode
+        if (this.detectFullDocumentMode()) {
+            return this.generateFullDocumentPreview();
+        }
+        
+        // Use traditional body-only mode with auto-injection
         const { html, css, jsFiles, moduleFiles } = this.collectFileContents();
         const moduleScript = this.processModuleFiles(moduleFiles);
         const jsScript = this.processJavaScriptFiles(jsFiles);
