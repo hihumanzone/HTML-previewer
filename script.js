@@ -264,20 +264,32 @@ ${initialJS}
         switch (extension) {
             case 'html':
             case 'htm':
+            case 'xhtml':
                 return 'html';
             case 'css':
+            case 'scss':
+            case 'sass':
+            case 'less':
                 return 'css';
             case 'mjs':
             case 'esm':
                 return 'javascript-module';
             case 'js':
+            case 'jsx':
+            case 'ts':
+            case 'tsx':
                 // Auto-detect if JS file should be a module
                 return this.isModuleFile(content, filename) ? 'javascript-module' : 'javascript';
+            case 'json':
+                // Treat JSON as JavaScript for syntax highlighting
+                return 'javascript';
             default:
                 // For unknown extensions, try to detect based on content
-                if (content && /<\s*html/i.test(content)) return 'html';
-                if (content && /^\s*[\.\#\@]|\s*\w+\s*\{/m.test(content)) return 'css';
-                if (content && this.isModuleFile(content, filename)) return 'javascript-module';
+                if (content) {
+                    if (/<\s*html/i.test(content)) return 'html';
+                    if (/^\s*[\.\#\@]|\s*\w+\s*\{/m.test(content)) return 'css';
+                    if (this.isModuleFile(content, filename)) return 'javascript-module';
+                }
                 return 'javascript';
         }
     },
@@ -384,9 +396,8 @@ ${initialJS}
                     const currentContent = fileInfo.editor.getValue();
                     const suggestedType = this.autoDetectFileType(filename, currentContent);
                     
-                    // Only auto-change if current type is the default or if it's a clear module file
-                    if (typeSelector.value === 'html' || 
-                        (filename.endsWith('.mjs') && typeSelector.value === 'javascript')) {
+                    // Auto-switch file type based on extension for all files
+                    if (suggestedType !== typeSelector.value) {
                         typeSelector.value = suggestedType;
                         panel.dataset.fileType = suggestedType;
                         fileInfo.type = suggestedType;
