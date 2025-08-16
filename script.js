@@ -24,6 +24,7 @@ const CodePreviewer = {
             MODAL_BTN: 'preview-modal-btn',
             TAB_BTN: 'preview-tab-btn',
             CLEAR_CONSOLE_BTN: 'clear-console-btn',
+            TOGGLE_CONSOLE_BTN: 'toggle-console-btn',
             SINGLE_MODE_RADIO: 'single-mode-radio',
             MULTI_MODE_RADIO: 'multi-mode-radio',
             ADD_FILE_BTN: 'add-file-btn',
@@ -38,6 +39,7 @@ const CodePreviewer = {
             CLOSE_BTN: '.close-btn',
         },
         CONSOLE_ID: 'console-output',
+        MODAL_CONSOLE_PANEL_ID: 'modal-console-panel',
         CONSOLE_MESSAGE_TYPE: 'console',
     },
 
@@ -51,7 +53,7 @@ const CodePreviewer = {
     },
 
     cacheDOMElements() {
-        const { EDITOR_IDS, CONTROL_IDS, MODAL_IDS, CONSOLE_ID, CONTAINER_IDS } = this.constants;
+        const { EDITOR_IDS, CONTROL_IDS, MODAL_IDS, CONSOLE_ID, MODAL_CONSOLE_PANEL_ID, CONTAINER_IDS } = this.constants;
         this.dom = {
             htmlEditor: document.getElementById(EDITOR_IDS.HTML),
             cssEditor: document.getElementById(EDITOR_IDS.CSS),
@@ -60,6 +62,7 @@ const CodePreviewer = {
             modalBtn: document.getElementById(CONTROL_IDS.MODAL_BTN),
             tabBtn: document.getElementById(CONTROL_IDS.TAB_BTN),
             clearConsoleBtn: document.getElementById(CONTROL_IDS.CLEAR_CONSOLE_BTN),
+            toggleConsoleBtn: document.getElementById(CONTROL_IDS.TOGGLE_CONSOLE_BTN),
             singleModeRadio: document.getElementById(CONTROL_IDS.SINGLE_MODE_RADIO),
             multiModeRadio: document.getElementById(CONTROL_IDS.MULTI_MODE_RADIO),
             singleModeOption: document.querySelector('label[for="single-mode-radio"]') || this.getSafeParentElement(CONTROL_IDS.SINGLE_MODE_RADIO),
@@ -69,8 +72,9 @@ const CodePreviewer = {
             multiFileContainer: document.getElementById(CONTAINER_IDS.MULTI_FILE),
             modalOverlay: document.getElementById(MODAL_IDS.OVERLAY),
             previewFrame: document.getElementById(MODAL_IDS.FRAME),
-            closeModalBtn: document.querySelector(MODAL_IDS.CLOSE_BTN),
+            closeModalBtn: document.querySelector('.modal-header .close-btn'),
             consoleOutput: document.getElementById(CONSOLE_ID),
+            modalConsolePanel: document.getElementById(MODAL_CONSOLE_PANEL_ID),
             editorGrid: document.querySelector('.editor-grid'),
         };
     },
@@ -179,6 +183,7 @@ const CodePreviewer = {
         this.dom.modalBtn.addEventListener('click', () => this.renderPreview('modal'));
         this.dom.tabBtn.addEventListener('click', () => this.renderPreview('tab'));
         this.dom.closeModalBtn.addEventListener('click', () => this.toggleModal(false));
+        this.dom.toggleConsoleBtn.addEventListener('click', () => this.toggleConsole());
         this.dom.modalOverlay.addEventListener('click', (e) => {
             if (e.target === this.dom.modalOverlay) this.toggleModal(false);
         });
@@ -862,6 +867,26 @@ const CodePreviewer = {
 
     toggleModal(show) {
         this.dom.modalOverlay.setAttribute('aria-hidden', !show);
+        if (show) {
+            // Reset console visibility when opening modal
+            this.dom.modalConsolePanel.classList.add('hidden');
+            this.dom.toggleConsoleBtn.classList.remove('active');
+            this.dom.toggleConsoleBtn.textContent = '📋 Console';
+        }
+    },
+
+    toggleConsole() {
+        const isHidden = this.dom.modalConsolePanel.classList.contains('hidden');
+        
+        if (isHidden) {
+            this.dom.modalConsolePanel.classList.remove('hidden');
+            this.dom.toggleConsoleBtn.classList.add('active');
+            this.dom.toggleConsoleBtn.textContent = '📋 Hide Console';
+        } else {
+            this.dom.modalConsolePanel.classList.add('hidden');
+            this.dom.toggleConsoleBtn.classList.remove('active');
+            this.dom.toggleConsoleBtn.textContent = '📋 Console';
+        }
     },
 
     console: {
