@@ -1064,6 +1064,15 @@ const CodePreviewer = {
         return content;
     },
 
+    isFullHTMLDocument(content) {
+        const hasDoctype = /<!doctype\s+html/i.test(content);
+        const hasHtmlTag = /<html[^>]*>/i.test(content);
+        const hasHeadTag = /<head[^>]*>/i.test(content);
+        const hasBodyTag = /<body[^>]*>/i.test(content);
+        
+        return (hasDoctype && hasHtmlTag) || (hasHtmlTag && hasHeadTag && hasBodyTag);
+    },
+
     extractStylesFromHTML(content) {
         const styles = [];
         let remainingContent = content;
@@ -1080,21 +1089,19 @@ const CodePreviewer = {
     },
 
     processHTMLScripts(htmlContent, jsFiles, moduleFiles) {
-        const scriptTags = [];
         htmlContent = htmlContent.replace(/<script(?:\s+type\s*=\s*['"](?:text\/javascript|application\/javascript)['"])?[^>]*>([\s\S]*?)<\/script>/gi, (match, scriptContent) => {
             if (this.isModuleFile(scriptContent)) {
                 moduleFiles.push({
                     content: scriptContent,
                     filename: 'inline-module.mjs'
                 });
-                return '';
             } else {
                 jsFiles.push({
                     content: scriptContent,
                     filename: 'inline-script.js'
                 });
-                return '';
             }
+            return '';
         });
         
         htmlContent = htmlContent.replace(/<script[^>]*src\s*=\s*['"][^'"]*\.js['"][^>]*><\/script>/gi, '');
@@ -1145,6 +1152,76 @@ const CodePreviewer = {
         });
 
         return { html, css, jsFiles, moduleFiles };
+    },
+
+    detectFullDocumentMode() {
+        return this.state.files.some(file => 
+            file.type === 'html' && this.isFullHTMLDocument(file.editor.getValue())
+        );
+    },
+
+    createVirtualFileSystem() {
+        const fileSystem = new Map();
+        
+        this.state.files.forEach(file => {
+            const filename = this.getFileNameFromPanel(file.id);
+            if (filename && file.editor) {
+                fileSystem.set(filename, {
+                    content: file.editor.getValue(),
+                    type: file.type
+                });
+            }
+        });
+        
+        return fileSystem;
+    },
+
+    replaceAssetReferences(htmlContent, fileSystem) {
+        htmlContent = htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.css)["']([^>]*?)>/gi, (match, before, filename, after) => {
+            const file = fileSystem.get(filename);
+            if (file && file.type === 'css') {
+                return `<style>${file.content}</style>`;
+            }
+            return match;
+        });
+        
+        htmlContent = htmlContent.replace(/<script([^>]*?)src\s*=\s*["']([^"']+\.(?:js|mjs))["']([^>]*?)><\/script>/gi, (match, before, filename, after) => {
+            const file = fileSystem.get(filename);
+            if (file && (file.type === 'javascript' || file.type === 'javascript-module')) {
+                const scriptType = file.type === 'javascript-module' ? ' type="module"' : '';
+                return `<script${scriptType}>${file.content}</script>`;
+            }
+            return match;
+        });
+        
+        return htmlContent;
+    },
+
+    generateFullDocumentPreview() {
+        const mainHtmlFile = this.state.files.find(file => 
+            file.type === 'html' && this.isFullHTMLDocument(file.editor.getValue())
+        );
+        
+        if (!mainHtmlFile) {
+            return this.generateMultiFilePreview();
+        }
+        
+        const fileSystem = this.createVirtualFileSystem();
+        let processedHtml = this.replaceAssetReferences(mainHtmlFile.editor.getValue(), fileSystem);
+        
+        return this.injectConsoleScript(processedHtml);
+    },
+
+    injectConsoleScript(htmlContent) {
+        const captureScript = this.console.getCaptureScript();
+        
+        if (htmlContent.includes('</head>')) {
+            return htmlContent.replace('</head>', captureScript + '\n</head>');
+        } else if (htmlContent.includes('<head>')) {
+            return htmlContent.replace('<head>', '<head>\n' + captureScript);
+        } else {
+            return htmlContent.replace(/<html[^>]*>/i, '$&\n<head>\n' + captureScript + '\n</head>');
+        }
     },
 
     processModuleFiles(moduleFiles) {
@@ -1216,6 +1293,10 @@ const CodePreviewer = {
     },
 
     generateMultiFilePreview() {
+        if (this.detectFullDocumentMode()) {
+            return this.generateFullDocumentPreview();
+        }
+        
         const { html, css, jsFiles, moduleFiles } = this.collectFileContents();
         const moduleScript = this.processModuleFiles(moduleFiles);
         const jsScript = this.processJavaScriptFiles(jsFiles);
