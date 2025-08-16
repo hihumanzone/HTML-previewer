@@ -1064,6 +1064,21 @@ const CodePreviewer = {
         return content;
     },
 
+    extractStylesFromHTML(content) {
+        const styles = [];
+        let remainingContent = content;
+        
+        remainingContent = remainingContent.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (match, styleContent) => {
+            styles.push(styleContent);
+            return '';
+        });
+        
+        return {
+            styles: styles.join('\n'),
+            contentWithoutStyles: remainingContent
+        };
+    },
+
     processHTMLScripts(htmlContent, jsFiles, moduleFiles) {
         const scriptTags = [];
         htmlContent = htmlContent.replace(/<script(?:\s+type\s*=\s*['"](?:text\/javascript|application\/javascript)['"])?[^>]*>([\s\S]*?)<\/script>/gi, (match, scriptContent) => {
@@ -1098,7 +1113,12 @@ const CodePreviewer = {
         this.state.files.forEach(file => {
             const content = file.editor.getValue();
             if (file.type === 'html') {
-                let htmlContent = this.extractHTMLContent(content);
+                const { styles, contentWithoutStyles } = this.extractStylesFromHTML(content);
+                if (styles) {
+                    css += '\n' + styles;
+                }
+                
+                let htmlContent = this.extractHTMLContent(contentWithoutStyles);
                 htmlContent = this.processHTMLScripts(htmlContent, jsFiles, moduleFiles);
                 html += '\n' + htmlContent;
             } else if (file.type === 'css') {
