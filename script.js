@@ -669,23 +669,21 @@ ${initialJS}
             
             // Look for the closing </head> tag and inject the script before it
             if (singleFileContent.includes('</head>')) {
-                return singleFileContent.replace('</head>', `${captureScript}\n</head>`);
+                return singleFileContent.replace('</head>', captureScript + '\n</head>');
             } else {
                 // If no </head> tag found, wrap the content with full HTML structure including console capture
-                return `
-                    <!DOCTYPE html>
-                    <html lang="en">
-                    <head>
-                        <meta charset="UTF-8">
-                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                        <title>Live Preview</title>
-                        ${captureScript}
-                    </head>
-                    <body>
-                        ${singleFileContent}
-                    </body>
-                    </html>
-                `;
+                return '<!DOCTYPE html>\n' +
+                    '<html lang="en">\n' +
+                    '<head>\n' +
+                    '    <meta charset="UTF-8">\n' +
+                    '    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
+                    '    <title>Live Preview</title>\n' +
+                    '    ' + captureScript + '\n' +
+                    '</head>\n' +
+                    '<body>\n' +
+                    '    ' + singleFileContent + '\n' +
+                    '</body>\n' +
+                    '</html>';
             }
         }
         
@@ -793,13 +791,13 @@ ${initialJS}
             }
             
             if (combinedModuleContent.trim() !== '// Combined ES Module') {
-                scriptTags += `<script type="module">
-                    try {
-                        ${combinedModuleContent}
-                    } catch (err) {
-                        console.error('Error in combined module:', err);
-                    }
-                </script>\n`;
+                scriptTags += '<script type="module">\n' +
+                    '    try {\n' +
+                    '        ' + combinedModuleContent + '\n' +
+                    '    } catch (err) {\n' +
+                    '        console.error(\'Error in combined module:\', err);\n' +
+                    '    }\n' +
+                    '</script>\n';
             }
         }
         
@@ -817,26 +815,24 @@ ${initialJS}
             }).join('\n');
             
             if (regularJS.trim()) {
-                scriptTags += `<script>${regularJS}</script>\n`;
+                scriptTags += '<script>' + regularJS + '</script>\n';
             }
         }
 
-        return `
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Live Preview</title>
-                ${this.console.getCaptureScript()}
-                <style>${css}</style>
-            </head>
-            <body>
-                ${html}
-                ${scriptTags}
-            </body>
-            </html>
-        `;
+        return '<!DOCTYPE html>\n' +
+            '<html lang="en">\n' +
+            '<head>\n' +
+            '    <meta charset="UTF-8">\n' +
+            '    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
+            '    <title>Live Preview</title>\n' +
+            '    ' + this.console.getCaptureScript() + '\n' +
+            '    <style>' + css + '</style>\n' +
+            '</head>\n' +
+            '<body>\n' +
+            '    ' + html + '\n' +
+            '    ' + scriptTags + '\n' +
+            '</body>\n' +
+            '</html>';
     },
 
     renderPreview(target) {
@@ -895,32 +891,31 @@ ${initialJS}
         },
         getCaptureScript() {
             const MESSAGE_TYPE = CodePreviewer.constants.CONSOLE_MESSAGE_TYPE;
-            return `
-            <script>
-                (function() {
-                    const postLog = (level, args) => {
-                        const formattedArgs = args.map(arg => {
-                            if (arg instanceof Error) return { message: arg.message, stack: arg.stack };
-                            try { return JSON.parse(JSON.stringify(arg)); } catch (e) { return 'Unserializable Object'; }
-                        });
-                        window.parent.postMessage({ type: '${MESSAGE_TYPE}', level, message: formattedArgs }, '*');
-                    };
-                    const originalConsole = { ...window.console };
-                    ['log', 'warn', 'error'].forEach(level => {
-                        window.console[level] = (...args) => {
-                            postLog(level, Array.from(args));
-                            originalConsole[level](...args);
-                        };
-                    });
-                    window.onerror = (message, source, lineno, colno, error) => {
-                        postLog('error', [message, 'at ' + source.split('/').pop() + ':' + lineno + ':' + colno]);
-                        return true;
-                    };
-                    window.addEventListener('unhandledrejection', e => {
-                        postLog('error', ['Unhandled promise rejection:', e.reason]);
-                    });
-                })();
-            <\/script>`;
+            return '<script>\n' +
+                '(function() {\n' +
+                '    const postLog = (level, args) => {\n' +
+                '        const formattedArgs = args.map(arg => {\n' +
+                '            if (arg instanceof Error) return { message: arg.message, stack: arg.stack };\n' +
+                '            try { return JSON.parse(JSON.stringify(arg)); } catch (e) { return \'Unserializable Object\'; }\n' +
+                '        });\n' +
+                '        window.parent.postMessage({ type: \'' + MESSAGE_TYPE + '\', level, message: formattedArgs }, \'*\');\n' +
+                '    };\n' +
+                '    const originalConsole = { ...window.console };\n' +
+                '    [\'log\', \'warn\', \'error\'].forEach(level => {\n' +
+                '        window.console[level] = (...args) => {\n' +
+                '            postLog(level, Array.from(args));\n' +
+                '            originalConsole[level](...args);\n' +
+                '        };\n' +
+                '    });\n' +
+                '    window.onerror = (message, source, lineno, colno, error) => {\n' +
+                '        postLog(\'error\', [message, \'at \' + source.split(\'/\').pop() + \':\' + lineno + \':\' + colno]);\n' +
+                '        return true;\n' +
+                '    };\n' +
+                '    window.addEventListener(\'unhandledrejection\', e => {\n' +
+                '        postLog(\'error\', [\'Unhandled promise rejection:\', e.reason]);\n' +
+                '    });\n' +
+                '})();\n' +
+                '</script>';
         },
     },
 };
