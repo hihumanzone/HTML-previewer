@@ -29,6 +29,7 @@ const CodePreviewer = {
             SINGLE_MODE_RADIO: 'single-mode-radio',
             MULTI_MODE_RADIO: 'multi-mode-radio',
             ADD_FILE_BTN: 'add-file-btn',
+            IMPORT_FILE_BTN: 'import-file-btn',
         },
         CONTAINER_IDS: {
             SINGLE_FILE: 'single-file-container',
@@ -69,6 +70,7 @@ const CodePreviewer = {
             singleModeOption: document.querySelector('label[for="single-mode-radio"]') || this.getSafeParentElement(CONTROL_IDS.SINGLE_MODE_RADIO),
             multiModeOption: document.querySelector('label[for="multi-mode-radio"]') || this.getSafeParentElement(CONTROL_IDS.MULTI_MODE_RADIO),
             addFileBtn: document.getElementById(CONTROL_IDS.ADD_FILE_BTN),
+            importFileBtn: document.getElementById(CONTROL_IDS.IMPORT_FILE_BTN),
             singleFileContainer: document.getElementById(CONTAINER_IDS.SINGLE_FILE),
             multiFileContainer: document.getElementById(CONTAINER_IDS.MULTI_FILE),
             modalOverlay: document.getElementById(MODAL_IDS.OVERLAY),
@@ -230,6 +232,7 @@ const CodePreviewer = {
         });
         
         this.dom.addFileBtn.addEventListener('click', () => this.addNewFile());
+        this.dom.importFileBtn.addEventListener('click', () => this.importFile());
     },
 
     initModeToggle() {
@@ -400,6 +403,138 @@ const CodePreviewer = {
             id: fileId,
             editor: newEditor,
             type: 'html'
+        });
+        
+        this.bindFilePanelEvents(document.querySelector(`[data-file-id="${fileId}"]`));
+        
+        this.updateRemoveButtonsVisibility();
+    },
+
+    importFile() {
+        // Create a hidden file input element
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.html,.htm,.css,.js,.mjs,.jsx,.ts,.tsx';
+        fileInput.style.display = 'none';
+        
+        fileInput.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            try {
+                // Read file content
+                const content = await this.readFileContent(file);
+                
+                // Auto-detect file type based on filename and content
+                const detectedType = this.autoDetectFileType(file.name, content);
+                
+                // Create new file with imported content
+                this.addNewFileWithContent(file.name, detectedType, content);
+                
+            } catch (error) {
+                console.error('Error importing file:', error);
+                alert('Error importing file. Please try again.');
+            }
+            
+            // Clean up
+            document.body.removeChild(fileInput);
+        });
+        
+        // Add to DOM and trigger click
+        document.body.appendChild(fileInput);
+        fileInput.click();
+    },
+
+    readFileContent(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.onerror = (e) => reject(e);
+            reader.readAsText(file);
+        });
+    },
+
+    addNewFileWithContent(fileName, fileType, content) {
+        const fileId = `file-${this.state.nextFileId++}`;
+        
+        const panelHTML = `
+            <div class="editor-panel" data-file-type="${fileType}" data-file-id="${fileId}">
+                <div class="panel-header">
+                    <input type="text" class="file-name-input" value="${fileName}" aria-label="File name">
+                    <select class="file-type-selector" aria-label="File type">
+                        <option value="html" ${fileType === 'html' ? 'selected' : ''}>HTML</option>
+                        <option value="css" ${fileType === 'css' ? 'selected' : ''}>CSS</option>
+                        <option value="javascript" ${fileType === 'javascript' ? 'selected' : ''}>JavaScript</option>
+                        <option value="javascript-module" ${fileType === 'javascript-module' ? 'selected' : ''}>JavaScript Module</option>
+                    </select>
+                    <button class="remove-file-btn" aria-label="Remove file">&times;</button>
+                </div>
+                <div class="editor-toolbar">
+                    <button class="toolbar-btn clear-btn" aria-label="Clear content" title="Clear">
+                        <span class="btn-icon">🗑️</span> Clear
+                    </button>
+                    <button class="toolbar-btn paste-btn" aria-label="Paste from clipboard" title="Paste">
+                        <span class="btn-icon">📋</span> Paste
+                    </button>
+                    <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
+                        <span class="btn-icon">📄</span> Copy
+                    </button>
+                    <button class="toolbar-btn expand-btn" aria-label="Expand code view" title="Expand">
+                        <span class="btn-icon">🔍</span> Expand
+                    </button>
+                    <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
+                        <span class="btn-icon">📁</span> Collapse
+                    </button>
+                </div>
+                <label for="${fileId}" class="sr-only">Code Editor</label>
+                <div class="editor-wrapper">
+                    <textarea id="${fileId}"></textarea>
+                </div>
+            </div>
+        `;
+        
+        this.dom.editorGrid.insertAdjacentHTML('beforeend', panelHTML);
+        
+        const newTextarea = document.getElementById(fileId);
+        let newEditor;
+        
+        if (typeof CodeMirror !== 'undefined') {
+            const mode = fileType === 'html' ? 'htmlmixed' : 
+                       fileType === 'css' ? 'css' : 'javascript';
+            
+            newEditor = CodeMirror.fromTextArea(newTextarea, {
+                lineNumbers: true,
+                mode: mode,
+                theme: 'dracula',
+                autoCloseTags: fileType === 'html',
+                lineWrapping: true,
+            });
+            
+            // Set the imported content
+            newEditor.setValue(content);
+        } else {
+            Object.assign(newTextarea.style, {
+                fontFamily: 'monospace', fontSize: '14px', lineHeight: '1.5',
+                resize: 'none', border: 'none', outline: 'none',
+                background: '#282a36', color: '#f8f8f2', padding: '1rem',
+                width: '100%', height: '400px'
+            });
+            
+            newEditor = {
+                setValue: (value) => newTextarea.value = value,
+                getValue: () => newTextarea.value,
+                refresh: () => {},
+                setOption: () => {},
+            };
+            
+            // Set the imported content
+            newEditor.setValue(content);
+        }
+        
+        this.state.files.push({
+            id: fileId,
+            editor: newEditor,
+            type: fileType
         });
         
         this.bindFilePanelEvents(document.querySelector(`[data-file-id="${fileId}"]`));

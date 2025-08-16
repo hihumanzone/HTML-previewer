@@ -159,8 +159,14 @@ body {
     color: var(--accent-color);
 }
 
+.files-header-buttons {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
 /* Button base styles */
-.btn, .add-file-btn, .toolbar-btn, .clear-btn {
+.btn, .add-file-btn, .import-file-btn, .toolbar-btn, .clear-btn {
     border: none;
     border-radius: 4px;
     cursor: pointer;
@@ -179,14 +185,21 @@ body {
     background-color: #a6caff; 
 }
 
-.add-file-btn {
+.add-file-btn, .import-file-btn {
     background-color: var(--accent-color);
     color: var(--bg-color);
     padding: 0.5rem 1rem;
     font-size: 0.9rem;
 }
-.add-file-btn:hover {
+.add-file-btn:hover, .import-file-btn:hover {
     background-color: #a6caff;
+}
+
+.import-file-btn {
+    background-color: #fab387;
+}
+.import-file-btn:hover {
+    background-color: #fcc78a;
 }
 
 .clear-btn {
