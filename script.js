@@ -813,11 +813,7 @@ const CodePreviewer = {
             
             if (combinedModuleContent.trim() !== '// Combined ES Module') {
                 scriptTags += '<script type="module">\n' +
-                    '    try {\n' +
-                    '        ' + combinedModuleContent + '\n' +
-                    '    } catch (err) {\n' +
-                    '        console.error(\'Error in combined module:\', err);\n' +
-                    '    }\n' +
+                    combinedModuleContent + '\n' +
                     '</script>\n';
             }
         }
@@ -825,16 +821,16 @@ const CodePreviewer = {
         // Add regular JavaScript files
         if (jsFiles.length > 0) {
             const regularJS = jsFiles.map(file => {
-                return '\n                    // === ' + file.filename + ' ===\n' +
-                       '                    try {\n' +
-                       '                        ' + file.content + '\n' +
-                       '                    } catch (err) {\n' +
-                       '                        console.error(\'Error in ' + file.filename + ':\', err);\n' +
-                       '                    }\n';
+                return '// === ' + file.filename + ' ===\n' +
+                       'try {\n' +
+                       file.content + '\n' +
+                       '} catch (err) {\n' +
+                       '    console.error(\'Error in ' + file.filename + ':\', err);\n' +
+                       '}\n';
             }).join('\n');
             
             if (regularJS.trim()) {
-                scriptTags += '<script>' + regularJS + '</script>\n';
+                scriptTags += '<script>\n' + regularJS + '</script>\n';
             }
         }
 
