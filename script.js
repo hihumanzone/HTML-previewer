@@ -722,10 +722,18 @@ const CodePreviewer = {
             } else if (file.type === 'css') {
                 css += '\n' + content;
             } else if (file.type === 'javascript') {
-                jsFiles.push({
-                    content: content,
-                    filename: this.getFileNameFromPanel(file.id) || 'script.js'
-                });
+                const filename = this.getFileNameFromPanel(file.id) || 'script.js';
+                if (this.isModuleFile(content, filename)) {
+                    moduleFiles.push({
+                        content: content,
+                        filename: filename
+                    });
+                } else {
+                    jsFiles.push({
+                        content: content,
+                        filename: filename
+                    });
+                }
             } else if (file.type === 'javascript-module') {
                 moduleFiles.push({
                     content: content,
