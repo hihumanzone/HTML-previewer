@@ -62,8 +62,8 @@ const CodePreviewer = {
             clearConsoleBtn: document.getElementById(CONTROL_IDS.CLEAR_CONSOLE_BTN),
             singleModeRadio: document.getElementById(CONTROL_IDS.SINGLE_MODE_RADIO),
             multiModeRadio: document.getElementById(CONTROL_IDS.MULTI_MODE_RADIO),
-            singleModeOption: document.querySelector('label[for="single-mode-radio"]') || document.getElementById(CONTROL_IDS.SINGLE_MODE_RADIO).parentElement,
-            multiModeOption: document.querySelector('label[for="multi-mode-radio"]') || document.getElementById(CONTROL_IDS.MULTI_MODE_RADIO).parentElement,
+            singleModeOption: document.querySelector('label[for="single-mode-radio"]') || this.getSafeParentElement(CONTROL_IDS.SINGLE_MODE_RADIO),
+            multiModeOption: document.querySelector('label[for="multi-mode-radio"]') || this.getSafeParentElement(CONTROL_IDS.MULTI_MODE_RADIO),
             addFileBtn: document.getElementById(CONTROL_IDS.ADD_FILE_BTN),
             singleFileContainer: document.getElementById(CONTAINER_IDS.SINGLE_FILE),
             multiFileContainer: document.getElementById(CONTAINER_IDS.MULTI_FILE),
@@ -73,6 +73,11 @@ const CodePreviewer = {
             consoleOutput: document.getElementById(CONSOLE_ID),
             editorGrid: document.querySelector('.editor-grid'),
         };
+    },
+
+    getSafeParentElement(elementId) {
+        const element = document.getElementById(elementId);
+        return element ? element.parentElement : null;
     },
 
     initEditors() {
@@ -715,6 +720,7 @@ ${initialJS}
         // Handle ES modules by combining them into a single module context
         if (moduleFiles.length > 0) {
             let combinedModuleContent = '// Combined ES Module\n';
+            let globalFunctions = []; // Track functions to make globally available
             
             // Process each module to remove import/export statements and inline the code
             moduleFiles.forEach((file, index) => {
@@ -725,16 +731,38 @@ ${initialJS}
                 processedContent = processedContent.replace(/import\s+\*\s+as\s+\w+\s+from\s*['"][^'"]+['"];?\s*\n?/g, '');
                 processedContent = processedContent.replace(/import\s+\w+\s+from\s*['"][^'"]+['"];?\s*\n?/g, '');
                 
-                // Convert exports to regular declarations/assignments
-                processedContent = processedContent.replace(/export\s+function\s+(\w+)/g, 'function $1');
+                // Extract exported function names and convert exports to regular declarations
+                processedContent = processedContent.replace(/export\s+function\s+(\w+)/g, (match, funcName) => {
+                    globalFunctions.push(funcName);
+                    return `function ${funcName}`;
+                });
                 processedContent = processedContent.replace(/export\s+const\s+(\w+)\s*=/g, 'const $1 =');
                 processedContent = processedContent.replace(/export\s+let\s+(\w+)\s*=/g, 'let $1 =');
                 processedContent = processedContent.replace(/export\s+var\s+(\w+)\s*=/g, 'var $1 =');
                 processedContent = processedContent.replace(/export\s+\{[^}]+\};?\s*\n?/g, '');
                 processedContent = processedContent.replace(/export\s+default\s+/g, '');
                 
+                // Also capture regular function declarations to make them globally available
+                const functionMatches = processedContent.match(/function\s+(\w+)\s*\(/g);
+                if (functionMatches) {
+                    functionMatches.forEach(match => {
+                        const funcName = match.match(/function\s+(\w+)\s*\(/)[1];
+                        if (!globalFunctions.includes(funcName)) {
+                            globalFunctions.push(funcName);
+                        }
+                    });
+                }
+                
                 combinedModuleContent += `\n// === ${file.filename} ===\n${processedContent}\n`;
             });
+            
+            // Make functions globally available for inline event handlers
+            if (globalFunctions.length > 0) {
+                combinedModuleContent += `\n// Make functions globally available\n`;
+                globalFunctions.forEach(funcName => {
+                    combinedModuleContent += `if (typeof ${funcName} !== 'undefined') { window.${funcName} = ${funcName}; }\n`;
+                });
+            }
             
             if (combinedModuleContent.trim() !== '// Combined ES Module') {
                 scriptTags += `<script type="module">
