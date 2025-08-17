@@ -80,6 +80,9 @@ const CodePreviewer = {
             modalConsolePanel: document.getElementById(MODAL_CONSOLE_PANEL_ID),
             editorGrid: document.querySelector('.editor-grid'),
             saveCodeBtn: document.getElementById('save-code-btn'),
+            mediaModal: document.getElementById('media-modal'),
+            mediaModalContent: document.getElementById('media-modal-content'),
+            mediaModalTitle: document.getElementById('media-modal-title'),
         };
     },
 
@@ -201,6 +204,10 @@ const CodePreviewer = {
                 if (codeModal && codeModal.getAttribute('aria-hidden') === 'false') {
                     this.closeCodeModal();
                 }
+                const mediaModal = document.getElementById('media-modal');
+                if (mediaModal && mediaModal.getAttribute('aria-hidden') === 'false') {
+                    this.closeMediaModal();
+                }
             }
         });
 
@@ -218,6 +225,20 @@ const CodePreviewer = {
         if (codeModal) {
             codeModal.addEventListener('click', (e) => {
                 if (e.target === codeModal) this.closeCodeModal();
+            });
+        }
+
+        // Media modal event handlers
+        const mediaModal = document.getElementById('media-modal');
+        const mediaModalCloseBtn = mediaModal?.querySelector('.close-btn');
+        
+        if (mediaModalCloseBtn) {
+            mediaModalCloseBtn.addEventListener('click', () => this.closeMediaModal());
+        }
+        
+        if (mediaModal) {
+            mediaModal.addEventListener('click', (e) => {
+                if (e.target === mediaModal) this.closeMediaModal();
             });
         }
 
@@ -390,26 +411,7 @@ const CodePreviewer = {
                     </select>
                     <button class="remove-file-btn" aria-label="Remove file">&times;</button>
                 </div>
-                <div class="editor-toolbar">
-                    <button class="toolbar-btn clear-btn" aria-label="Clear content" title="Clear">
-                        <span class="btn-icon">🗑️</span> Clear
-                    </button>
-                    <button class="toolbar-btn paste-btn" aria-label="Paste from clipboard" title="Paste">
-                        <span class="btn-icon">📋</span> Paste
-                    </button>
-                    <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
-                        <span class="btn-icon">📄</span> Copy
-                    </button>
-                    <button class="toolbar-btn expand-btn" aria-label="Expand code view" title="Expand">
-                        <span class="btn-icon">🔍</span> Expand
-                    </button>
-                    <button class="toolbar-btn export-btn" aria-label="Export file" title="Export">
-                        <span class="btn-icon">💾</span> Export
-                    </button>
-                    <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
-                        <span class="btn-icon">📁</span> Collapse
-                    </button>
-                </div>
+                ${this.generateToolbarHTML('html')}
                 <label for="${fileId}" class="sr-only">Code Editor</label>
                 <div class="editor-wrapper">
                     <textarea id="${fileId}"></textarea>
@@ -551,38 +553,17 @@ const CodePreviewer = {
         const fileId = `file-${this.state.nextFileId++}`;
         
         const fileTypeOptions = this.generateFileTypeOptions(fileType);
-        const fileIcon = this.getFileTypeIcon(fileType);
         
         const panelHTML = `
             <div class="editor-panel" data-file-type="${fileType}" data-file-id="${fileId}">
                 <div class="panel-header">
-                    <span class="file-icon">${fileIcon}</span>
                     <input type="text" class="file-name-input" value="${fileName}" aria-label="File name">
                     <select class="file-type-selector" aria-label="File type">
                         ${fileTypeOptions}
                     </select>
                     <button class="remove-file-btn" aria-label="Remove file">&times;</button>
                 </div>
-                <div class="editor-toolbar">
-                    <button class="toolbar-btn clear-btn" aria-label="Clear content" title="Clear">
-                        <span class="btn-icon">🗑️</span> Clear
-                    </button>
-                    <button class="toolbar-btn paste-btn" aria-label="Paste from clipboard" title="Paste">
-                        <span class="btn-icon">📋</span> Paste
-                    </button>
-                    <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
-                        <span class="btn-icon">📄</span> Copy
-                    </button>
-                    <button class="toolbar-btn expand-btn" aria-label="Expand code view" title="Expand">
-                        <span class="btn-icon">🔍</span> Expand
-                    </button>
-                    <button class="toolbar-btn export-btn" aria-label="Export file" title="Export">
-                        <span class="btn-icon">💾</span> Export
-                    </button>
-                    <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
-                        <span class="btn-icon">📁</span> Collapse
-                    </button>
-                </div>
+                ${this.generateToolbarHTML(fileType)}
                 <label for="${fileId}" class="sr-only">${this.getFileTypeLabel(fileType)}</label>
                 <div class="editor-wrapper">
                     ${this.generateFileContentDisplay(fileId, fileType, content, isBinary)}
@@ -678,6 +659,61 @@ const CodePreviewer = {
         return fileTypes.map(type => 
             `<option value="${type.value}" ${selectedType === type.value ? 'selected' : ''}>${type.label}</option>`
         ).join('');
+    },
+
+    generateToolbarHTML(fileType) {
+        const isEditable = this.isEditableFileType(fileType);
+        const hasExpandPreview = this.hasExpandPreview(fileType);
+        
+        let toolbarHTML = '<div class="editor-toolbar">';
+        
+        // Show Clear, Paste, Copy only for editable (text) files
+        if (isEditable) {
+            toolbarHTML += `
+                <button class="toolbar-btn clear-btn" aria-label="Clear content" title="Clear">
+                    <span class="btn-icon">🗑️</span> Clear
+                </button>
+                <button class="toolbar-btn paste-btn" aria-label="Paste from clipboard" title="Paste">
+                    <span class="btn-icon">📋</span> Paste
+                </button>
+                <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
+                    <span class="btn-icon">📄</span> Copy
+                </button>
+            `;
+        }
+        
+        // Show Expand only for files that have preview support
+        if (hasExpandPreview) {
+            const expandLabel = isEditable ? "Expand code view" : "View media";
+            const expandTitle = isEditable ? "Expand" : "View";
+            toolbarHTML += `
+                <button class="toolbar-btn expand-btn" aria-label="${expandLabel}" title="${expandTitle}">
+                    <span class="btn-icon">🔍</span> ${expandTitle}
+                </button>
+            `;
+        }
+        
+        // Export and Collapse are always available
+        toolbarHTML += `
+            <button class="toolbar-btn export-btn" aria-label="Export file" title="Export">
+                <span class="btn-icon">💾</span> Export
+            </button>
+            <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
+                <span class="btn-icon">📁</span> Collapse
+            </button>
+        `;
+        
+        toolbarHTML += '</div>';
+        return toolbarHTML;
+    },
+
+    hasExpandPreview(fileType) {
+        // Define which file types support expand/preview functionality
+        const previewableTypes = [
+            'html', 'css', 'javascript', 'javascript-module', 'json', 'xml', 'markdown', 'text', 'svg',  // Text files
+            'image', 'audio', 'video', 'pdf'  // Media files
+        ];
+        return previewableTypes.includes(fileType);
     },
 
     getFileTypeIcon(fileType) {
@@ -1048,6 +1084,16 @@ const CodePreviewer = {
     },
 
     expandCode(panel) {
+        const fileId = panel.dataset.fileId;
+        const fileType = panel.dataset.fileType;
+        
+        // For media files, show media preview instead of code modal
+        if (!this.isEditableFileType(fileType)) {
+            this.showMediaPreview(panel);
+            return;
+        }
+        
+        // For text files, show code modal as before
         const editor = this.getEditorFromPanel(panel);
         if (!editor) return;
 
@@ -1076,6 +1122,106 @@ const CodePreviewer = {
         }
 
         this.openCodeModal(content, fileName, language, panel);
+    },
+
+    showMediaPreview(panel) {
+        const fileId = panel.dataset.fileId;
+        const fileType = panel.dataset.fileType;
+        const fileNameInput = panel.querySelector('.file-name-input');
+        const fileName = fileNameInput ? fileNameInput.value : 'Media File';
+        
+        // Find the file data
+        const fileInfo = this.state.files.find(f => f.id === fileId);
+        if (!fileInfo) {
+            console.error('File info not found for media preview');
+            return;
+        }
+        
+        let previewContent = '';
+        
+        switch (fileType) {
+            case 'image':
+                previewContent = `
+                    <div class="media-preview-container">
+                        <img src="${fileInfo.content}" alt="${fileName}" style="max-width: 100%; max-height: 80vh; object-fit: contain;">
+                    </div>
+                `;
+                break;
+            case 'audio':
+                previewContent = `
+                    <div class="media-preview-container">
+                        <h3>${fileName}</h3>
+                        <audio controls style="width: 100%; margin-top: 20px;">
+                            <source src="${fileInfo.content}">
+                            Your browser does not support the audio element.
+                        </audio>
+                    </div>
+                `;
+                break;
+            case 'video':
+                previewContent = `
+                    <div class="media-preview-container">
+                        <h3>${fileName}</h3>
+                        <video controls style="max-width: 100%; max-height: 70vh; margin-top: 20px;">
+                            <source src="${fileInfo.content}">
+                            Your browser does not support the video element.
+                        </video>
+                    </div>
+                `;
+                break;
+            case 'pdf':
+                previewContent = `
+                    <div class="media-preview-container">
+                        <h3>${fileName}</h3>
+                        <object data="${fileInfo.content}" type="application/pdf" style="width: 100%; height: 70vh; margin-top: 20px;">
+                            <p>PDF failed to load. <a href="${fileInfo.content}" target="_blank">Open in new tab</a></p>
+                        </object>
+                    </div>
+                `;
+                break;
+            case 'svg':
+                // For SVG, show the rendered image
+                const svgDataUrl = fileInfo.isBinary ? fileInfo.content : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(fileInfo.content)}`;
+                previewContent = `
+                    <div class="media-preview-container">
+                        <h3>${fileName}</h3>
+                        <img src="${svgDataUrl}" alt="${fileName}" style="max-width: 100%; max-height: 80vh; object-fit: contain; margin-top: 20px;">
+                    </div>
+                `;
+                break;
+            default:
+                previewContent = `
+                    <div class="media-preview-container">
+                        <h3>${fileName}</h3>
+                        <p>Preview not available for this file type.</p>
+                    </div>
+                `;
+        }
+        
+        this.openMediaModal(fileName, previewContent);
+    },
+
+    openMediaModal(fileName, content) {
+        if (!this.dom.mediaModal || !this.dom.mediaModalContent || !this.dom.mediaModalTitle) {
+            console.error('Media modal elements not found');
+            return;
+        }
+        
+        this.dom.mediaModalTitle.textContent = `${fileName}`;
+        this.dom.mediaModalContent.innerHTML = content;
+        
+        this.dom.mediaModal.style.display = 'flex';
+        this.dom.mediaModal.setAttribute('aria-hidden', 'false');
+    },
+
+    closeMediaModal() {
+        if (this.dom.mediaModal) {
+            this.dom.mediaModal.style.display = 'none';
+            this.dom.mediaModal.setAttribute('aria-hidden', 'true');
+        }
+        if (this.dom.mediaModalContent) {
+            this.dom.mediaModalContent.innerHTML = '';
+        }
     },
 
     openCodeModal(content, fileName, language, sourcePanel) {
