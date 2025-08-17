@@ -2553,8 +2553,10 @@ const CodePreviewer = {
             
             return '<script>\n' +
                 '(function() {\n' +
+                '    console.log("🚀 Fetch override script loaded!");\n' +
                 '    // Virtual file system for fetch override\n' +
                 '    const virtualFileSystem = ' + fileSystemData + ';\n' +
+                '    console.log("Virtual file system loaded:", virtualFileSystem);\n' +
                 '    \n' +
                 '    // Override fetch to serve virtual files\n' +
                 '    const originalFetch = window.fetch;\n' +
@@ -2564,12 +2566,17 @@ const CodePreviewer = {
                 '            url = input.url;\n' +
                 '        }\n' +
                 '        \n' +
+                '        console.log("Fetch called for:", url);\n' +
+                '        \n' +
                 '        // Normalize the URL - remove leading ./ and resolve relative paths\n' +
                 '        const normalizedUrl = url.replace(/^\.\//, "");\n' +
+                '        console.log("Normalized URL:", normalizedUrl);\n' +
+                '        console.log("Available files:", Object.keys(virtualFileSystem));\n' +
                 '        \n' +
                 '        // Check if file exists in virtual file system\n' +
                 '        if (virtualFileSystem[normalizedUrl]) {\n' +
                 '            const fileData = virtualFileSystem[normalizedUrl];\n' +
+                '            console.log("Found file in virtual system:", fileData);\n' +
                 '            \n' +
                 '            // Create mock response\n' +
                 '            const response = {\n' +
@@ -2624,9 +2631,11 @@ const CodePreviewer = {
                 '                }\n' +
                 '            };\n' +
                 '            \n' +
+                '            console.log("Returning virtual file response");\n' +
                 '            return Promise.resolve(response);\n' +
                 '        }\n' +
                 '        \n' +
+                '        console.log("File not found in virtual system, using original fetch");\n' +
                 '        // If not found in virtual file system, use original fetch\n' +
                 '        return originalFetch.apply(this, arguments);\n' +
                 '    };\n' +
