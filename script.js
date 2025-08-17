@@ -2571,6 +2571,8 @@ const CodePreviewer = {
                 '(function() {\n' +
                 fileSystemScript + '\n' +
                 '    \n' +
+                `    window.__currentExecutionContext = "${mainHtmlPath}";\n` +
+                '    \n' +
                 '    function resolvePath(basePath, relativePath) {\n' +
                 '        if (relativePath.startsWith("/")) {\n' +
                 '            return relativePath.substring(1);\n' +
