@@ -1192,6 +1192,39 @@ const CodePreviewer = {
         return null;
     },
 
+    extractWorkerFileNames(htmlContent) {
+        const workerMatches = htmlContent.match(/new\s+Worker\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/gi) || [];
+        return workerMatches.map(match => {
+            const fileMatch = match.match(/new\s+Worker\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/i);
+            return fileMatch ? fileMatch[1] : null;
+        }).filter(Boolean);
+    },
+
+    createWorkerScript(workerFileNames, fileSystem) {
+        if (workerFileNames.length === 0) return '';
+        
+        let script = '<script>\n';
+        workerFileNames.forEach(fileName => {
+            const file = this.findFileInSystem(fileSystem, fileName);
+            if (file && (file.type === 'javascript' || file.type === 'javascript-module')) {
+                const blobVar = 'workerBlob_' + fileName.replace(/[^a-zA-Z0-9]/g, '_');
+                const urlVar = 'workerUrl_' + fileName.replace(/[^a-zA-Z0-9]/g, '_');
+                script += `const ${blobVar} = new Blob([${JSON.stringify(file.content)}], { type: 'application/javascript' });\n`;
+                script += `const ${urlVar} = URL.createObjectURL(${blobVar});\n`;
+            }
+        });
+        return script + '</script>\n';
+    },
+
+    replaceWorkerCalls(htmlContent, workerFileNames) {
+        workerFileNames.forEach(fileName => {
+            const urlVar = 'workerUrl_' + fileName.replace(/[^a-zA-Z0-9]/g, '_');
+            const regex = new RegExp(`new\\s+Worker\\s*\\(\\s*['"\`]${fileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"\`]\\s*\\)`, 'gi');
+            htmlContent = htmlContent.replace(regex, `new Worker(${urlVar})`);
+        });
+        return htmlContent;
+    },
+
     replaceAssetReferences(htmlContent, fileSystem) {
         htmlContent = htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.css)["']([^>]*?)>/gi, (match, before, filename, after) => {
             const file = this.findFileInSystem(fileSystem, filename);
@@ -1201,7 +1234,26 @@ const CodePreviewer = {
             return match;
         });
         
+        const workerFileNames = this.extractWorkerFileNames(htmlContent);
+        if (workerFileNames.length > 0) {
+            const workerScript = this.createWorkerScript(workerFileNames, fileSystem);
+            htmlContent = this.replaceWorkerCalls(htmlContent, workerFileNames);
+            
+            if (htmlContent.includes('</head>')) {
+                htmlContent = htmlContent.replace('</head>', workerScript + '</head>');
+            } else if (htmlContent.includes('<head>')) {
+                htmlContent = htmlContent.replace('<head>', '<head>\n' + workerScript);
+            } else {
+                htmlContent = htmlContent.replace(/<html[^>]*>/i, '$&\n<head>\n' + workerScript + '\n</head>');
+            }
+        }
+        
+        const workerFileSet = new Set(workerFileNames);
         htmlContent = htmlContent.replace(/<script([^>]*?)src\s*=\s*["']([^"']+\.(?:js|mjs))["']([^>]*?)><\/script>/gi, (match, before, filename, after) => {
+            if (workerFileSet.has(filename)) {
+                return '';
+            }
+            
             const file = this.findFileInSystem(fileSystem, filename);
             if (file && (file.type === 'javascript' || file.type === 'javascript-module')) {
                 const scriptType = file.type === 'javascript-module' ? ' type="module"' : '';
@@ -1308,12 +1360,53 @@ const CodePreviewer = {
         return '';
     },
 
+    processWebWorkers(html, jsFiles) {
+        const workerFileNames = this.extractWorkerFileNames(html);
+        if (workerFileNames.length === 0) {
+            return { processedHtml: html, workerScript: '' };
+        }
+        
+        let processedHtml = html;
+        let workerScript = '<script>\n';
+        
+        workerFileNames.forEach(fileName => {
+            const workerFileIndex = jsFiles.findIndex(jsFile => 
+                jsFile.filename === fileName || 
+                jsFile.filename.toLowerCase() === fileName.toLowerCase()
+            );
+            
+            if (workerFileIndex !== -1) {
+                const workerFile = jsFiles[workerFileIndex];
+                const blobVar = 'workerBlob_' + fileName.replace(/[^a-zA-Z0-9]/g, '_');
+                const urlVar = 'workerUrl_' + fileName.replace(/[^a-zA-Z0-9]/g, '_');
+                
+                workerScript += `const ${blobVar} = new Blob([${JSON.stringify(workerFile.content)}], { type: 'application/javascript' });\n`;
+                workerScript += `const ${urlVar} = URL.createObjectURL(${blobVar});\n`;
+                
+                const regex = new RegExp(`new\\s+Worker\\s*\\(\\s*['"\`]${fileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"\`]\\s*\\)`, 'gi');
+                processedHtml = processedHtml.replace(regex, `new Worker(${urlVar})`);
+                
+                jsFiles.splice(workerFileIndex, 1);
+            }
+        });
+        
+        workerScript += '</script>\n';
+        
+        return { 
+            processedHtml: processedHtml, 
+            workerScript: workerFileNames.length > 0 ? workerScript : '' 
+        };
+    },
+
     generateMultiFilePreview() {
         if (this.detectFullDocumentMode()) {
             return this.generateFullDocumentPreview();
         }
         
         const { html, css, jsFiles, moduleFiles } = this.collectFileContents();
+        
+        const { processedHtml, workerScript } = this.processWebWorkers(html, jsFiles);
+        
         const moduleScript = this.processModuleFiles(moduleFiles);
         const jsScript = this.processJavaScriptFiles(jsFiles);
 
@@ -1324,10 +1417,11 @@ const CodePreviewer = {
             '    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
             '    <title>Live Preview</title>\n' +
             '    ' + this.console.getCaptureScript() + '\n' +
+            '    ' + workerScript + '\n' +
             '    <style>' + css + '</style>\n' +
             '</head>\n' +
             '<body>\n' +
-            '    ' + html + '\n' +
+            '    ' + processedHtml + '\n' +
             '    ' + moduleScript + '\n' +
             '    ' + jsScript + '\n' +
             '</body>\n' +
