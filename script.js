@@ -532,6 +532,11 @@ const CodePreviewer = {
         
         // Check by MIME type
         if (mimeType) {
+            // SVG is a special case - it's XML-based and editable even though it has image/ MIME type
+            if (mimeType === 'image/svg+xml') {
+                return false;
+            }
+            
             return mimeType.startsWith('image/') || 
                    mimeType.startsWith('audio/') || 
                    mimeType.startsWith('video/') || 
@@ -1399,11 +1404,12 @@ const CodePreviewer = {
         const fileSystem = new Map();
         
         this.state.files.forEach(file => {
-            const filename = this.getFileNameFromPanel(file.id);
+            let filename = file.fileName || this.getFileNameFromPanel(file.id);
             if (filename && file.editor) {
                 fileSystem.set(filename, {
-                    content: file.editor.getValue(),
-                    type: file.type
+                    content: file.content || file.editor.getValue(),
+                    type: file.type,
+                    isBinary: file.isBinary || false
                 });
             }
         });
@@ -1461,12 +1467,75 @@ const CodePreviewer = {
     },
 
     replaceAssetReferences(htmlContent, fileSystem) {
+        // Replace CSS link references
         htmlContent = htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.css)["']([^>]*?)>/gi, (match, before, filename, after) => {
             const file = this.findFileInSystem(fileSystem, filename);
             if (file && file.type === 'css') {
                 return `<style>${file.content}</style>`;
             }
             return match;
+        });
+        
+        // Replace image sources
+        htmlContent = htmlContent.replace(/<img([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
+            const file = this.findFileInSystem(fileSystem, filename);
+            if (file && (file.type === 'image' || file.type === 'svg')) {
+                // For binary images, use the data URL; for SVG use the text content as data URL
+                const src = file.isBinary ? file.content : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(file.content)}`;
+                return `<img${before}src="${src}"${after}>`;
+            }
+            return match;
+        });
+        
+        // Replace video sources 
+        htmlContent = htmlContent.replace(/<video([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
+            const file = this.findFileInSystem(fileSystem, filename);
+            if (file && file.type === 'video') {
+                return `<video${before}src="${file.content}"${after}>`;
+            }
+            return match;
+        });
+        
+        // Replace source elements for video/audio
+        htmlContent = htmlContent.replace(/<source([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
+            const file = this.findFileInSystem(fileSystem, filename);
+            if (file && (file.type === 'video' || file.type === 'audio')) {
+                return `<source${before}src="${file.content}"${after}>`;
+            }
+            return match;
+        });
+        
+        // Replace audio sources
+        htmlContent = htmlContent.replace(/<audio([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
+            const file = this.findFileInSystem(fileSystem, filename);
+            if (file && file.type === 'audio') {
+                return `<audio${before}src="${file.content}"${after}>`;
+            }
+            return match;
+        });
+        
+        // Replace favicon links
+        htmlContent = htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.ico)["']([^>]*?)>/gi, (match, before, filename, after) => {
+            const file = this.findFileInSystem(fileSystem, filename);
+            if (file && file.type === 'image') {
+                return `<link${before}href="${file.content}"${after}>`;
+            }
+            return match;
+        });
+        
+        // Replace font preload links
+        htmlContent = htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.(?:woff|woff2|ttf|otf|eot))["']([^>]*?)>/gi, (match, before, filename, after) => {
+            const file = this.findFileInSystem(fileSystem, filename);
+            if (file && file.type === 'font') {
+                return `<link${before}href="${file.content}"${after}>`;
+            }
+            return match;
+        });
+        
+        // Handle CSS background images and font-face references within <style> tags
+        htmlContent = htmlContent.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (match, cssContent) => {
+            const updatedCSS = this.replaceCSSAssetReferences(cssContent, fileSystem);
+            return match.replace(cssContent, updatedCSS);
         });
         
         const workerFileNames = this.extractWorkerFileNames(htmlContent);
@@ -1498,6 +1567,29 @@ const CodePreviewer = {
         });
         
         return htmlContent;
+    },
+
+    replaceCSSAssetReferences(cssContent, fileSystem) {
+        // Replace background-image references
+        cssContent = cssContent.replace(/background-image\s*:\s*url\s*\(\s*["']?([^"')]+)["']?\s*\)/gi, (match, filename) => {
+            const file = this.findFileInSystem(fileSystem, filename);
+            if (file && (file.type === 'image' || file.type === 'svg')) {
+                const src = file.isBinary ? file.content : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(file.content)}`;
+                return `background-image: url("${src}")`;
+            }
+            return match;
+        });
+        
+        // Replace @font-face src references
+        cssContent = cssContent.replace(/@font-face\s*{[^}]*src\s*:\s*url\s*\(\s*["']?([^"')]+)["']?\s*\)[^}]*}/gi, (match, filename) => {
+            const file = this.findFileInSystem(fileSystem, filename);
+            if (file && file.type === 'font') {
+                return match.replace(filename, file.content);
+            }
+            return match;
+        });
+        
+        return cssContent;
     },
 
     generateFullDocumentPreview() {
