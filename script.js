@@ -10,7 +10,7 @@ const CodePreviewer = {
         files: [],
         nextFileId: 4,
         codeModalEditor: null,
-        mainHtmlFile: '', // Track which HTML file is the main one
+        mainHtmlFile: '',
         dragState: {
             draggedElement: null,
             draggedFileId: null,
@@ -241,7 +241,6 @@ const CodePreviewer = {
             });
         }
 
-        // Media modal event handlers
         const mediaModal = document.getElementById('media-modal');
         const mediaModalCloseBtn = mediaModal?.querySelector('.close-btn');
         
@@ -334,36 +333,30 @@ const CodePreviewer = {
         
         const extension = filename.split('.').pop().toLowerCase();
         
-        // Image files
         const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'ico', 'tiff'];
         if (imageExtensions.includes(extension) || (mimeType && mimeType.startsWith('image/'))) {
             return extension === 'svg' ? 'svg' : 'image';
         }
         
-        // Audio files  
         const audioExtensions = ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'wma'];
         if (audioExtensions.includes(extension) || (mimeType && mimeType.startsWith('audio/'))) {
             return 'audio';
         }
         
-        // Video files
         const videoExtensions = ['mp4', 'webm', 'mov', 'avi', 'mkv', 'wmv', 'flv', 'm4v'];
         if (videoExtensions.includes(extension) || (mimeType && mimeType.startsWith('video/'))) {
             return 'video';
         }
         
-        // Font files
         const fontExtensions = ['woff', 'woff2', 'ttf', 'otf', 'eot'];
         if (fontExtensions.includes(extension) || (mimeType && mimeType.startsWith('font/'))) {
             return 'font';
         }
         
-        // Document files
         if (extension === 'pdf' || mimeType === 'application/pdf') {
             return 'pdf';
         }
         
-        // Text-based files
         switch (extension) {
             case 'html':
             case 'htm':
@@ -394,7 +387,6 @@ const CodePreviewer = {
             case 'svg':
                 return 'svg';
             default:
-                // Content-based detection for text files
                 if (content) {
                     if (/<\s*html/i.test(content)) return 'html';
                     if (/^\s*[\.\#\@]|\s*\w+\s*\{/m.test(content)) return 'css';
@@ -496,7 +488,7 @@ const CodePreviewer = {
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
         fileInput.accept = '*/*';
-        fileInput.multiple = true; // Allow multiple file selection
+        fileInput.multiple = true;
         fileInput.style.display = 'none';
         
         const cleanup = () => {
@@ -514,7 +506,6 @@ const CodePreviewer = {
             
             try {
                 for (const file of files) {
-                    // Check for duplicate filename
                     const existingFilenames = this.getExistingFilenames();
                     if (existingFilenames.includes(file.name)) {
                         this.showNotification(`A file named "${file.name}" already exists. Please rename the existing file first or choose a different file.`, 'error');
@@ -540,12 +531,9 @@ const CodePreviewer = {
             cleanup();
         });
         
-        // Handle cancellation (when user closes dialog without selecting)
         fileInput.addEventListener('cancel', cleanup);
         
-        // Add a fallback for when focus is lost (indicating dialog was closed)
         const focusHandler = () => {
-            // Small delay to allow change event to fire first if a file was selected
             setTimeout(() => {
                 if (document.body.contains(fileInput)) {
                     cleanup();
@@ -568,7 +556,6 @@ const CodePreviewer = {
             });
             reader.onerror = (e) => reject(e);
             
-            // Use appropriate reading method based on file type
             if (this.isBinaryFile(file.name, file.type)) {
                 reader.readAsDataURL(file);
             } else {
@@ -582,30 +569,20 @@ const CodePreviewer = {
         
         const extension = filename.split('.').pop().toLowerCase();
         const binaryExtensions = [
-            // Images
             'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'ico', 'tiff',
-            // Audio
             'mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'wma',
-            // Video  
             'mp4', 'webm', 'mov', 'avi', 'mkv', 'wmv', 'flv', 'm4v',
-            // Fonts
             'woff', 'woff2', 'ttf', 'otf', 'eot',
-            // Documents
             'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
-            // Archives
             'zip', 'rar', '7z', 'tar', 'gz',
-            // Other binary
             'exe', 'dll', 'so', 'dylib'
         ];
         
-        // Check by extension
         if (binaryExtensions.includes(extension)) {
             return true;
         }
         
-        // Check by MIME type
         if (mimeType) {
-            // SVG is a special case - it's XML-based and editable even though it has image/ MIME type
             if (mimeType === 'image/svg+xml') {
                 return false;
             }
@@ -647,7 +624,6 @@ const CodePreviewer = {
         
         let newEditor;
         
-        // Create appropriate editor based on file type
         if (this.isEditableFileType(fileType)) {
             const newTextarea = document.getElementById(fileId);
             
@@ -686,7 +662,6 @@ const CodePreviewer = {
                 }
             }
         } else {
-            // For non-editable files, create a simple container
             newEditor = {
                 setValue: () => {},
                 getValue: () => content,
@@ -741,7 +716,6 @@ const CodePreviewer = {
         
         let toolbarHTML = '<div class="editor-toolbar">';
         
-        // Show Clear, Paste, Copy only for editable (text) files
         if (isEditable) {
             toolbarHTML += `
                 <button class="toolbar-btn clear-btn" aria-label="Clear content" title="Clear">
@@ -756,7 +730,6 @@ const CodePreviewer = {
             `;
         }
         
-        // Show Expand only for files that have preview support
         if (hasExpandPreview) {
             const expandLabel = isEditable ? "Expand code view" : "View media";
             const expandTitle = isEditable ? "Expand" : "View";
@@ -767,7 +740,6 @@ const CodePreviewer = {
             `;
         }
         
-        // Export and Collapse are always available
         toolbarHTML += `
             <button class="toolbar-btn export-btn" aria-label="Export file" title="Export">
                 <span class="btn-icon">💾</span> Export
@@ -782,10 +754,9 @@ const CodePreviewer = {
     },
 
     hasExpandPreview(fileType) {
-        // Define which file types support expand/preview functionality
         const previewableTypes = [
-            'html', 'css', 'javascript', 'javascript-module', 'json', 'xml', 'markdown', 'text', 'svg',  // Text files
-            'image', 'audio', 'video', 'pdf'  // Media files
+            'html', 'css', 'javascript', 'javascript-module', 'json', 'xml', 'markdown', 'text', 'svg',
+            'image', 'audio', 'video', 'pdf'
         ];
         return previewableTypes.includes(fileType);
     },
@@ -839,7 +810,6 @@ const CodePreviewer = {
             return `<textarea id="${fileId}"></textarea>`;
         }
         
-        // For non-editable files, create appropriate preview
         switch (fileType) {
             case 'image':
                 return `<div class="file-preview image-preview">
@@ -900,12 +870,10 @@ const CodePreviewer = {
             existingToolbar.remove();
         }
         
-        // Insert new toolbar after panel header
         const panelHeader = panel.querySelector('.panel-header');
         const newToolbarHTML = this.generateToolbarHTML(newType);
         panelHeader.insertAdjacentHTML('afterend', newToolbarHTML);
         
-        // Rebind toolbar events
         this.bindToolbarEvents(panel);
     },
 
@@ -956,7 +924,6 @@ const CodePreviewer = {
                     }
                 }
                 
-                // Regenerate toolbar based on new file type
                 this.updateToolbarForFileType(panel, newType);
             });
         }
@@ -991,7 +958,6 @@ const CodePreviewer = {
     },
 
     updateRemoveButtonsVisibility() {
-        // Filter out drag clones and only get actual editor panels
         const allPanels = document.querySelectorAll('.editor-panel[data-file-id]');
         const actualPanels = Array.from(allPanels).filter(panel => !panel.classList.contains('drag-clone'));
         
@@ -1184,13 +1150,11 @@ const CodePreviewer = {
         const fileId = panel.dataset.fileId;
         const fileType = panel.dataset.fileType;
         
-        // For media files, show media preview instead of code modal
         if (!this.isEditableFileType(fileType)) {
             this.showMediaPreview(panel);
             return;
         }
         
-        // For text files, show code modal as before
         const editor = this.getEditorFromPanel(panel);
         if (!editor) return;
 
@@ -1227,7 +1191,6 @@ const CodePreviewer = {
         const fileNameInput = panel.querySelector('.file-name-input');
         const fileName = fileNameInput ? fileNameInput.value : 'Media File';
         
-        // Find the file data
         const fileInfo = this.state.files.find(f => f.id === fileId);
         if (!fileInfo) {
             console.error('File info not found for media preview');
@@ -1277,7 +1240,6 @@ const CodePreviewer = {
                 `;
                 break;
             case 'svg':
-                // For SVG, show the rendered image
                 const svgDataUrl = fileInfo.isBinary ? fileInfo.content : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(fileInfo.content)}`;
                 previewContent = `
                     <div class="media-preview-container">
@@ -1342,20 +1304,20 @@ const CodePreviewer = {
                         lineNumbers: true,
                         mode: language,
                         theme: 'dracula',
-                        readOnly: false, // Make editable
+                        readOnly: false,
                         lineWrapping: true,
                         autoCloseTags: true,
                         viewportMargin: Infinity,
                     });
                 } else {
                     this.state.codeModalEditor.setOption('mode', language);
-                    this.state.codeModalEditor.setOption('readOnly', false); // Make editable
+                    this.state.codeModalEditor.setOption('readOnly', false);
                 }
 
                 this.state.codeModalEditor.setValue(content);
             } else {
                 editorTextarea.value = content;
-                editorTextarea.readOnly = false; // Make editable
+                editorTextarea.readOnly = false;
                 editorTextarea.style.display = 'block';
                 editorTextarea.style.width = '100%';
                 editorTextarea.style.height = '100%';
@@ -1657,10 +1619,8 @@ const CodePreviewer = {
                     isBinary: file.isBinary || false
                 };
                 
-                // Map both current and original filenames to the same content
                 fileSystem.set(currentFilename, fileData);
                 
-                // If the filename was changed, also map the original filename
                 if (originalFilename && originalFilename !== currentFilename) {
                     fileSystem.set(originalFilename, fileData);
                 }
@@ -1680,44 +1640,32 @@ const CodePreviewer = {
             'xml': 'application/xml',
             'svg': 'image/svg+xml',
             'text': 'text/plain',
-            'image': 'image/png', // fallback for images
-            'audio': 'audio/mpeg', // fallback for audio
-            'video': 'video/mp4', // fallback for video
+            'image': 'image/png',
+            'audio': 'audio/mpeg',
+            'video': 'video/mp4',
             'pdf': 'application/pdf'
         };
         return mimeTypes[fileType] || 'text/plain';
     },
 
-    /**
-     * Resolve a relative path from a base directory
-     * @param {string} basePath - The base file path (e.g., "home/index.html")
-     * @param {string} relativePath - The relative path to resolve (e.g., "css/styles.css" or "../../js/script.js")
-     * @returns {string} The resolved absolute path
-     */
     resolvePath(basePath, relativePath) {
-        // If relative path is absolute (starts with /), return as-is (removing leading slash)
         if (relativePath.startsWith('/')) {
             return relativePath.substring(1);
         }
         
-        // Get directory of base path
         const baseDir = basePath.includes('/') ? basePath.substring(0, basePath.lastIndexOf('/')) : '';
         
-        // Split the base directory and relative path into parts
         const baseParts = baseDir ? baseDir.split('/') : [];
         const relativeParts = relativePath.split('/');
         
-        // Process each part of the relative path
         const resultParts = [...baseParts];
         
         for (const part of relativeParts) {
             if (part === '..') {
-                // Go up one directory
                 if (resultParts.length > 0) {
                     resultParts.pop();
                 }
             } else if (part !== '.' && part !== '') {
-                // Add the part (ignore current directory "." and empty parts)
                 resultParts.push(part);
             }
         }
@@ -1726,7 +1674,6 @@ const CodePreviewer = {
     },
 
     findFileInSystem(fileSystem, targetFilename, currentFilePath = '') {
-        // If currentFilePath is provided, resolve the targetFilename relative to it
         if (currentFilePath) {
             targetFilename = this.resolvePath(currentFilePath, targetFilename);
         }
@@ -1780,7 +1727,6 @@ const CodePreviewer = {
     },
 
     replaceAssetReferences(htmlContent, fileSystem, currentFilePath = '') {
-        // Replace CSS link references
         htmlContent = htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.css)["']([^>]*?)>/gi, (match, before, filename, after) => {
             const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
             if (file && file.type === 'css') {
@@ -1789,21 +1735,17 @@ const CodePreviewer = {
             return match;
         });
         
-        // Replace image sources
         htmlContent = htmlContent.replace(/<img([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
             const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
             if (file && (file.type === 'image' || file.type === 'svg')) {
-                // For binary images, use the data URL; for SVG use the text content as data URL
                 const src = file.isBinary ? file.content : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(file.content)}`;
                 
-                // Reconstruct the img tag by replacing only the src attribute value
                 const newSrc = `src="${src}"`;
                 return match.replace(/src\s*=\s*["'][^"']*["']/i, newSrc);
             }
             return match;
         });
         
-        // Replace video sources 
         htmlContent = htmlContent.replace(/<video([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
             const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
             if (file && file.type === 'video') {
@@ -1813,7 +1755,6 @@ const CodePreviewer = {
             return match;
         });
         
-        // Replace source elements for video/audio
         htmlContent = htmlContent.replace(/<source([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
             const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
             if (file && (file.type === 'video' || file.type === 'audio')) {
@@ -1823,7 +1764,6 @@ const CodePreviewer = {
             return match;
         });
         
-        // Replace audio sources
         htmlContent = htmlContent.replace(/<audio([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
             const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
             if (file && file.type === 'audio') {
@@ -1833,7 +1773,6 @@ const CodePreviewer = {
             return match;
         });
         
-        // Replace favicon links
         htmlContent = htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.ico)["']([^>]*?)>/gi, (match, before, filename, after) => {
             const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
             if (file && file.type === 'image') {
@@ -1843,22 +1782,17 @@ const CodePreviewer = {
             return match;
         });
         
-        // Replace download links (anchor tags with download attribute)
         htmlContent = htmlContent.replace(/<a([^>]*?)href\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
-            // Only replace if the anchor has a download attribute or points to a local file
             if (match.includes('download') || !filename.includes('://')) {
                 const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
                 if (file) {
-                    // For binary files, use the data URL; for text files, create a data URL
                     let href;
                     if (file.isBinary) {
                         href = file.content;
                     } else {
-                        // Create a data URL for text files
                         const mimeType = this.getMimeTypeFromFileType(file.type);
                         href = `data:${mimeType};charset=utf-8,${encodeURIComponent(file.content)}`;
                     }
-                    // Replace only the href attribute value to preserve other attributes
                     const newHref = `href="${href}"`;
                     return match.replace(/href\s*=\s*["'][^"']*["']/i, newHref);
                 }
@@ -1866,7 +1800,6 @@ const CodePreviewer = {
             return match;
         });
         
-        // Replace font preload links
         htmlContent = htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.(?:woff|woff2|ttf|otf|eot))["']([^>]*?)>/gi, (match, before, filename, after) => {
             const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
             if (file && file.type === 'font') {
@@ -1875,7 +1808,6 @@ const CodePreviewer = {
             return match;
         });
         
-        // Handle CSS background images and font-face references within <style> tags
         htmlContent = htmlContent.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (match, cssContent) => {
             const updatedCSS = this.replaceCSSAssetReferences(cssContent, fileSystem, currentFilePath);
             return match.replace(cssContent, updatedCSS);
@@ -1913,7 +1845,6 @@ const CodePreviewer = {
     },
 
     replaceCSSAssetReferences(cssContent, fileSystem, currentFilePath = '') {
-        // Replace background-image references
         cssContent = cssContent.replace(/background-image\s*:\s*url\s*\(\s*["']?([^"')]+)["']?\s*\)/gi, (match, filename) => {
             const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
             if (file && (file.type === 'image' || file.type === 'svg')) {
@@ -1923,7 +1854,6 @@ const CodePreviewer = {
             return match;
         });
         
-        // Replace @font-face src references
         cssContent = cssContent.replace(/@font-face\s*{[^}]*src\s*:\s*url\s*\(\s*["']?([^"')]+)["']?\s*\)[^}]*}/gi, (match, filename) => {
             const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
             if (file && file.type === 'font') {
@@ -2076,7 +2006,6 @@ const CodePreviewer = {
         
         const { processedHtml, workerScript } = this.processWebWorkers(html, jsFiles);
         
-        // Apply asset replacement to the HTML content
         const fileSystem = this.createVirtualFileSystem();
         const mainHtmlFile = this.getMainHtmlFile();
         const mainHtmlPath = mainHtmlFile ? (this.getFileNameFromPanel(mainHtmlFile.id) || 'index.html') : 'index.html';
@@ -2151,24 +2080,21 @@ const CodePreviewer = {
         }
     },
 
-    // Drag and Drop Functions
     bindDragAndDropEvents(panel) {
         const dragHandle = panel.querySelector('.drag-handle');
         const fileId = panel.dataset.fileId;
         
-        // Touch state for mobile drag and drop
         let touchStartY = 0;
         let touchStartX = 0;
         let isDragging = false;
         let dragClone = null;
-        let lastTargetPanel = null; // Track last target to reduce flicker
+        let lastTargetPanel = null;
         
         if (dragHandle) {
             dragHandle.addEventListener('mousedown', (e) => {
                 panel.draggable = true;
             });
             
-            // Touch events for mobile drag and drop
             dragHandle.addEventListener('touchstart', (e) => {
                 e.preventDefault();
                 const touch = e.touches[0];
@@ -2177,7 +2103,6 @@ const CodePreviewer = {
                 isDragging = false;
                 lastTargetPanel = null;
                 
-                // Start dragging after a small movement threshold
                 const startDragThreshold = 10;
                 let startDrag = false;
                 
@@ -2191,14 +2116,12 @@ const CodePreviewer = {
                         startDrag = true;
                         isDragging = true;
                         
-                        // Create visual feedback
                         panel.classList.add('dragging');
                         this.state.dragState.draggedElement = panel;
                         this.state.dragState.draggedFileId = fileId;
                         
-                        // Create drag clone for visual feedback
                         dragClone = panel.cloneNode(true);
-                        dragClone.removeAttribute('data-file-id'); // Remove to prevent selector conflicts
+                        dragClone.removeAttribute('data-file-id');
                         dragClone.style.position = 'fixed';
                         dragClone.style.pointerEvents = 'none';
                         dragClone.style.zIndex = '10000';
@@ -2209,15 +2132,12 @@ const CodePreviewer = {
                     }
                     
                     if (isDragging && dragClone) {
-                        // Move clone with finger
                         dragClone.style.left = (touch.clientX - 50) + 'px';
                         dragClone.style.top = (touch.clientY - 50) + 'px';
                         
-                        // Find element under touch point
                         const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
                         const targetPanel = elementBelow?.closest('.editor-panel[data-file-id]');
                         
-                        // Only update indicators if target changed (reduces flickering)
                         if (targetPanel !== lastTargetPanel) {
                             if (targetPanel && targetPanel !== panel) {
                                 this.showDropIndicator(targetPanel, { clientY: touch.clientY });
@@ -2241,7 +2161,6 @@ const CodePreviewer = {
                             this.reorderPanels(panel, targetPanel, { clientY: touch.clientY });
                         }
                         
-                        // Cleanup
                         panel.classList.remove('dragging');
                         this.removeDragIndicators();
                         this.state.dragState.draggedElement = null;
@@ -2252,7 +2171,6 @@ const CodePreviewer = {
                             dragClone = null;
                         }
                         
-                        // Additional cleanup: remove any orphaned drag clones
                         this.cleanupOrphanedDragClones();
                     }
                     
@@ -2266,7 +2184,6 @@ const CodePreviewer = {
             }, { passive: false });
         }
         
-        // Mouse drag and drop events (desktop)
         panel.addEventListener('dragstart', (e) => {
             this.state.dragState.draggedElement = panel;
             this.state.dragState.draggedFileId = fileId;
@@ -2327,7 +2244,6 @@ const CodePreviewer = {
     },
     
     cleanupOrphanedDragClones() {
-        // Remove any orphaned drag clones that may have been left behind
         const orphanedClones = document.querySelectorAll('.drag-clone');
         orphanedClones.forEach(clone => {
             if (clone.parentNode) {
@@ -2341,19 +2257,16 @@ const CodePreviewer = {
         const midY = rect.top + rect.height / 2;
         const insertBefore = event.clientY < midY;
         
-        // Update DOM
         if (insertBefore) {
             targetPanel.parentNode.insertBefore(draggedPanel, targetPanel);
         } else {
             targetPanel.parentNode.insertBefore(draggedPanel, targetPanel.nextSibling);
         }
         
-        // Update state files array to match new order
         this.updateFilesOrder();
     },
     
     updateFilesOrder() {
-        // Filter out drag clones and only get actual editor panels
         const panels = Array.from(document.querySelectorAll('.editor-panel[data-file-id]'))
             .filter(panel => !panel.classList.contains('drag-clone'));
         const newFilesOrder = [];
@@ -2369,7 +2282,6 @@ const CodePreviewer = {
         this.state.files = newFilesOrder;
     },
 
-    // ZIP Import/Export Functions
     async exportZip() {
         try {
             if (typeof JSZip === 'undefined') {
@@ -2379,25 +2291,21 @@ const CodePreviewer = {
             
             const zip = new JSZip();
             
-            // Add all files to ZIP
             this.state.files.forEach(file => {
                 const filename = this.getFileNameFromPanel(file.id) || `file_${file.id}`;
                 let content = file.content || file.editor.getValue();
                 
-                // Handle path-style names by creating folder structure
                 if (filename.includes('/')) {
                     const pathParts = filename.split('/');
                     const fileName = pathParts.pop();
                     const folderPath = pathParts.join('/');
                     
-                    // Create nested folder structure
                     let currentFolder = zip;
                     pathParts.forEach(folderName => {
                         currentFolder = currentFolder.folder(folderName);
                     });
                     
                     if (file.isBinary && content.startsWith('data:')) {
-                        // For binary files with data URLs, extract the base64 content
                         const base64Content = content.split(',')[1];
                         currentFolder.file(fileName, base64Content, {base64: true});
                     } else {
@@ -2405,7 +2313,6 @@ const CodePreviewer = {
                     }
                 } else {
                     if (file.isBinary && content.startsWith('data:')) {
-                        // For binary files with data URLs, extract the base64 content
                         const base64Content = content.split(',')[1];
                         zip.file(filename, base64Content, {base64: true});
                     } else {
@@ -2414,7 +2321,6 @@ const CodePreviewer = {
                 }
             });
             
-            // Generate and download ZIP
             const blob = await zip.generateAsync({type: 'blob'});
             const url = URL.createObjectURL(blob);
             
@@ -2462,41 +2368,33 @@ const CodePreviewer = {
                 try {
                     const zip = await JSZip.loadAsync(file);
                     
-                    // Process each file in the ZIP
                     for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
-                        if (zipEntry.dir) continue; // Skip directories
+                        if (zipEntry.dir) continue;
                         
                         let content;
                         let isBinary = false;
                         
-                        // Determine if file is binary
                         const extension = relativePath.split('.').pop().toLowerCase();
                         isBinary = this.isBinaryFile(relativePath, '');
                         
                         if (isBinary) {
-                            // For binary files, get as base64 and create data URL
                             const base64Content = await zipEntry.async('base64');
                             const mimeType = this.getMimeTypeFromExtension(extension);
                             content = `data:${mimeType};base64,${base64Content}`;
                         } else {
-                            // For text files, get as string
                             content = await zipEntry.async('string');
                         }
                         
-                        // Determine file type from extension
                         const fileType = this.getFileTypeFromExtension(extension);
                         
-                        // Use the relative path as filename (preserves folder structure in name)
                         const fileName = relativePath;
                         
-                        // Check for duplicate filenames
                         const existingFilenames = this.getExistingFilenames();
                         if (existingFilenames.includes(fileName)) {
                             this.showNotification(`File '${fileName}' already exists, skipping...`, 'warn');
                             continue;
                         }
                         
-                        // Add the file
                         this.addNewFileWithContent(fileName, fileType, content, isBinary);
                     }
                     
@@ -2510,12 +2408,9 @@ const CodePreviewer = {
                 cleanup();
             });
             
-            // Handle cancellation (when user closes dialog without selecting)
             fileInput.addEventListener('cancel', cleanup);
             
-            // Add a fallback for when focus is lost (indicating dialog was closed)
             const focusHandler = () => {
-                // Small delay to allow change event to fire first if a file was selected
                 setTimeout(() => {
                     if (document.body.contains(fileInput)) {
                         cleanup();
@@ -2536,22 +2431,16 @@ const CodePreviewer = {
     
     getMimeTypeFromExtension(extension) {
         const mimeTypes = {
-            // Images
             'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif',
             'webp': 'image/webp', 'bmp': 'image/bmp', 'ico': 'image/x-icon', 'svg': 'image/svg+xml',
-            // Audio
             'mp3': 'audio/mpeg', 'wav': 'audio/wav', 'ogg': 'audio/ogg', 'm4a': 'audio/mp4',
             'aac': 'audio/aac', 'flac': 'audio/flac', 'wma': 'audio/x-ms-wma',
-            // Video
             'mp4': 'video/mp4', 'webm': 'video/webm', 'mov': 'video/quicktime',
             'avi': 'video/x-msvideo', 'mkv': 'video/x-matroska', 'wmv': 'video/x-ms-wmv',
             'flv': 'video/x-flv', 'm4v': 'video/mp4',
-            // Fonts
             'woff': 'font/woff', 'woff2': 'font/woff2', 'ttf': 'font/ttf', 'otf': 'font/otf',
             'eot': 'application/vnd.ms-fontobject',
-            // Documents
             'pdf': 'application/pdf',
-            // Text files
             'txt': 'text/plain', 'html': 'text/html', 'css': 'text/css', 'js': 'text/javascript',
             'json': 'application/json', 'xml': 'application/xml'
         };
@@ -2579,7 +2468,6 @@ const CodePreviewer = {
         return typeMap[extension] || 'binary';
     },
 
-    // Main HTML File Selection Functions
     updateMainHtmlSelector() {
         const htmlFiles = this.state.files.filter(f => f.type === 'html');
         
@@ -2588,13 +2476,10 @@ const CodePreviewer = {
             return;
         }
         
-        // Show the selector
         this.dom.mainHtmlSelector.style.display = 'flex';
         
-        // Clear existing options except the first one
         this.dom.mainHtmlSelect.innerHTML = '<option value="">Auto-detect</option>';
         
-        // Add options for each HTML file
         htmlFiles.forEach(file => {
             const fileName = this.getFileNameFromPanel(file.id) || `file_${file.id}`;
             const option = document.createElement('option');
@@ -2617,10 +2502,8 @@ const CodePreviewer = {
             }
         }
         
-        // Auto-detect: prefer index.html or the first HTML file with full document
         const htmlFiles = this.state.files.filter(f => f.type === 'html');
         
-        // Look for index.html first
         const indexFile = htmlFiles.find(f => {
             const fileName = this.getFileNameFromPanel(f.id) || '';
             return fileName.toLowerCase().includes('index.html');
@@ -2628,11 +2511,9 @@ const CodePreviewer = {
         
         if (indexFile) return indexFile;
         
-        // Look for files with full HTML document structure
         const fullDocFile = htmlFiles.find(f => this.isFullHTMLDocument(f.editor.getValue()));
         if (fullDocFile) return fullDocFile;
         
-        // Return the first HTML file
         return htmlFiles[0] || null;
     },
 
