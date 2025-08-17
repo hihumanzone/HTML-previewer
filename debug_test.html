@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Test</title>
+</head>
+<body>
+    <script>
+        // Test the replaceAssetReferences function directly
+        function testReplaceAssetReferences() {
+            const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="theme.css">
+</head>
+<body>
+    <h1>Test</h1>
+</body>
+</html>`;
+
+            const fileSystem = new Map();
+            fileSystem.set('styles.css', {
+                content: 'body { color: red; }',
+                type: 'css'
+            });
+            fileSystem.set('theme.css', {
+                content: 'h1 { background: yellow; }',
+                type: 'css'
+            });
+
+            console.log('Original HTML:', htmlContent);
+            console.log('FileSystem:', fileSystem);
+
+            // Simulate the replaceAssetReferences function
+            let processedHtml = htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.css)["']([^>]*?)>/gi, (match, before, filename, after) => {
+                console.log('Match found:', match);
+                console.log('Filename:', filename);
+                const file = fileSystem.get(filename);
+                console.log('File from system:', file);
+                if (file && file.type === 'css') {
+                    const replacement = `<style>${file.content}</style>`;
+                    console.log('Replacement:', replacement);
+                    return replacement;
+                }
+                console.log('No replacement, returning original match');
+                return match;
+            });
+
+            console.log('Processed HTML:', processedHtml);
+            return processedHtml;
+        }
+
+        testReplaceAssetReferences();
+    </script>
+</body>
+</html>
