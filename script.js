@@ -2810,71 +2810,17 @@ const CodePreviewer = {
                 '                    if (value) {\n' +
                 '                        const currentFilePath = getCurrentFilePath();\n' +
                 '                        let targetPath = value.replace(/^\\.\\//, "");\n' +
-                '                        console.log("🖼️ Image target path:", targetPath);\n' +
-                '                        console.log("🗂️ Available files:", Object.keys(virtualFileSystem));\n' +
-                '                        console.log("📍 Current file path:", currentFilePath);\n' +
-                '                        console.log("🔍 Window execution context:", window.__currentExecutionContext);\n' +
-                '                        let fileData;\n' +
-                '                        try {\n' +
-                '                            console.log("🚀 About to call findFileInSystem");\n' +
-                '                            fileData = findFileInSystem(targetPath, currentFilePath);\n' +
-                '                            console.log("✅ findFileInSystem completed, result:", !!fileData);\n' +
-                '                        } catch (error) {\n' +
-                '                            console.error("❌ Error in findFileInSystem:", error);\n' +
-                '                            fileData = null;\n' +
-                '                        }\n' +
-                '                        \n' +
-                '                        if (fileData) {\n' +
-                '                            const truncatedContent = fileData.content.length > 100 ? \n' +
-                '                                fileData.content.substring(0, 50) + "..." + fileData.content.substring(fileData.content.length - 20) :\n' +
-                '                                fileData.content;\n' +
-                '                            console.log("📁 Image file data found:", {\n' +
-                '                                content: truncatedContent,\n' +
-                '                                type: fileData.type,\n' +
-                '                                isBinary: fileData.isBinary,\n' +
-                '                                fullContentLength: fileData.content.length\n' +
-                '                            });\n' +
-                '                            \n' +
-                '                            window._debugInfo = window._debugInfo || [];\n' +
-                '                            window._debugInfo.push({\n' +
-                '                                timestamp: new Date().toISOString(),\n' +
-                '                                targetPath,\n' +
-                '                                fileData: {\n' +
-                '                                    content: fileData.content,\n' +
-                '                                    type: fileData.type,\n' +
-                '                                    isBinary: fileData.isBinary\n' +
-                '                                }\n' +
-                '                            });\n' +
-                '                            \n' +
-                '                            if (!window._copyDebugDefined) {\n' +
-                '                                window.copyDebugInfo = function() {\n' +
-                '                                    const debugString = JSON.stringify(window._debugInfo, null, 2);\n' +
-                '                                    navigator.clipboard.writeText(debugString).then(() => {\n' +
-                '                                        console.log("📋 Debug info copied to clipboard!");\n' +
-                '                                    }).catch(err => {\n' +
-                '                                        console.log("📋 Debug info (copy manually):", debugString);\n' +
-                '                                    });\n' +
-                '                                };\n' +
-                '                                window._copyDebugDefined = true;\n' +
-                '                                console.log("🔧 Use copyDebugInfo() to copy full debug data to clipboard");\n' +
-                '                            }\n' +
-                '                        } else {\n' +
-                '                            console.log("❌ Image file not found in virtual system");\n' +
-                '                        }\n' +
+                '                        const fileData = findFileInSystem(targetPath, currentFilePath);\n' +
                 '                        \n' +
                 '                        if (fileData && (fileData.type === "image" || fileData.type === "svg")) {\n' +
-                '                            console.log("✅ Processing image file, type:", fileData.type, "isBinary:", fileData.isBinary);\n' +
                 '                            if (fileData.isBinary && fileData.content.startsWith("data:")) {\n' +
-                '                                console.log("📊 Using data URL directly for image");\n' +
                 '                                originalSrcSetter.call(this, fileData.content);\n' +
                 '                            } else if (fileData.type === "svg") {\n' +
-                '                                console.log("🎨 Creating SVG data URL");\n' +
                 '                                const svgDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(fileData.content)}`;\n' +
                 '                                originalSrcSetter.call(this, svgDataUrl);\n' +
                 '                            } else {\n' +
                 '                                const blob = new Blob([fileData.content], { type: "image/png" });\n' +
                 '                                const blobUrl = URL.createObjectURL(blob);\n' +
-                '                                console.log("🗂️ Created blob URL for image:", blobUrl);\n' +
                 '                                originalSrcSetter.call(this, blobUrl);\n' +
                 '                            }\n' +
                 '                            this._settingSrc = false;\n' +
@@ -2882,7 +2828,6 @@ const CodePreviewer = {
                 '                        }\n' +
                 '                    }\n' +
                 '                    \n' +
-                '                    console.log("🌐 Using original src setter for external URL:", value);\n' +
                 '                    originalSrcSetter.call(this, value);\n' +
                 '                    this._settingSrc = false;\n' +
                 '                },\n' +
