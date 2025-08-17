@@ -2537,8 +2537,8 @@ const CodePreviewer = {
         getCaptureScript(fileSystem = null) {
             const MESSAGE_TYPE = CodePreviewer.constants.CONSOLE_MESSAGE_TYPE;
             
-            // Create file system data for injection
-            let fileSystemData = '{}';
+            // Create file system data for injection using base64 encoding for safety
+            let fileSystemScript = '';
             if (fileSystem && fileSystem instanceof Map) {
                 const fileObj = {};
                 fileSystem.forEach((fileData, filename) => {
@@ -2548,14 +2548,27 @@ const CodePreviewer = {
                         isBinary: fileData.isBinary || false
                     };
                 });
-                fileSystemData = JSON.stringify(fileObj);
+                // Encode the JSON as base64 to avoid any escaping issues
+                const jsonString = JSON.stringify(fileObj);
+                const base64Data = btoa(unescape(encodeURIComponent(jsonString)));
+                fileSystemScript = `
+                    console.log("🚀 Fetch override script loaded!");
+                    // Virtual file system for fetch override (loaded from base64)
+                    const virtualFileSystemData = "${base64Data}";
+                    const virtualFileSystem = JSON.parse(decodeURIComponent(escape(atob(virtualFileSystemData))));
+                    console.log("Virtual file system loaded:", virtualFileSystem);
+                `;
+            } else {
+                fileSystemScript = `
+                    console.log("🚀 Fetch override script loaded!");
+                    const virtualFileSystem = {};
+                    console.log("Virtual file system loaded (empty):", virtualFileSystem);
+                `;
             }
             
             return '<script>\n' +
                 '(function() {\n' +
-                '    console.log("🚀 Fetch override script loaded!");\n' +
-                '    // Virtual file system for fetch override\n' +
-                '    const virtualFileSystem = ' + fileSystemData + ';\n' +
+                fileSystemScript + '\n' +
                 '    console.log("Virtual file system loaded:", virtualFileSystem);\n' +
                 '    \n' +
                 '    // Override fetch to serve virtual files\n' +
@@ -2569,7 +2582,7 @@ const CodePreviewer = {
                 '        console.log("Fetch called for:", url);\n' +
                 '        \n' +
                 '        // Normalize the URL - remove leading ./ and resolve relative paths\n' +
-                '        const normalizedUrl = url.replace(/^\\\\\\.\\\\//, "");\n' +
+                '        const normalizedUrl = url.replace(/^\\.\\//, "");\n' +
                 '        console.log("Normalized URL:", normalizedUrl);\n' +
                 '        console.log("Available files:", Object.keys(virtualFileSystem));\n' +
                 '        \n' +
