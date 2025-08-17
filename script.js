@@ -1345,41 +1345,7 @@ const CodePreviewer = {
     },
 
     showNotification(message, type = 'info') {
-        let notification = document.getElementById('notification');
-        if (!notification) {
-            notification = document.createElement('div');
-            notification.id = 'notification';
-            notification.style.cssText = `
-                position: fixed; top: 20px; right: 20px; background: var(--secondary-color);
-                color: var(--primary-color); padding: 1rem; border-radius: 8px;
-                border: 1px solid var(--border-color); z-index: 2000; opacity: 0;
-                transform: translateX(100%); transition: all 0.3s ease; max-width: 300px;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            `;
-            document.body.appendChild(notification);
-        }
-        
-        notification.textContent = message;
-        notification.className = `notification-${type}`;
-        
-        const colors = {
-            success: { border: 'var(--accent-color)', bg: 'rgba(137, 180, 250, 0.1)' },
-            warn: { border: 'var(--warn-color)', bg: 'rgba(250, 179, 135, 0.1)' },
-            error: { border: 'var(--error-color)', bg: 'rgba(243, 139, 168, 0.1)' }
-        };
-        
-        if (colors[type]) {
-            notification.style.borderColor = colors[type].border;
-            notification.style.background = colors[type].bg;
-        }
-        
-        notification.style.opacity = '1';
-        notification.style.transform = 'translateX(0)';
-        
-        setTimeout(() => {
-            notification.style.opacity = '0';
-            notification.style.transform = 'translateX(100%)';
-        }, 3000);
+        this.notificationSystem.show(message, type);
     },
 
     generateSingleFilePreview() {
@@ -1623,91 +1589,15 @@ const CodePreviewer = {
     },
 
     replaceAssetReferences(htmlContent, fileSystem, currentFilePath = '') {
-        htmlContent = htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.css)["']([^>]*?)>/gi, (match, before, filename, after) => {
-            const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
-            if (file && file.type === 'css') {
-                return `<style>${file.content}</style>`;
-            }
-            return match;
-        });
-        
-        htmlContent = htmlContent.replace(/<img([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
-            const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
-            if (file && (file.type === 'image' || file.type === 'svg')) {
-                const src = file.isBinary ? file.content : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(file.content)}`;
-                
-                const newSrc = `src="${src}"`;
-                return match.replace(/src\s*=\s*["'][^"']*["']/i, newSrc);
-            }
-            return match;
-        });
-        
-        htmlContent = htmlContent.replace(/<video([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
-            const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
-            if (file && file.type === 'video') {
-                const newSrc = `src="${file.content}"`;
-                return match.replace(/src\s*=\s*["'][^"']*["']/i, newSrc);
-            }
-            return match;
-        });
-        
-        htmlContent = htmlContent.replace(/<source([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
-            const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
-            if (file && (file.type === 'video' || file.type === 'audio')) {
-                const newSrc = `src="${file.content}"`;
-                return match.replace(/src\s*=\s*["'][^"']*["']/i, newSrc);
-            }
-            return match;
-        });
-        
-        htmlContent = htmlContent.replace(/<audio([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
-            const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
-            if (file && file.type === 'audio') {
-                const newSrc = `src="${file.content}"`;
-                return match.replace(/src\s*=\s*["'][^"']*["']/i, newSrc);
-            }
-            return match;
-        });
-        
-        htmlContent = htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.ico)["']([^>]*?)>/gi, (match, before, filename, after) => {
-            const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
-            if (file && file.type === 'image') {
-                const newHref = `href="${file.content}"`;
-                return match.replace(/href\s*=\s*["'][^"']*["']/i, newHref);
-            }
-            return match;
-        });
-        
-        htmlContent = htmlContent.replace(/<a([^>]*?)href\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
-            if (match.includes('download') || !filename.includes('://')) {
-                const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
-                if (file) {
-                    let href;
-                    if (file.isBinary) {
-                        href = file.content;
-                    } else {
-                        const mimeType = this.getMimeTypeFromFileType(file.type);
-                        href = `data:${mimeType};charset=utf-8,${encodeURIComponent(file.content)}`;
-                    }
-                    const newHref = `href="${href}"`;
-                    return match.replace(/href\s*=\s*["'][^"']*["']/i, newHref);
-                }
-            }
-            return match;
-        });
-        
-        htmlContent = htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.(?:woff|woff2|ttf|otf|eot))["']([^>]*?)>/gi, (match, before, filename, after) => {
-            const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
-            if (file && file.type === 'font') {
-                return `<link${before}href="${file.content}"${after}>`;
-            }
-            return match;
-        });
-        
-        htmlContent = htmlContent.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (match, cssContent) => {
-            const updatedCSS = this.replaceCSSAssetReferences(cssContent, fileSystem, currentFilePath);
-            return match.replace(cssContent, updatedCSS);
-        });
+        htmlContent = this.assetReplacers.replaceCSS(htmlContent, fileSystem, currentFilePath);
+        htmlContent = this.assetReplacers.replaceImages(htmlContent, fileSystem, currentFilePath);
+        htmlContent = this.assetReplacers.replaceVideoSources(htmlContent, fileSystem, currentFilePath);
+        htmlContent = this.assetReplacers.replaceSourceElements(htmlContent, fileSystem, currentFilePath);
+        htmlContent = this.assetReplacers.replaceAudioSources(htmlContent, fileSystem, currentFilePath);
+        htmlContent = this.assetReplacers.replaceFavicons(htmlContent, fileSystem, currentFilePath);
+        htmlContent = this.assetReplacers.replaceDownloadLinks(htmlContent, fileSystem, currentFilePath);
+        htmlContent = this.assetReplacers.replaceFontLinks(htmlContent, fileSystem, currentFilePath);
+        htmlContent = this.assetReplacers.replaceStyleTags(htmlContent, fileSystem, currentFilePath);
         
         const workerFileNames = this.extractWorkerFileNames(htmlContent);
         if (workerFileNames.length > 0) {
@@ -1724,18 +1614,7 @@ const CodePreviewer = {
         }
         
         const workerFileSet = new Set(workerFileNames);
-        htmlContent = htmlContent.replace(/<script([^>]*?)src\s*=\s*["']([^"']+\.(?:js|mjs))["']([^>]*?)><\/script>/gi, (match, before, filename, after) => {
-            if (workerFileSet.has(filename)) {
-                return '';
-            }
-            
-            const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
-            if (file && (file.type === 'javascript' || file.type === 'javascript-module')) {
-                const scriptType = file.type === 'javascript-module' ? ' type="module"' : '';
-                return `<script${scriptType}>${file.content}</script>`;
-            }
-            return match;
-        });
+        htmlContent = this.assetReplacers.replaceScriptTags(htmlContent, fileSystem, currentFilePath, workerFileSet);
         
         return htmlContent;
     },
@@ -2412,6 +2291,166 @@ const CodePreviewer = {
                 </div>`
             };
             return typeof containers[type] === 'function' ? containers[type](content, fileName) : (containers[type] || containers.default);
+        }
+    },
+
+    notificationSystem: {
+        show(message, type = 'info') {
+            let notification = document.getElementById('notification');
+            if (!notification) {
+                notification = document.createElement('div');
+                notification.id = 'notification';
+                notification.style.cssText = `
+                    position: fixed; top: 20px; right: 20px; background: var(--secondary-color);
+                    color: var(--primary-color); padding: 1rem; border-radius: 8px;
+                    border: 1px solid var(--border-color); z-index: 2000; opacity: 0;
+                    transform: translateX(100%); transition: all 0.3s ease; max-width: 300px;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                `;
+                document.body.appendChild(notification);
+            }
+            
+            notification.textContent = message;
+            notification.className = `notification-${type}`;
+            
+            const colors = {
+                success: { border: 'var(--accent-color)', bg: 'rgba(137, 180, 250, 0.1)' },
+                warn: { border: 'var(--warn-color)', bg: 'rgba(250, 179, 135, 0.1)' },
+                error: { border: 'var(--error-color)', bg: 'rgba(243, 139, 168, 0.1)' }
+            };
+            
+            if (colors[type]) {
+                notification.style.borderColor = colors[type].border;
+                notification.style.background = colors[type].bg;
+            }
+            
+            notification.style.opacity = '1';
+            notification.style.transform = 'translateX(0)';
+            
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                notification.style.transform = 'translateX(100%)';
+            }, 3000);
+        }
+    },
+
+    assetReplacers: {
+        replaceCSS(htmlContent, fileSystem, currentFilePath) {
+            return htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.css)["']([^>]*?)>/gi, (match, before, filename, after) => {
+                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
+                if (file && file.type === 'css') {
+                    return `<style>${file.content}</style>`;
+                }
+                return match;
+            });
+        },
+
+        replaceImages(htmlContent, fileSystem, currentFilePath) {
+            return htmlContent.replace(/<img([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
+                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
+                if (file && (file.type === 'image' || file.type === 'svg')) {
+                    const src = file.isBinary ? file.content : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(file.content)}`;
+                    const newSrc = `src="${src}"`;
+                    return match.replace(/src\s*=\s*["'][^"']*["']/i, newSrc);
+                }
+                return match;
+            });
+        },
+
+        replaceVideoSources(htmlContent, fileSystem, currentFilePath) {
+            return htmlContent.replace(/<video([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
+                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
+                if (file && file.type === 'video') {
+                    const newSrc = `src="${file.content}"`;
+                    return match.replace(/src\s*=\s*["'][^"']*["']/i, newSrc);
+                }
+                return match;
+            });
+        },
+
+        replaceSourceElements(htmlContent, fileSystem, currentFilePath) {
+            return htmlContent.replace(/<source([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
+                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
+                if (file && (file.type === 'video' || file.type === 'audio')) {
+                    const newSrc = `src="${file.content}"`;
+                    return match.replace(/src\s*=\s*["'][^"']*["']/i, newSrc);
+                }
+                return match;
+            });
+        },
+
+        replaceAudioSources(htmlContent, fileSystem, currentFilePath) {
+            return htmlContent.replace(/<audio([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
+                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
+                if (file && file.type === 'audio') {
+                    const newSrc = `src="${file.content}"`;
+                    return match.replace(/src\s*=\s*["'][^"']*["']/i, newSrc);
+                }
+                return match;
+            });
+        },
+
+        replaceFavicons(htmlContent, fileSystem, currentFilePath) {
+            return htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.ico)["']([^>]*?)>/gi, (match, before, filename, after) => {
+                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
+                if (file && file.type === 'image') {
+                    const newHref = `href="${file.content}"`;
+                    return match.replace(/href\s*=\s*["'][^"']*["']/i, newHref);
+                }
+                return match;
+            });
+        },
+
+        replaceDownloadLinks(htmlContent, fileSystem, currentFilePath) {
+            return htmlContent.replace(/<a([^>]*?)href\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
+                if (match.includes('download') || !filename.includes('://')) {
+                    const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
+                    if (file) {
+                        let href;
+                        if (file.isBinary) {
+                            href = file.content;
+                        } else {
+                            const mimeType = CodePreviewer.getMimeTypeFromFileType(file.type);
+                            href = `data:${mimeType};charset=utf-8,${encodeURIComponent(file.content)}`;
+                        }
+                        const newHref = `href="${href}"`;
+                        return match.replace(/href\s*=\s*["'][^"']*["']/i, newHref);
+                    }
+                }
+                return match;
+            });
+        },
+
+        replaceFontLinks(htmlContent, fileSystem, currentFilePath) {
+            return htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.(?:woff|woff2|ttf|otf|eot))["']([^>]*?)>/gi, (match, before, filename, after) => {
+                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
+                if (file && file.type === 'font') {
+                    return `<link${before}href="${file.content}"${after}>`;
+                }
+                return match;
+            });
+        },
+
+        replaceStyleTags(htmlContent, fileSystem, currentFilePath) {
+            return htmlContent.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (match, cssContent) => {
+                const updatedCSS = CodePreviewer.replaceCSSAssetReferences(cssContent, fileSystem, currentFilePath);
+                return match.replace(cssContent, updatedCSS);
+            });
+        },
+
+        replaceScriptTags(htmlContent, fileSystem, currentFilePath, workerFileSet) {
+            return htmlContent.replace(/<script([^>]*?)src\s*=\s*["']([^"']+\.(?:js|mjs))["']([^>]*?)><\/script>/gi, (match, before, filename, after) => {
+                if (workerFileSet.has(filename)) {
+                    return '';
+                }
+                
+                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
+                if (file && (file.type === 'javascript' || file.type === 'javascript-module')) {
+                    const scriptType = file.type === 'javascript-module' ? ' type="module"' : '';
+                    return `<script${scriptType}>${file.content}</script>`;
+                }
+                return match;
+            });
         }
     },
 
