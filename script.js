@@ -2569,7 +2569,7 @@ const CodePreviewer = {
                 '        console.log("Fetch called for:", url);\n' +
                 '        \n' +
                 '        // Normalize the URL - remove leading ./ and resolve relative paths\n' +
-                '        const normalizedUrl = url.replace(/^\.\//, "");\n' +
+                '        const normalizedUrl = url.replace(/^\\\\\\.\\\\//, "");\n' +
                 '        console.log("Normalized URL:", normalizedUrl);\n' +
                 '        console.log("Available files:", Object.keys(virtualFileSystem));\n' +
                 '        \n' +
