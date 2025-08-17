@@ -1676,8 +1676,7 @@ const CodePreviewer = {
         moduleFiles.forEach((file, index) => {
             let processedContent = file.content;
             
-            // Add file context tracking
-            const filePathComment = `// File context: ${file.filename}\nwindow.__currentExecutionContext = "${file.filename}";\n`;
+            const filePathContext = `window.__currentExecutionContext = "${file.filename}";\n`;
             
             processedContent = processedContent.replace(/import\s*\{[^}]+\}\s*from\s*['"][^'"]+['"];?\s*\n?/g, '');
             processedContent = processedContent.replace(/import\s+\*\s+as\s+\w+\s+from\s*['"][^'"]+['"];?\s*\n?/g, '');
@@ -1703,7 +1702,7 @@ const CodePreviewer = {
                 });
             }
             
-            combinedModuleContent += '\n' + filePathComment + processedContent + '\n';
+            combinedModuleContent += '\n' + filePathContext + processedContent + '\n';
         });
         
         if (globalFunctions.length > 0) {
@@ -1724,8 +1723,8 @@ const CodePreviewer = {
         if (jsFiles.length === 0) return '';
 
         const regularJS = jsFiles.map(file => {
-            const filePathComment = `// File context: ${file.filename}\nwindow.__currentExecutionContext = "${file.filename}";\n`;
-            return filePathComment +
+            const filePathContext = `window.__currentExecutionContext = "${file.filename}";\n`;
+            return filePathContext +
                    'try {\n' +
                    file.content + '\n' +
                    '} catch (err) {\n' +
@@ -2543,7 +2542,6 @@ const CodePreviewer = {
         getCaptureScript(fileSystem = null, mainHtmlPath = 'index.html') {
             const MESSAGE_TYPE = CodePreviewer.constants.CONSOLE_MESSAGE_TYPE;
             
-            // Create file system data for injection using base64 encoding for safety
             let fileSystemScript = '';
             if (fileSystem && fileSystem instanceof Map) {
                 const fileObj = {};
@@ -2554,26 +2552,16 @@ const CodePreviewer = {
                         isBinary: fileData.isBinary || false
                     };
                 });
-                // Encode the JSON as base64 to avoid any escaping issues
                 const jsonString = JSON.stringify(fileObj);
                 const base64Data = btoa(unescape(encodeURIComponent(jsonString)));
                 fileSystemScript = `
-                    console.log("🚀 Fetch override script loaded!");
-                    // Virtual file system for fetch override (loaded from base64)
                     const virtualFileSystemData = "${base64Data}";
                     const virtualFileSystem = JSON.parse(decodeURIComponent(escape(atob(virtualFileSystemData))));
-                    console.log("Virtual file system loaded:", virtualFileSystem);
-                    
-                    // Main HTML path for context resolution
                     const mainHtmlPath = "${mainHtmlPath}";
                 `;
             } else {
                 fileSystemScript = `
-                    console.log("🚀 Fetch override script loaded!");
                     const virtualFileSystem = {};
-                    console.log("Virtual file system loaded (empty):", virtualFileSystem);
-                    
-                    // Main HTML path for context resolution
                     const mainHtmlPath = "index.html";
                 `;
             }
@@ -2582,17 +2570,14 @@ const CodePreviewer = {
                 '(function() {\n' +
                 fileSystemScript + '\n' +
                 '    \n' +
-                '    // Path resolution function (matches the server-side logic)\n' +
                 '    function resolvePath(basePath, relativePath) {\n' +
                 '        if (relativePath.startsWith("/")) {\n' +
                 '            return relativePath.substring(1);\n' +
                 '        }\n' +
                 '        \n' +
                 '        const baseDir = basePath.includes("/") ? basePath.substring(0, basePath.lastIndexOf("/")) : "";\n' +
-                '        \n' +
                 '        const baseParts = baseDir ? baseDir.split("/") : [];\n' +
                 '        const relativeParts = relativePath.split("/");\n' +
-                '        \n' +
                 '        const resultParts = [...baseParts];\n' +
                 '        \n' +
                 '        for (const part of relativeParts) {\n' +
@@ -2608,7 +2593,6 @@ const CodePreviewer = {
                 '        return resultParts.join("/");\n' +
                 '    }\n' +
                 '    \n' +
-                '    // Find file in virtual file system with path resolution\n' +
                 '    function findFileInSystem(targetFilename, currentFilePath = "") {\n' +
                 '        if (currentFilePath) {\n' +
                 '            targetFilename = resolvePath(currentFilePath, targetFilename);\n' +
@@ -2629,22 +2613,17 @@ const CodePreviewer = {
                 '        return null;\n' +
                 '    }\n' +
                 '    \n' +
-                '    // Get the current execution context (file path) from tracking or stack trace\n' +
                 '    function getCurrentFilePath() {\n' +
                 '        try {\n' +
-                '            // First, check if we have a tracked execution context\n' +
                 '            if (window.__currentExecutionContext) {\n' +
                 '                return window.__currentExecutionContext;\n' +
                 '            }\n' +
-                '            \n' +
-                '            // Default to main HTML path if no specific context found\n' +
                 '            return mainHtmlPath;\n' +
                 '        } catch (e) {\n' +
                 '            return mainHtmlPath;\n' +
                 '        }\n' +
                 '    }\n' +
                 '    \n' +
-                '    // Override fetch to serve virtual files\n' +
                 '    const originalFetch = window.fetch;\n' +
                 '    window.fetch = function(input, init) {\n' +
                 '        let url = input;\n' +
@@ -2652,26 +2631,11 @@ const CodePreviewer = {
                 '            url = input.url;\n' +
                 '        }\n' +
                 '        \n' +
-                '        console.log("Fetch called for:", url);\n' +
-                '        \n' +
-                '        // Get current execution context\n' +
                 '        const currentFilePath = getCurrentFilePath();\n' +
-                '        console.log("Current execution context:", currentFilePath);\n' +
-                '        \n' +
-                '        // Remove leading ./ for cleaner processing\n' +
                 '        let targetPath = url.replace(/^\\.\\//, "");\n' +
-                '        \n' +
-                '        // Find file using path resolution\n' +
                 '        const fileData = findFileInSystem(targetPath, currentFilePath);\n' +
                 '        \n' +
-                '        console.log("Resolved path:", targetPath);\n' +
-                '        console.log("Available files:", Object.keys(virtualFileSystem));\n' +
-                '        \n' +
-                '        // Check if file exists in virtual file system\n' +
                 '        if (fileData) {\n' +
-                '            console.log("Found file in virtual system:", fileData);\n' +
-                '            \n' +
-                '            // Create mock response\n' +
                 '            const response = {\n' +
                 '                ok: true,\n' +
                 '                status: 200,\n' +
@@ -2724,16 +2688,12 @@ const CodePreviewer = {
                 '                }\n' +
                 '            };\n' +
                 '            \n' +
-                '            console.log("Returning virtual file response");\n' +
                 '            return Promise.resolve(response);\n' +
                 '        }\n' +
                 '        \n' +
-                '        console.log("File not found in virtual system, using original fetch");\n' +
-                '        // If not found in virtual file system, use original fetch\n' +
                 '        return originalFetch.apply(this, arguments);\n' +
                 '    };\n' +
                 '    \n' +
-                '    // Console capture functionality\n' +
                 '    const postLog = (level, args) => {\n' +
                 '        const formattedArgs = args.map(arg => {\n' +
                 '            if (arg instanceof Error) return { message: arg.message, stack: arg.stack };\n' +
