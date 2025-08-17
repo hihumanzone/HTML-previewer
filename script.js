@@ -1655,7 +1655,49 @@ const CodePreviewer = {
         return mimeTypes[fileType] || 'text/plain';
     },
 
-    findFileInSystem(fileSystem, targetFilename) {
+    /**
+     * Resolve a relative path from a base directory
+     * @param {string} basePath - The base file path (e.g., "home/index.html")
+     * @param {string} relativePath - The relative path to resolve (e.g., "css/styles.css" or "../../js/script.js")
+     * @returns {string} The resolved absolute path
+     */
+    resolvePath(basePath, relativePath) {
+        // If relative path is absolute (starts with /), return as-is (removing leading slash)
+        if (relativePath.startsWith('/')) {
+            return relativePath.substring(1);
+        }
+        
+        // Get directory of base path
+        const baseDir = basePath.includes('/') ? basePath.substring(0, basePath.lastIndexOf('/')) : '';
+        
+        // Split the base directory and relative path into parts
+        const baseParts = baseDir ? baseDir.split('/') : [];
+        const relativeParts = relativePath.split('/');
+        
+        // Process each part of the relative path
+        const resultParts = [...baseParts];
+        
+        for (const part of relativeParts) {
+            if (part === '..') {
+                // Go up one directory
+                if (resultParts.length > 0) {
+                    resultParts.pop();
+                }
+            } else if (part !== '.' && part !== '') {
+                // Add the part (ignore current directory "." and empty parts)
+                resultParts.push(part);
+            }
+        }
+        
+        return resultParts.join('/');
+    },
+
+    findFileInSystem(fileSystem, targetFilename, currentFilePath = '') {
+        // If currentFilePath is provided, resolve the targetFilename relative to it
+        if (currentFilePath) {
+            targetFilename = this.resolvePath(currentFilePath, targetFilename);
+        }
+        
         const exactMatch = fileSystem.get(targetFilename);
         if (exactMatch) {
             return exactMatch;
@@ -1679,12 +1721,12 @@ const CodePreviewer = {
         }).filter(Boolean);
     },
 
-    createWorkerScript(workerFileNames, fileSystem) {
+    createWorkerScript(workerFileNames, fileSystem, currentFilePath = '') {
         if (workerFileNames.length === 0) return '';
         
         let script = '<script>\n';
         workerFileNames.forEach(fileName => {
-            const file = this.findFileInSystem(fileSystem, fileName);
+            const file = this.findFileInSystem(fileSystem, fileName, currentFilePath);
             if (file && (file.type === 'javascript' || file.type === 'javascript-module')) {
                 const blobVar = 'workerBlob_' + fileName.replace(/[^a-zA-Z0-9]/g, '_');
                 const urlVar = 'workerUrl_' + fileName.replace(/[^a-zA-Z0-9]/g, '_');
@@ -1704,10 +1746,10 @@ const CodePreviewer = {
         return htmlContent;
     },
 
-    replaceAssetReferences(htmlContent, fileSystem) {
+    replaceAssetReferences(htmlContent, fileSystem, currentFilePath = '') {
         // Replace CSS link references
         htmlContent = htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.css)["']([^>]*?)>/gi, (match, before, filename, after) => {
-            const file = this.findFileInSystem(fileSystem, filename);
+            const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
             if (file && file.type === 'css') {
                 return `<style>${file.content}</style>`;
             }
@@ -1716,7 +1758,7 @@ const CodePreviewer = {
         
         // Replace image sources
         htmlContent = htmlContent.replace(/<img([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
-            const file = this.findFileInSystem(fileSystem, filename);
+            const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
             if (file && (file.type === 'image' || file.type === 'svg')) {
                 // For binary images, use the data URL; for SVG use the text content as data URL
                 const src = file.isBinary ? file.content : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(file.content)}`;
@@ -1730,7 +1772,7 @@ const CodePreviewer = {
         
         // Replace video sources 
         htmlContent = htmlContent.replace(/<video([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
-            const file = this.findFileInSystem(fileSystem, filename);
+            const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
             if (file && file.type === 'video') {
                 const newSrc = `src="${file.content}"`;
                 return match.replace(/src\s*=\s*["'][^"']*["']/i, newSrc);
@@ -1740,7 +1782,7 @@ const CodePreviewer = {
         
         // Replace source elements for video/audio
         htmlContent = htmlContent.replace(/<source([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
-            const file = this.findFileInSystem(fileSystem, filename);
+            const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
             if (file && (file.type === 'video' || file.type === 'audio')) {
                 const newSrc = `src="${file.content}"`;
                 return match.replace(/src\s*=\s*["'][^"']*["']/i, newSrc);
@@ -1750,7 +1792,7 @@ const CodePreviewer = {
         
         // Replace audio sources
         htmlContent = htmlContent.replace(/<audio([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
-            const file = this.findFileInSystem(fileSystem, filename);
+            const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
             if (file && file.type === 'audio') {
                 const newSrc = `src="${file.content}"`;
                 return match.replace(/src\s*=\s*["'][^"']*["']/i, newSrc);
@@ -1760,7 +1802,7 @@ const CodePreviewer = {
         
         // Replace favicon links
         htmlContent = htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.ico)["']([^>]*?)>/gi, (match, before, filename, after) => {
-            const file = this.findFileInSystem(fileSystem, filename);
+            const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
             if (file && file.type === 'image') {
                 const newHref = `href="${file.content}"`;
                 return match.replace(/href\s*=\s*["'][^"']*["']/i, newHref);
@@ -1772,7 +1814,7 @@ const CodePreviewer = {
         htmlContent = htmlContent.replace(/<a([^>]*?)href\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
             // Only replace if the anchor has a download attribute or points to a local file
             if (match.includes('download') || !filename.includes('://')) {
-                const file = this.findFileInSystem(fileSystem, filename);
+                const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
                 if (file) {
                     // For binary files, use the data URL; for text files, create a data URL
                     let href;
@@ -1793,7 +1835,7 @@ const CodePreviewer = {
         
         // Replace font preload links
         htmlContent = htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.(?:woff|woff2|ttf|otf|eot))["']([^>]*?)>/gi, (match, before, filename, after) => {
-            const file = this.findFileInSystem(fileSystem, filename);
+            const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
             if (file && file.type === 'font') {
                 return `<link${before}href="${file.content}"${after}>`;
             }
@@ -1802,13 +1844,13 @@ const CodePreviewer = {
         
         // Handle CSS background images and font-face references within <style> tags
         htmlContent = htmlContent.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (match, cssContent) => {
-            const updatedCSS = this.replaceCSSAssetReferences(cssContent, fileSystem);
+            const updatedCSS = this.replaceCSSAssetReferences(cssContent, fileSystem, currentFilePath);
             return match.replace(cssContent, updatedCSS);
         });
         
         const workerFileNames = this.extractWorkerFileNames(htmlContent);
         if (workerFileNames.length > 0) {
-            const workerScript = this.createWorkerScript(workerFileNames, fileSystem);
+            const workerScript = this.createWorkerScript(workerFileNames, fileSystem, currentFilePath);
             htmlContent = this.replaceWorkerCalls(htmlContent, workerFileNames);
             
             if (htmlContent.includes('</head>')) {
@@ -1826,7 +1868,7 @@ const CodePreviewer = {
                 return '';
             }
             
-            const file = this.findFileInSystem(fileSystem, filename);
+            const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
             if (file && (file.type === 'javascript' || file.type === 'javascript-module')) {
                 const scriptType = file.type === 'javascript-module' ? ' type="module"' : '';
                 return `<script${scriptType}>${file.content}</script>`;
@@ -1837,10 +1879,10 @@ const CodePreviewer = {
         return htmlContent;
     },
 
-    replaceCSSAssetReferences(cssContent, fileSystem) {
+    replaceCSSAssetReferences(cssContent, fileSystem, currentFilePath = '') {
         // Replace background-image references
         cssContent = cssContent.replace(/background-image\s*:\s*url\s*\(\s*["']?([^"')]+)["']?\s*\)/gi, (match, filename) => {
-            const file = this.findFileInSystem(fileSystem, filename);
+            const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
             if (file && (file.type === 'image' || file.type === 'svg')) {
                 const src = file.isBinary ? file.content : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(file.content)}`;
                 return `background-image: url("${src}")`;
@@ -1850,7 +1892,7 @@ const CodePreviewer = {
         
         // Replace @font-face src references
         cssContent = cssContent.replace(/@font-face\s*{[^}]*src\s*:\s*url\s*\(\s*["']?([^"')]+)["']?\s*\)[^}]*}/gi, (match, filename) => {
-            const file = this.findFileInSystem(fileSystem, filename);
+            const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
             if (file && file.type === 'font') {
                 return match.replace(filename, file.content);
             }
@@ -1868,7 +1910,8 @@ const CodePreviewer = {
         }
         
         const fileSystem = this.createVirtualFileSystem();
-        let processedHtml = this.replaceAssetReferences(mainHtmlFile.editor.getValue(), fileSystem);
+        const mainHtmlPath = this.getFileNameFromPanel(mainHtmlFile.id) || 'index.html';
+        let processedHtml = this.replaceAssetReferences(mainHtmlFile.editor.getValue(), fileSystem, mainHtmlPath);
         
         return this.injectConsoleScript(processedHtml);
     },
@@ -2002,7 +2045,9 @@ const CodePreviewer = {
         
         // Apply asset replacement to the HTML content
         const fileSystem = this.createVirtualFileSystem();
-        const htmlWithAssets = this.replaceAssetReferences(processedHtml, fileSystem);
+        const mainHtmlFile = this.getMainHtmlFile();
+        const mainHtmlPath = mainHtmlFile ? (this.getFileNameFromPanel(mainHtmlFile.id) || 'index.html') : 'index.html';
+        const htmlWithAssets = this.replaceAssetReferences(processedHtml, fileSystem, mainHtmlPath);
         
         const moduleScript = this.processModuleFiles(moduleFiles);
         const jsScript = this.processJavaScriptFiles(jsFiles);
