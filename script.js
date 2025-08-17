@@ -2697,37 +2697,51 @@ const CodePreviewer = {
                 '    const originalAudio = window.Audio;\n' +
                 '    window.Audio = function(src) {\n' +
                 '        const audio = new originalAudio(src);\n' +
-                '        const originalSrcSetter = Object.getOwnPropertyDescriptor(HTMLAudioElement.prototype, "src").set;\n' +
                 '        \n' +
-                '        Object.defineProperty(audio, "src", {\n' +
-                '            get: function() {\n' +
-                '                return this._virtualSrc || this.getAttribute("src") || "";\n' +
-                '            },\n' +
-                '            set: function(value) {\n' +
-                '                this._virtualSrc = value;\n' +
-                '                \n' +
-                '                if (value) {\n' +
-                '                    const currentFilePath = getCurrentFilePath();\n' +
-                '                    let targetPath = value.replace(/^\\.\\//, "");\n' +
-                '                    const fileData = findFileInSystem(targetPath, currentFilePath);\n' +
-                '                    \n' +
-                '                    if (fileData && fileData.type === "audio") {\n' +
-                '                        if (fileData.isBinary && fileData.content.startsWith("data:")) {\n' +
-                '                            originalSrcSetter.call(this, fileData.content);\n' +
-                '                        } else {\n' +
-                '                            const blob = new Blob([fileData.content], { type: "audio/mpeg" });\n' +
-                '                            const blobUrl = URL.createObjectURL(blob);\n' +
-                '                            originalSrcSetter.call(this, blobUrl);\n' +
-                '                        }\n' +
-                '                        return;\n' +
-                '                    }\n' +
+                '        function findSrcDescriptor(obj) {\n' +
+                '            while (obj) {\n' +
+                '                const descriptor = Object.getOwnPropertyDescriptor(obj, "src");\n' +
+                '                if (descriptor && descriptor.set) {\n' +
+                '                    return descriptor.set;\n' +
                 '                }\n' +
-                '                \n' +
-                '                originalSrcSetter.call(this, value);\n' +
-                '            },\n' +
-                '            configurable: true,\n' +
-                '            enumerable: true\n' +
-                '        });\n' +
+                '                obj = Object.getPrototypeOf(obj);\n' +
+                '            }\n' +
+                '            return null;\n' +
+                '        }\n' +
+                '        \n' +
+                '        const originalSrcSetter = findSrcDescriptor(HTMLAudioElement.prototype);\n' +
+                '        \n' +
+                '        if (originalSrcSetter) {\n' +
+                '            Object.defineProperty(audio, "src", {\n' +
+                '                get: function() {\n' +
+                '                    return this._virtualSrc || this.getAttribute("src") || "";\n' +
+                '                },\n' +
+                '                set: function(value) {\n' +
+                '                    this._virtualSrc = value;\n' +
+                '                    \n' +
+                '                    if (value) {\n' +
+                '                        const currentFilePath = getCurrentFilePath();\n' +
+                '                        let targetPath = value.replace(/^\\.\\//, "");\n' +
+                '                        const fileData = findFileInSystem(targetPath, currentFilePath);\n' +
+                '                        \n' +
+                '                        if (fileData && fileData.type === "audio") {\n' +
+                '                            if (fileData.isBinary && fileData.content.startsWith("data:")) {\n' +
+                '                                originalSrcSetter.call(this, fileData.content);\n' +
+                '                            } else {\n' +
+                '                                const blob = new Blob([fileData.content], { type: "audio/mpeg" });\n' +
+                '                                const blobUrl = URL.createObjectURL(blob);\n' +
+                '                                originalSrcSetter.call(this, blobUrl);\n' +
+                '                            }\n' +
+                '                            return;\n' +
+                '                        }\n' +
+                '                    }\n' +
+                '                    \n' +
+                '                    originalSrcSetter.call(this, value);\n' +
+                '                },\n' +
+                '                configurable: true,\n' +
+                '                enumerable: true\n' +
+                '            });\n' +
+                '        }\n' +
                 '        \n' +
                 '        if (src) {\n' +
                 '            const currentFilePath = getCurrentFilePath();\n' +
@@ -2751,40 +2765,54 @@ const CodePreviewer = {
                 '    const originalImage = window.Image;\n' +
                 '    window.Image = function(width, height) {\n' +
                 '        const img = new originalImage(width, height);\n' +
-                '        const originalSrcSetter = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, "src").set;\n' +
                 '        \n' +
-                '        Object.defineProperty(img, "src", {\n' +
-                '            get: function() {\n' +
-                '                return this._virtualSrc || this.getAttribute("src") || "";\n' +
-                '            },\n' +
-                '            set: function(value) {\n' +
-                '                this._virtualSrc = value;\n' +
-                '                \n' +
-                '                if (value) {\n' +
-                '                    const currentFilePath = getCurrentFilePath();\n' +
-                '                    let targetPath = value.replace(/^\\.\\//, "");\n' +
-                '                    const fileData = findFileInSystem(targetPath, currentFilePath);\n' +
-                '                    \n' +
-                '                    if (fileData && (fileData.type === "image" || fileData.type === "svg")) {\n' +
-                '                        if (fileData.isBinary && fileData.content.startsWith("data:")) {\n' +
-                '                            originalSrcSetter.call(this, fileData.content);\n' +
-                '                        } else if (fileData.type === "svg") {\n' +
-                '                            const svgDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(fileData.content)}`;\n' +
-                '                            originalSrcSetter.call(this, svgDataUrl);\n' +
-                '                        } else {\n' +
-                '                            const blob = new Blob([fileData.content], { type: "image/png" });\n' +
-                '                            const blobUrl = URL.createObjectURL(blob);\n' +
-                '                            originalSrcSetter.call(this, blobUrl);\n' +
-                '                        }\n' +
-                '                        return;\n' +
-                '                    }\n' +
+                '        function findSrcDescriptor(obj) {\n' +
+                '            while (obj) {\n' +
+                '                const descriptor = Object.getOwnPropertyDescriptor(obj, "src");\n' +
+                '                if (descriptor && descriptor.set) {\n' +
+                '                    return descriptor.set;\n' +
                 '                }\n' +
-                '                \n' +
-                '                originalSrcSetter.call(this, value);\n' +
-                '            },\n' +
-                '            configurable: true,\n' +
-                '            enumerable: true\n' +
-                '        });\n' +
+                '                obj = Object.getPrototypeOf(obj);\n' +
+                '            }\n' +
+                '            return null;\n' +
+                '        }\n' +
+                '        \n' +
+                '        const originalSrcSetter = findSrcDescriptor(HTMLImageElement.prototype);\n' +
+                '        \n' +
+                '        if (originalSrcSetter) {\n' +
+                '            Object.defineProperty(img, "src", {\n' +
+                '                get: function() {\n' +
+                '                    return this._virtualSrc || this.getAttribute("src") || "";\n' +
+                '                },\n' +
+                '                set: function(value) {\n' +
+                '                    this._virtualSrc = value;\n' +
+                '                    \n' +
+                '                    if (value) {\n' +
+                '                        const currentFilePath = getCurrentFilePath();\n' +
+                '                        let targetPath = value.replace(/^\\.\\//, "");\n' +
+                '                        const fileData = findFileInSystem(targetPath, currentFilePath);\n' +
+                '                        \n' +
+                '                        if (fileData && (fileData.type === "image" || fileData.type === "svg")) {\n' +
+                '                            if (fileData.isBinary && fileData.content.startsWith("data:")) {\n' +
+                '                                originalSrcSetter.call(this, fileData.content);\n' +
+                '                            } else if (fileData.type === "svg") {\n' +
+                '                                const svgDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(fileData.content)}`;\n' +
+                '                                originalSrcSetter.call(this, svgDataUrl);\n' +
+                '                            } else {\n' +
+                '                                const blob = new Blob([fileData.content], { type: "image/png" });\n' +
+                '                                const blobUrl = URL.createObjectURL(blob);\n' +
+                '                                originalSrcSetter.call(this, blobUrl);\n' +
+                '                            }\n' +
+                '                            return;\n' +
+                '                        }\n' +
+                '                    }\n' +
+                '                    \n' +
+                '                    originalSrcSetter.call(this, value);\n' +
+                '                },\n' +
+                '                configurable: true,\n' +
+                '                enumerable: true\n' +
+                '            });\n' +
+                '        }\n' +
                 '        \n' +
                 '        return img;\n' +
                 '    };\n' +
