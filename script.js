@@ -1350,7 +1350,7 @@ const CodePreviewer = {
 
     generateSingleFilePreview() {
         const singleFileContent = this.state.editors.singleFile ? this.state.editors.singleFile.getValue() : '';
-        const captureScript = this.console.getCaptureScript(null);
+        const captureScript = this.console.getCaptureScript(null, 'index.html');
         
         if (singleFileContent.includes('</head>')) {
             return singleFileContent.replace('</head>', captureScript + '\n</head>');
@@ -1409,17 +1409,17 @@ const CodePreviewer = {
         };
     },
 
-    processHTMLScripts(htmlContent, jsFiles, moduleFiles) {
+    processHTMLScripts(htmlContent, jsFiles, moduleFiles, currentFilePath = 'index.html') {
         htmlContent = htmlContent.replace(/<script(?:\s+type\s*=\s*['"](?:text\/javascript|application\/javascript)['"])?[^>]*>([\s\S]*?)<\/script>/gi, (match, scriptContent) => {
             if (this.isModuleFile(scriptContent)) {
                 moduleFiles.push({
                     content: scriptContent,
-                    filename: 'inline-module.mjs'
+                    filename: currentFilePath.replace(/\.(html?)$/, '-inline-module.mjs')
                 });
             } else {
                 jsFiles.push({
                     content: scriptContent,
-                    filename: 'inline-script.js'
+                    filename: currentFilePath.replace(/\.(html?)$/, '-inline-script.js')
                 });
             }
             return '';
@@ -1446,8 +1446,9 @@ const CodePreviewer = {
                     css += '\n' + styles;
                 }
                 
+                const filename = this.getFileNameFromPanel(file.id) || 'index.html';
                 let htmlContent = this.extractHTMLContent(contentWithoutStyles);
-                htmlContent = this.processHTMLScripts(htmlContent, jsFiles, moduleFiles);
+                htmlContent = this.processHTMLScripts(htmlContent, jsFiles, moduleFiles, filename);
                 html += '\n' + htmlContent;
             } else if (file.type === 'css') {
                 css += '\n' + content;
@@ -1651,11 +1652,11 @@ const CodePreviewer = {
         const mainHtmlPath = this.getFileNameFromPanel(mainHtmlFile.id) || 'index.html';
         let processedHtml = this.replaceAssetReferences(mainHtmlFile.editor.getValue(), fileSystem, mainHtmlPath);
         
-        return this.injectConsoleScript(processedHtml, fileSystem);
+        return this.injectConsoleScript(processedHtml, fileSystem, mainHtmlPath);
     },
 
-    injectConsoleScript(htmlContent, fileSystem = null) {
-        const captureScript = this.console.getCaptureScript(fileSystem);
+    injectConsoleScript(htmlContent, fileSystem = null, mainHtmlPath = 'index.html') {
+        const captureScript = this.console.getCaptureScript(fileSystem, mainHtmlPath);
         
         if (htmlContent.includes('</head>')) {
             return htmlContent.replace('</head>', captureScript + '\n</head>');
@@ -1666,7 +1667,7 @@ const CodePreviewer = {
         }
     },
 
-    processModuleFiles(moduleFiles) {
+    processModuleFiles(moduleFiles, currentFilePath = 'index.html') {
         if (moduleFiles.length === 0) return '';
 
         let combinedModuleContent = '';
@@ -1674,6 +1675,9 @@ const CodePreviewer = {
         
         moduleFiles.forEach((file, index) => {
             let processedContent = file.content;
+            
+            // Add file context tracking
+            const filePathComment = `// File context: ${file.filename}\nwindow.__currentExecutionContext = "${file.filename}";\n`;
             
             processedContent = processedContent.replace(/import\s*\{[^}]+\}\s*from\s*['"][^'"]+['"];?\s*\n?/g, '');
             processedContent = processedContent.replace(/import\s+\*\s+as\s+\w+\s+from\s*['"][^'"]+['"];?\s*\n?/g, '');
@@ -1699,7 +1703,7 @@ const CodePreviewer = {
                 });
             }
             
-            combinedModuleContent += '\n' + processedContent + '\n';
+            combinedModuleContent += '\n' + filePathComment + processedContent + '\n';
         });
         
         if (globalFunctions.length > 0) {
@@ -1716,11 +1720,13 @@ const CodePreviewer = {
         return '';
     },
 
-    processJavaScriptFiles(jsFiles) {
+    processJavaScriptFiles(jsFiles, currentFilePath = 'index.html') {
         if (jsFiles.length === 0) return '';
 
         const regularJS = jsFiles.map(file => {
-            return 'try {\n' +
+            const filePathComment = `// File context: ${file.filename}\nwindow.__currentExecutionContext = "${file.filename}";\n`;
+            return filePathComment +
+                   'try {\n' +
                    file.content + '\n' +
                    '} catch (err) {\n' +
                    '    console.error(\'Error in ' + file.filename + ':\', err);\n' +
@@ -1786,8 +1792,8 @@ const CodePreviewer = {
         const mainHtmlPath = mainHtmlFile ? (this.getFileNameFromPanel(mainHtmlFile.id) || 'index.html') : 'index.html';
         const htmlWithAssets = this.replaceAssetReferences(processedHtml, fileSystem, mainHtmlPath);
         
-        const moduleScript = this.processModuleFiles(moduleFiles);
-        const jsScript = this.processJavaScriptFiles(jsFiles);
+        const moduleScript = this.processModuleFiles(moduleFiles, mainHtmlPath);
+        const jsScript = this.processJavaScriptFiles(jsFiles, mainHtmlPath);
 
         return '<!DOCTYPE html>\n' +
             '<html lang="en">\n' +
@@ -1795,7 +1801,7 @@ const CodePreviewer = {
             '    <meta charset="UTF-8">\n' +
             '    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
             '    <title>Live Preview</title>\n' +
-            '    ' + this.console.getCaptureScript(fileSystem) + '\n' +
+            '    ' + this.console.getCaptureScript(fileSystem, mainHtmlPath) + '\n' +
             '    ' + workerScript + '\n' +
             '    <style>' + css + '</style>\n' +
             '</head>\n' +
@@ -2534,7 +2540,7 @@ const CodePreviewer = {
                 this.log(event.data);
             }
         },
-        getCaptureScript(fileSystem = null) {
+        getCaptureScript(fileSystem = null, mainHtmlPath = 'index.html') {
             const MESSAGE_TYPE = CodePreviewer.constants.CONSOLE_MESSAGE_TYPE;
             
             // Create file system data for injection using base64 encoding for safety
@@ -2557,18 +2563,86 @@ const CodePreviewer = {
                     const virtualFileSystemData = "${base64Data}";
                     const virtualFileSystem = JSON.parse(decodeURIComponent(escape(atob(virtualFileSystemData))));
                     console.log("Virtual file system loaded:", virtualFileSystem);
+                    
+                    // Main HTML path for context resolution
+                    const mainHtmlPath = "${mainHtmlPath}";
                 `;
             } else {
                 fileSystemScript = `
                     console.log("🚀 Fetch override script loaded!");
                     const virtualFileSystem = {};
                     console.log("Virtual file system loaded (empty):", virtualFileSystem);
+                    
+                    // Main HTML path for context resolution
+                    const mainHtmlPath = "index.html";
                 `;
             }
             
             return '<script>\n' +
                 '(function() {\n' +
                 fileSystemScript + '\n' +
+                '    \n' +
+                '    // Path resolution function (matches the server-side logic)\n' +
+                '    function resolvePath(basePath, relativePath) {\n' +
+                '        if (relativePath.startsWith("/")) {\n' +
+                '            return relativePath.substring(1);\n' +
+                '        }\n' +
+                '        \n' +
+                '        const baseDir = basePath.includes("/") ? basePath.substring(0, basePath.lastIndexOf("/")) : "";\n' +
+                '        \n' +
+                '        const baseParts = baseDir ? baseDir.split("/") : [];\n' +
+                '        const relativeParts = relativePath.split("/");\n' +
+                '        \n' +
+                '        const resultParts = [...baseParts];\n' +
+                '        \n' +
+                '        for (const part of relativeParts) {\n' +
+                '            if (part === "..") {\n' +
+                '                if (resultParts.length > 0) {\n' +
+                '                    resultParts.pop();\n' +
+                '                }\n' +
+                '            } else if (part !== "." && part !== "") {\n' +
+                '                resultParts.push(part);\n' +
+                '            }\n' +
+                '        }\n' +
+                '        \n' +
+                '        return resultParts.join("/");\n' +
+                '    }\n' +
+                '    \n' +
+                '    // Find file in virtual file system with path resolution\n' +
+                '    function findFileInSystem(targetFilename, currentFilePath = "") {\n' +
+                '        if (currentFilePath) {\n' +
+                '            targetFilename = resolvePath(currentFilePath, targetFilename);\n' +
+                '        }\n' +
+                '        \n' +
+                '        const exactMatch = virtualFileSystem[targetFilename];\n' +
+                '        if (exactMatch) {\n' +
+                '            return exactMatch;\n' +
+                '        }\n' +
+                '        \n' +
+                '        const targetLower = targetFilename.toLowerCase();\n' +
+                '        for (const [filename, file] of Object.entries(virtualFileSystem)) {\n' +
+                '            if (filename.toLowerCase() === targetLower) {\n' +
+                '                return file;\n' +
+                '            }\n' +
+                '        }\n' +
+                '        \n' +
+                '        return null;\n' +
+                '    }\n' +
+                '    \n' +
+                '    // Get the current execution context (file path) from tracking or stack trace\n' +
+                '    function getCurrentFilePath() {\n' +
+                '        try {\n' +
+                '            // First, check if we have a tracked execution context\n' +
+                '            if (window.__currentExecutionContext) {\n' +
+                '                return window.__currentExecutionContext;\n' +
+                '            }\n' +
+                '            \n' +
+                '            // Default to main HTML path if no specific context found\n' +
+                '            return mainHtmlPath;\n' +
+                '        } catch (e) {\n' +
+                '            return mainHtmlPath;\n' +
+                '        }\n' +
+                '    }\n' +
                 '    \n' +
                 '    // Override fetch to serve virtual files\n' +
                 '    const originalFetch = window.fetch;\n' +
@@ -2580,14 +2654,21 @@ const CodePreviewer = {
                 '        \n' +
                 '        console.log("Fetch called for:", url);\n' +
                 '        \n' +
-                '        // Normalize the URL - remove leading ./ and resolve relative paths\n' +
-                '        const normalizedUrl = url.replace(/^\\.\\//, "");\n' +
-                '        console.log("Normalized URL:", normalizedUrl);\n' +
+                '        // Get current execution context\n' +
+                '        const currentFilePath = getCurrentFilePath();\n' +
+                '        console.log("Current execution context:", currentFilePath);\n' +
+                '        \n' +
+                '        // Remove leading ./ for cleaner processing\n' +
+                '        let targetPath = url.replace(/^\\.\\//, "");\n' +
+                '        \n' +
+                '        // Find file using path resolution\n' +
+                '        const fileData = findFileInSystem(targetPath, currentFilePath);\n' +
+                '        \n' +
+                '        console.log("Resolved path:", targetPath);\n' +
                 '        console.log("Available files:", Object.keys(virtualFileSystem));\n' +
                 '        \n' +
                 '        // Check if file exists in virtual file system\n' +
-                '        if (virtualFileSystem[normalizedUrl]) {\n' +
-                '            const fileData = virtualFileSystem[normalizedUrl];\n' +
+                '        if (fileData) {\n' +
                 '            console.log("Found file in virtual system:", fileData);\n' +
                 '            \n' +
                 '            // Create mock response\n' +
