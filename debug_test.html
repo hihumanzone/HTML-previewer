@@ -5,7 +5,26 @@
 </head>
 <body>
     <script>
-        // Test the replaceAssetReferences function directly
+        // Helper function to perform case-insensitive file lookup (same as in script.js)
+        function findFileInSystem(fileSystem, targetFilename) {
+            // First try exact match for performance
+            const exactMatch = fileSystem.get(targetFilename);
+            if (exactMatch) {
+                return exactMatch;
+            }
+            
+            // If no exact match, try case-insensitive search
+            const targetLower = targetFilename.toLowerCase();
+            for (const [filename, file] of fileSystem) {
+                if (filename.toLowerCase() === targetLower) {
+                    return file;
+                }
+            }
+            
+            return null;
+        }
+
+        // Test the replaceAssetReferences function directly with case sensitivity
         function testReplaceAssetReferences() {
             const htmlContent = `<!DOCTYPE html>
 <html>
@@ -14,29 +33,30 @@
     <link rel="stylesheet" href="theme.css">
 </head>
 <body>
-    <h1>Test</h1>
+    <h1>Test Case Sensitivity</h1>
 </body>
 </html>`;
 
             const fileSystem = new Map();
             fileSystem.set('styles.css', {
-                content: 'body { color: red; }',
+                content: 'body { color: blue; padding: 2rem; }',
                 type: 'css'
             });
-            fileSystem.set('theme.css', {
-                content: 'h1 { background: yellow; }',
+            // Note: File is named "Theme.css" (capitalized) but HTML links to "theme.css" (lowercase)
+            fileSystem.set('Theme.css', {
+                content: 'h1 { color: red; font-size: 3em; }',
                 type: 'css'
             });
 
             console.log('Original HTML:', htmlContent);
             console.log('FileSystem:', fileSystem);
 
-            // Simulate the replaceAssetReferences function
+            // Test with the NEW case-insensitive approach
             let processedHtml = htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.css)["']([^>]*?)>/gi, (match, before, filename, after) => {
                 console.log('Match found:', match);
                 console.log('Filename:', filename);
-                const file = fileSystem.get(filename);
-                console.log('File from system:', file);
+                const file = findFileInSystem(fileSystem, filename);
+                console.log('File from system (case-insensitive):', file);
                 if (file && file.type === 'css') {
                     const replacement = `<style>${file.content}</style>`;
                     console.log('Replacement:', replacement);
@@ -46,7 +66,19 @@
                 return match;
             });
 
-            console.log('Processed HTML:', processedHtml);
+            console.log('Processed HTML (with fix):', processedHtml);
+            
+            // Test with the OLD case-sensitive approach for comparison
+            let oldProcessedHtml = htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.css)["']([^>]*?)>/gi, (match, before, filename, after) => {
+                const file = fileSystem.get(filename);
+                if (file && file.type === 'css') {
+                    return `<style>${file.content}</style>`;
+                }
+                return match;
+            });
+            
+            console.log('Processed HTML (old approach):', oldProcessedHtml);
+            
             return processedHtml;
         }
 

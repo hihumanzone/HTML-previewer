@@ -1176,9 +1176,28 @@ const CodePreviewer = {
         return fileSystem;
     },
 
+    // Helper function to perform case-insensitive file lookup
+    findFileInSystem(fileSystem, targetFilename) {
+        // First try exact match for performance
+        const exactMatch = fileSystem.get(targetFilename);
+        if (exactMatch) {
+            return exactMatch;
+        }
+        
+        // If no exact match, try case-insensitive search
+        const targetLower = targetFilename.toLowerCase();
+        for (const [filename, file] of fileSystem) {
+            if (filename.toLowerCase() === targetLower) {
+                return file;
+            }
+        }
+        
+        return null;
+    },
+
     replaceAssetReferences(htmlContent, fileSystem) {
         htmlContent = htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.css)["']([^>]*?)>/gi, (match, before, filename, after) => {
-            const file = fileSystem.get(filename);
+            const file = this.findFileInSystem(fileSystem, filename);
             if (file && file.type === 'css') {
                 return `<style>${file.content}</style>`;
             }
@@ -1186,7 +1205,7 @@ const CodePreviewer = {
         });
         
         htmlContent = htmlContent.replace(/<script([^>]*?)src\s*=\s*["']([^"']+\.(?:js|mjs))["']([^>]*?)><\/script>/gi, (match, before, filename, after) => {
-            const file = fileSystem.get(filename);
+            const file = this.findFileInSystem(fileSystem, filename);
             if (file && (file.type === 'javascript' || file.type === 'javascript-module')) {
                 const scriptType = file.type === 'javascript-module' ? ' type="module"' : '';
                 return `<script${scriptType}>${file.content}</script>`;
