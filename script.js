@@ -1179,7 +1179,7 @@ const CodePreviewer = {
             case 'image':
                 previewContent = `
                     <div class="media-preview-container">
-                        <img src="${fileInfo.content}" alt="${fileName}" style="max-width: 100%; max-height: 80vh; object-fit: contain;">
+                        <img src="${fileInfo.content}" alt="${fileName}">
                     </div>
                 `;
                 break;
@@ -1187,7 +1187,7 @@ const CodePreviewer = {
                 previewContent = `
                     <div class="media-preview-container">
                         <h3>${fileName}</h3>
-                        <audio controls style="width: 100%; margin-top: 20px;">
+                        <audio controls>
                             <source src="${fileInfo.content}">
                             Your browser does not support the audio element.
                         </audio>
@@ -1198,7 +1198,7 @@ const CodePreviewer = {
                 previewContent = `
                     <div class="media-preview-container">
                         <h3>${fileName}</h3>
-                        <video controls style="max-width: 100%; max-height: 70vh; margin-top: 20px;">
+                        <video controls>
                             <source src="${fileInfo.content}">
                             Your browser does not support the video element.
                         </video>
@@ -1209,7 +1209,7 @@ const CodePreviewer = {
                 previewContent = `
                     <div class="media-preview-container">
                         <h3>${fileName}</h3>
-                        <object data="${fileInfo.content}" type="application/pdf" style="width: 100%; height: 70vh; margin-top: 20px;">
+                        <object data="${fileInfo.content}" type="application/pdf">
                             <p>PDF failed to load. <a href="${fileInfo.content}" target="_blank">Open in new tab</a></p>
                         </object>
                     </div>
@@ -1221,7 +1221,7 @@ const CodePreviewer = {
                 previewContent = `
                     <div class="media-preview-container">
                         <h3>${fileName}</h3>
-                        <img src="${svgDataUrl}" alt="${fileName}" style="max-width: 100%; max-height: 80vh; object-fit: contain; margin-top: 20px;">
+                        <img src="${svgDataUrl}" alt="${fileName}">
                     </div>
                 `;
                 break;
