@@ -2694,6 +2694,72 @@ const CodePreviewer = {
                 '        return originalFetch.apply(this, arguments);\n' +
                 '    };\n' +
                 '    \n' +
+                '    const originalAudio = window.Audio;\n' +
+                '    window.Audio = function(src) {\n' +
+                '        if (src) {\n' +
+                '            const currentFilePath = getCurrentFilePath();\n' +
+                '            let targetPath = src.replace(/^\\.\\//, "");\n' +
+                '            const fileData = findFileInSystem(targetPath, currentFilePath);\n' +
+                '            \n' +
+                '            if (fileData && fileData.type === "audio") {\n' +
+                '                if (fileData.isBinary && fileData.content.startsWith("data:")) {\n' +
+                '                    const audio = new originalAudio();\n' +
+                '                    audio.src = fileData.content;\n' +
+                '                    return audio;\n' +
+                '                } else {\n' +
+                '                    const blob = new Blob([fileData.content], { type: "audio/mpeg" });\n' +
+                '                    const blobUrl = URL.createObjectURL(blob);\n' +
+                '                    const audio = new originalAudio();\n' +
+                '                    audio.src = blobUrl;\n' +
+                '                    return audio;\n' +
+                '                }\n' +
+                '            }\n' +
+                '        }\n' +
+                '        \n' +
+                '        return new originalAudio(src);\n' +
+                '    };\n' +
+                '    \n' +
+                '    const originalImage = window.Image;\n' +
+                '    window.Image = function(width, height) {\n' +
+                '        const img = new originalImage(width, height);\n' +
+                '        const originalSrcSetter = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, "src").set;\n' +
+                '        \n' +
+                '        Object.defineProperty(img, "src", {\n' +
+                '            get: function() {\n' +
+                '                return this._virtualSrc || this.getAttribute("src") || "";\n' +
+                '            },\n' +
+                '            set: function(value) {\n' +
+                '                this._virtualSrc = value;\n' +
+                '                \n' +
+                '                if (value) {\n' +
+                '                    const currentFilePath = getCurrentFilePath();\n' +
+                '                    let targetPath = value.replace(/^\\.\\//, "");\n' +
+                '                    const fileData = findFileInSystem(targetPath, currentFilePath);\n' +
+                '                    \n' +
+                '                    if (fileData && (fileData.type === "image" || fileData.type === "svg")) {\n' +
+                '                        if (fileData.isBinary && fileData.content.startsWith("data:")) {\n' +
+                '                            originalSrcSetter.call(this, fileData.content);\n' +
+                '                        } else if (fileData.type === "svg") {\n' +
+                '                            const svgDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(fileData.content)}`;\n' +
+                '                            originalSrcSetter.call(this, svgDataUrl);\n' +
+                '                        } else {\n' +
+                '                            const blob = new Blob([fileData.content], { type: "image/png" });\n' +
+                '                            const blobUrl = URL.createObjectURL(blob);\n' +
+                '                            originalSrcSetter.call(this, blobUrl);\n' +
+                '                        }\n' +
+                '                        return;\n' +
+                '                    }\n' +
+                '                }\n' +
+                '                \n' +
+                '                originalSrcSetter.call(this, value);\n' +
+                '            },\n' +
+                '            configurable: true,\n' +
+                '            enumerable: true\n' +
+                '        });\n' +
+                '        \n' +
+                '        return img;\n' +
+                '    };\n' +
+                '    \n' +
                 '    const postLog = (level, args) => {\n' +
                 '        const formattedArgs = args.map(arg => {\n' +
                 '            if (arg instanceof Error) return { message: arg.message, stack: arg.stack };\n' +
