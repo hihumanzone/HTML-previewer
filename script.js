@@ -52,6 +52,154 @@ const CodePreviewer = {
         CONSOLE_ID: 'console-output',
         MODAL_CONSOLE_PANEL_ID: 'modal-console-panel',
         CONSOLE_MESSAGE_TYPE: 'console',
+        
+        FILE_TYPES: {
+            EXTENSIONS: {
+                'html': 'html', 'htm': 'html', 'xhtml': 'html',
+                'css': 'css', 'scss': 'css', 'sass': 'css', 'less': 'css',
+                'js': 'javascript', 'jsx': 'javascript', 'ts': 'javascript', 'tsx': 'javascript',
+                'mjs': 'javascript-module', 'esm': 'javascript-module',
+                'json': 'json',
+                'xml': 'xml',
+                'md': 'markdown', 'markdown': 'markdown',
+                'txt': 'text',
+                'svg': 'svg',
+                'jpg': 'image', 'jpeg': 'image', 'png': 'image', 'gif': 'image', 
+                'webp': 'image', 'bmp': 'image', 'ico': 'image', 'tiff': 'image',
+                'mp3': 'audio', 'wav': 'audio', 'ogg': 'audio', 'm4a': 'audio', 
+                'aac': 'audio', 'flac': 'audio', 'wma': 'audio',
+                'mp4': 'video', 'webm': 'video', 'mov': 'video', 'avi': 'video', 
+                'mkv': 'video', 'wmv': 'video', 'flv': 'video', 'm4v': 'video',
+                'woff': 'font', 'woff2': 'font', 'ttf': 'font', 'otf': 'font', 'eot': 'font',
+                'pdf': 'pdf'
+            },
+            
+            MIME_TYPES: {
+                'html': 'text/html',
+                'css': 'text/css',
+                'javascript': 'text/javascript',
+                'javascript-module': 'text/javascript',
+                'json': 'application/json',
+                'xml': 'application/xml',
+                'markdown': 'text/markdown',
+                'text': 'text/plain',
+                'svg': 'image/svg+xml',
+                'image': 'image/png',
+                'audio': 'audio/mpeg',
+                'video': 'video/mp4',
+                'font': 'font/woff2',
+                'pdf': 'application/pdf',
+                'binary': 'application/octet-stream'
+            },
+            
+            EXTENSION_MIME_MAP: {
+                'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif',
+                'webp': 'image/webp', 'bmp': 'image/bmp', 'ico': 'image/x-icon', 'svg': 'image/svg+xml',
+                'mp3': 'audio/mpeg', 'wav': 'audio/wav', 'ogg': 'audio/ogg', 'm4a': 'audio/mp4',
+                'aac': 'audio/aac', 'flac': 'audio/flac', 'wma': 'audio/x-ms-wma',
+                'mp4': 'video/mp4', 'webm': 'video/webm', 'mov': 'video/quicktime',
+                'avi': 'video/x-msvideo', 'mkv': 'video/x-matroska', 'wmv': 'video/x-ms-wmv',
+                'flv': 'video/x-flv', 'm4v': 'video/mp4',
+                'woff': 'font/woff', 'woff2': 'font/woff2', 'ttf': 'font/ttf', 'otf': 'font/otf',
+                'eot': 'application/vnd.ms-fontobject',
+                'pdf': 'application/pdf',
+                'txt': 'text/plain', 'html': 'text/html', 'css': 'text/css', 'js': 'text/javascript',
+                'json': 'application/json', 'xml': 'application/xml'
+            },
+            
+            BINARY_EXTENSIONS: [
+                'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'ico', 'tiff',
+                'mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'wma',
+                'mp4', 'webm', 'mov', 'avi', 'mkv', 'wmv', 'flv', 'm4v',
+                'woff', 'woff2', 'ttf', 'otf', 'eot',
+                'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+                'zip', 'rar', '7z', 'tar', 'gz',
+                'exe', 'dll', 'so', 'dylib'
+            ],
+            
+            EDITABLE_TYPES: ['html', 'css', 'javascript', 'javascript-module', 'json', 'xml', 'markdown', 'text', 'svg'],
+            PREVIEWABLE_TYPES: ['html', 'css', 'javascript', 'javascript-module', 'json', 'xml', 'markdown', 'text', 'svg', 'image', 'audio', 'video', 'pdf'],
+            CODEMIRROR_MODES: {
+                'html': 'htmlmixed',
+                'css': 'css',
+                'javascript': 'javascript',
+                'javascript-module': 'javascript',
+                'json': 'javascript',
+                'xml': 'xml',
+                'markdown': 'markdown',
+                'text': 'text',
+                'svg': 'xml'
+            }
+        }
+    },
+
+    fileTypeUtils: {
+        getExtension(filename) {
+            return filename ? filename.split('.').pop().toLowerCase() : '';
+        },
+
+        getTypeFromExtension(filename) {
+            const extension = this.getExtension(filename);
+            return CodePreviewer.constants.FILE_TYPES.EXTENSIONS[extension] || 'binary';
+        },
+
+        getMimeTypeFromExtension(extension) {
+            return CodePreviewer.constants.FILE_TYPES.EXTENSION_MIME_MAP[extension] || 'application/octet-stream';
+        },
+
+        getMimeTypeFromFileType(fileType) {
+            return CodePreviewer.constants.FILE_TYPES.MIME_TYPES[fileType] || 'text/plain';
+        },
+
+        isBinaryExtension(extension) {
+            return CodePreviewer.constants.FILE_TYPES.BINARY_EXTENSIONS.includes(extension);
+        },
+
+        isBinaryFile(filename, mimeType) {
+            if (!filename) return false;
+            
+            const extension = this.getExtension(filename);
+            
+            if (this.isBinaryExtension(extension)) {
+                return true;
+            }
+            
+            if (mimeType) {
+                if (mimeType === 'image/svg+xml') {
+                    return false;
+                }
+                
+                return mimeType.startsWith('image/') || 
+                       mimeType.startsWith('audio/') || 
+                       mimeType.startsWith('video/') || 
+                       mimeType.startsWith('application/') ||
+                       mimeType.startsWith('font/');
+            }
+            
+            return false;
+        },
+
+        isEditableType(fileType) {
+            return CodePreviewer.constants.FILE_TYPES.EDITABLE_TYPES.includes(fileType);
+        },
+
+        isPreviewableType(fileType) {
+            return CodePreviewer.constants.FILE_TYPES.PREVIEWABLE_TYPES.includes(fileType);
+        },
+
+        getCodeMirrorMode(fileType) {
+            return CodePreviewer.constants.FILE_TYPES.CODEMIRROR_MODES[fileType] || 'text';
+        },
+
+        detectTypeFromContent(content, filename) {
+            if (!content) return this.getTypeFromExtension(filename);
+            
+            if (/<\s*html/i.test(content)) return 'html';
+            if (/^\s*[\.\#\@]|\s*\w+\s*\{/m.test(content)) return 'css';
+            if (CodePreviewer.isModuleFile(content, filename)) return 'javascript-module';
+            
+            return this.getTypeFromExtension(filename);
+        }
     },
 
     init() {
@@ -331,69 +479,17 @@ const CodePreviewer = {
     autoDetectFileType(filename, content, mimeType) {
         if (!filename) return 'text';
         
-        const extension = filename.split('.').pop().toLowerCase();
+        const extension = this.fileTypeUtils.getExtension(filename);
         
-        const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'ico', 'tiff'];
-        if (imageExtensions.includes(extension) || (mimeType && mimeType.startsWith('image/'))) {
-            return extension === 'svg' ? 'svg' : 'image';
+        if (this.fileTypeUtils.isBinaryExtension(extension) || (mimeType && mimeType.startsWith('image/') && mimeType !== 'image/svg+xml')) {
+            return extension === 'svg' ? 'svg' : this.fileTypeUtils.getTypeFromExtension(filename);
         }
         
-        const audioExtensions = ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'wma'];
-        if (audioExtensions.includes(extension) || (mimeType && mimeType.startsWith('audio/'))) {
-            return 'audio';
+        if (mimeType && (mimeType.startsWith('audio/') || mimeType.startsWith('video/') || mimeType.startsWith('font/') || mimeType === 'application/pdf')) {
+            return this.fileTypeUtils.getTypeFromExtension(filename);
         }
         
-        const videoExtensions = ['mp4', 'webm', 'mov', 'avi', 'mkv', 'wmv', 'flv', 'm4v'];
-        if (videoExtensions.includes(extension) || (mimeType && mimeType.startsWith('video/'))) {
-            return 'video';
-        }
-        
-        const fontExtensions = ['woff', 'woff2', 'ttf', 'otf', 'eot'];
-        if (fontExtensions.includes(extension) || (mimeType && mimeType.startsWith('font/'))) {
-            return 'font';
-        }
-        
-        if (extension === 'pdf' || mimeType === 'application/pdf') {
-            return 'pdf';
-        }
-        
-        switch (extension) {
-            case 'html':
-            case 'htm':
-            case 'xhtml':
-                return 'html';
-            case 'css':
-            case 'scss':
-            case 'sass':
-            case 'less':
-                return 'css';
-            case 'mjs':
-            case 'esm':
-                return 'javascript-module';
-            case 'js':
-            case 'jsx':
-            case 'ts':
-            case 'tsx':
-                return this.isModuleFile(content, filename) ? 'javascript-module' : 'javascript';
-            case 'json':
-                return 'json';
-            case 'xml':
-                return 'xml';
-            case 'md':
-            case 'markdown':
-                return 'markdown';
-            case 'txt':
-                return 'text';
-            case 'svg':
-                return 'svg';
-            default:
-                if (content) {
-                    if (/<\s*html/i.test(content)) return 'html';
-                    if (/^\s*[\.\#\@]|\s*\w+\s*\{/m.test(content)) return 'css';
-                    if (this.isModuleFile(content, filename)) return 'javascript-module';
-                }
-                return 'binary';
-        }
+        return this.fileTypeUtils.detectTypeFromContent(content, filename);
     },
 
     getFileNameFromPanel(fileId) {
@@ -565,36 +661,7 @@ const CodePreviewer = {
     },
 
     isBinaryFile(filename, mimeType) {
-        if (!filename) return false;
-        
-        const extension = filename.split('.').pop().toLowerCase();
-        const binaryExtensions = [
-            'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'ico', 'tiff',
-            'mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'wma',
-            'mp4', 'webm', 'mov', 'avi', 'mkv', 'wmv', 'flv', 'm4v',
-            'woff', 'woff2', 'ttf', 'otf', 'eot',
-            'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
-            'zip', 'rar', '7z', 'tar', 'gz',
-            'exe', 'dll', 'so', 'dylib'
-        ];
-        
-        if (binaryExtensions.includes(extension)) {
-            return true;
-        }
-        
-        if (mimeType) {
-            if (mimeType === 'image/svg+xml') {
-                return false;
-            }
-            
-            return mimeType.startsWith('image/') || 
-                   mimeType.startsWith('audio/') || 
-                   mimeType.startsWith('video/') || 
-                   mimeType.startsWith('application/') ||
-                   mimeType.startsWith('font/');
-        }
-        
-        return false;
+        return this.fileTypeUtils.isBinaryFile(filename, mimeType);
     },
 
     addNewFileWithContent(fileName, fileType, content, isBinary = false) {
@@ -717,92 +784,30 @@ const CodePreviewer = {
         let toolbarHTML = '<div class="editor-toolbar">';
         
         if (isEditable) {
-            toolbarHTML += `
-                <button class="toolbar-btn clear-btn" aria-label="Clear content" title="Clear">
-                    <span class="btn-icon">🗑️</span> Clear
-                </button>
-                <button class="toolbar-btn paste-btn" aria-label="Paste from clipboard" title="Paste">
-                    <span class="btn-icon">📋</span> Paste
-                </button>
-                <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
-                    <span class="btn-icon">📄</span> Copy
-                </button>
-            `;
+            toolbarHTML += this.htmlGenerators.toolbarButton('🗑️', 'Clear', 'clear-btn', 'Clear content', 'Clear');
+            toolbarHTML += this.htmlGenerators.toolbarButton('📋', 'Paste', 'paste-btn', 'Paste from clipboard', 'Paste');
+            toolbarHTML += this.htmlGenerators.toolbarButton('📄', 'Copy', 'copy-btn', 'Copy to clipboard', 'Copy');
         }
         
         if (hasExpandPreview) {
             const expandLabel = isEditable ? "Expand code view" : "View media";
             const expandTitle = isEditable ? "Expand" : "View";
-            toolbarHTML += `
-                <button class="toolbar-btn expand-btn" aria-label="${expandLabel}" title="${expandTitle}">
-                    <span class="btn-icon">🔍</span> ${expandTitle}
-                </button>
-            `;
+            toolbarHTML += this.htmlGenerators.toolbarButton('🔍', expandTitle, 'expand-btn', expandLabel, expandTitle);
         }
         
-        toolbarHTML += `
-            <button class="toolbar-btn export-btn" aria-label="Export file" title="Export">
-                <span class="btn-icon">💾</span> Export
-            </button>
-            <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
-                <span class="btn-icon">📁</span> Collapse
-            </button>
-        `;
+        toolbarHTML += this.htmlGenerators.toolbarButton('💾', 'Export', 'export-btn', 'Export file', 'Export');
+        toolbarHTML += this.htmlGenerators.toolbarButton('📁', 'Collapse', 'collapse-btn', 'Collapse/Expand editor', 'Collapse/Expand');
         
         toolbarHTML += '</div>';
         return toolbarHTML;
     },
 
     hasExpandPreview(fileType) {
-        const previewableTypes = [
-            'html', 'css', 'javascript', 'javascript-module', 'json', 'xml', 'markdown', 'text', 'svg',
-            'image', 'audio', 'video', 'pdf'
-        ];
-        return previewableTypes.includes(fileType);
-    },
-
-    getFileTypeIcon(fileType) {
-        const icons = {
-            html: '📄',
-            css: '🎨',
-            javascript: '⚡',
-            'javascript-module': '📦',
-            json: '📋',
-            xml: '📋',
-            markdown: '📝',
-            text: '📄',
-            svg: '🖼️',
-            image: '🖼️',
-            audio: '🎵',
-            video: '🎬',
-            font: '🔤',
-            pdf: '📕',
-            binary: '📁'
-        };
-        
-        return icons[fileType] || '📁';
+        return this.fileTypeUtils.isPreviewableType(fileType);
     },
 
     getFileTypeLabel(fileType) {
-        const labels = {
-            html: 'HTML Editor',
-            css: 'CSS Editor',
-            javascript: 'JavaScript Editor',
-            'javascript-module': 'JavaScript Module Editor',
-            json: 'JSON Editor',
-            xml: 'XML Editor',
-            markdown: 'Markdown Editor',
-            text: 'Text Editor',
-            svg: 'SVG Viewer',
-            image: 'Image Viewer',
-            audio: 'Audio Player',
-            video: 'Video Player',
-            font: 'Font Viewer',
-            pdf: 'PDF Viewer',
-            binary: 'Binary File'
-        };
-        
-        return labels[fileType] || 'File Viewer';
+        return `${fileType.charAt(0).toUpperCase() + fileType.slice(1)} ${this.isEditableFileType(fileType) ? 'Editor' : 'Viewer'}`;
     },
 
     generateFileContentDisplay(fileId, fileType, content, isBinary) {
@@ -810,58 +815,15 @@ const CodePreviewer = {
             return `<textarea id="${fileId}"></textarea>`;
         }
         
-        switch (fileType) {
-            case 'image':
-                return `<div class="file-preview image-preview">
-                    <img src="${content}" alt="Preview" style="max-width: 100%; max-height: 400px;">
-                </div>`;
-            case 'audio':
-                return `<div class="file-preview audio-preview">
-                    <audio controls style="width: 100%;">
-                        <source src="${content}">
-                        Your browser does not support the audio element.
-                    </audio>
-                </div>`;
-            case 'video':
-                return `<div class="file-preview video-preview">
-                    <video controls style="max-width: 100%; max-height: 400px;">
-                        <source src="${content}">
-                        Your browser does not support the video element.
-                    </video>
-                </div>`;
-            case 'pdf':
-                return `<div class="file-preview pdf-preview">
-                    <object data="${content}" type="application/pdf" style="width: 100%; height: 400px;">
-                        <p>PDF failed to load. <a href="${content}" target="_blank">Open in new tab</a></p>
-                    </object>
-                </div>`;
-            default:
-                return `<div class="file-preview binary-preview">
-                    <p>📁 Binary file: Cannot display content</p>
-                    <p>File can be referenced in HTML code</p>
-                </div>`;
-        }
+        return this.htmlGenerators.filePreview(fileType, content);
     },
 
     isEditableFileType(fileType) {
-        const editableTypes = ['html', 'css', 'javascript', 'javascript-module', 'json', 'xml', 'markdown', 'text', 'svg'];
-        return editableTypes.includes(fileType);
+        return this.fileTypeUtils.isEditableType(fileType);
     },
 
     getCodeMirrorMode(fileType) {
-        const modes = {
-            html: 'htmlmixed',
-            css: 'css',
-            javascript: 'javascript',
-            'javascript-module': 'javascript',
-            json: 'javascript',
-            xml: 'xml',
-            markdown: 'markdown',
-            text: 'text',
-            svg: 'xml'
-        };
-        
-        return modes[fileType] || 'text';
+        return this.fileTypeUtils.getCodeMirrorMode(fileType);
     },
 
     updateToolbarForFileType(panel, newType) {
@@ -1199,62 +1161,10 @@ const CodePreviewer = {
         
         let previewContent = '';
         
-        switch (fileType) {
-            case 'image':
-                previewContent = `
-                    <div class="media-preview-container">
-                        <img src="${fileInfo.content}" alt="${fileName}">
-                    </div>
-                `;
-                break;
-            case 'audio':
-                previewContent = `
-                    <div class="media-preview-container">
-                        <h3>${fileName}</h3>
-                        <audio controls>
-                            <source src="${fileInfo.content}">
-                            Your browser does not support the audio element.
-                        </audio>
-                    </div>
-                `;
-                break;
-            case 'video':
-                previewContent = `
-                    <div class="media-preview-container">
-                        <h3>${fileName}</h3>
-                        <video controls>
-                            <source src="${fileInfo.content}">
-                            Your browser does not support the video element.
-                        </video>
-                    </div>
-                `;
-                break;
-            case 'pdf':
-                previewContent = `
-                    <div class="media-preview-container">
-                        <h3>${fileName}</h3>
-                        <object data="${fileInfo.content}" type="application/pdf">
-                            <p>PDF failed to load. <a href="${fileInfo.content}" target="_blank">Open in new tab</a></p>
-                        </object>
-                    </div>
-                `;
-                break;
-            case 'svg':
-                const svgDataUrl = fileInfo.isBinary ? fileInfo.content : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(fileInfo.content)}`;
-                previewContent = `
-                    <div class="media-preview-container">
-                        <h3>${fileName}</h3>
-                        <img src="${svgDataUrl}" alt="${fileName}">
-                    </div>
-                `;
-                break;
-            default:
-                previewContent = `
-                    <div class="media-preview-container">
-                        <h3>${fileName}</h3>
-                        <p>Preview not available for this file type.</p>
-                    </div>
-                `;
+        if (fileType === 'svg') {
+            previewContent = this.htmlGenerators.mediaPreviewContent('svg', fileInfo.content, fileName, fileInfo.isBinary);
+        } else {
+            previewContent = this.htmlGenerators.mediaPreviewContent(fileType, fileInfo.content, fileName);
         }
         
         this.openMediaModal(fileName, previewContent);
@@ -1631,21 +1541,7 @@ const CodePreviewer = {
     },
 
     getMimeTypeFromFileType(fileType) {
-        const mimeTypes = {
-            'html': 'text/html',
-            'css': 'text/css',
-            'javascript': 'text/javascript',
-            'javascript-module': 'text/javascript',
-            'json': 'application/json',
-            'xml': 'application/xml',
-            'svg': 'image/svg+xml',
-            'text': 'text/plain',
-            'image': 'image/png',
-            'audio': 'audio/mpeg',
-            'video': 'video/mp4',
-            'pdf': 'application/pdf'
-        };
-        return mimeTypes[fileType] || 'text/plain';
+        return this.fileTypeUtils.getMimeTypeFromFileType(fileType);
     },
 
     resolvePath(basePath, relativePath) {
@@ -2430,42 +2326,93 @@ const CodePreviewer = {
     },
     
     getMimeTypeFromExtension(extension) {
-        const mimeTypes = {
-            'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif',
-            'webp': 'image/webp', 'bmp': 'image/bmp', 'ico': 'image/x-icon', 'svg': 'image/svg+xml',
-            'mp3': 'audio/mpeg', 'wav': 'audio/wav', 'ogg': 'audio/ogg', 'm4a': 'audio/mp4',
-            'aac': 'audio/aac', 'flac': 'audio/flac', 'wma': 'audio/x-ms-wma',
-            'mp4': 'video/mp4', 'webm': 'video/webm', 'mov': 'video/quicktime',
-            'avi': 'video/x-msvideo', 'mkv': 'video/x-matroska', 'wmv': 'video/x-ms-wmv',
-            'flv': 'video/x-flv', 'm4v': 'video/mp4',
-            'woff': 'font/woff', 'woff2': 'font/woff2', 'ttf': 'font/ttf', 'otf': 'font/otf',
-            'eot': 'application/vnd.ms-fontobject',
-            'pdf': 'application/pdf',
-            'txt': 'text/plain', 'html': 'text/html', 'css': 'text/css', 'js': 'text/javascript',
-            'json': 'application/json', 'xml': 'application/xml'
-        };
-        
-        return mimeTypes[extension] || 'application/octet-stream';
+        return this.fileTypeUtils.getMimeTypeFromExtension(extension);
     },
     
     getFileTypeFromExtension(extension) {
-        const typeMap = {
-            'html': 'html', 'htm': 'html',
-            'css': 'css',
-            'js': 'javascript', 'mjs': 'javascript-module',
-            'json': 'json',
-            'xml': 'xml',
-            'md': 'markdown', 'markdown': 'markdown',
-            'txt': 'text',
-            'svg': 'svg',
-            'jpg': 'image', 'jpeg': 'image', 'png': 'image', 'gif': 'image', 'webp': 'image', 'bmp': 'image', 'ico': 'image',
-            'mp3': 'audio', 'wav': 'audio', 'ogg': 'audio', 'm4a': 'audio', 'aac': 'audio', 'flac': 'audio', 'wma': 'audio',
-            'mp4': 'video', 'webm': 'video', 'mov': 'video', 'avi': 'video', 'mkv': 'video', 'wmv': 'video', 'flv': 'video', 'm4v': 'video',
-            'woff': 'font', 'woff2': 'font', 'ttf': 'font', 'otf': 'font', 'eot': 'font',
-            'pdf': 'pdf'
-        };
-        
-        return typeMap[extension] || 'binary';
+        return this.fileTypeUtils.getTypeFromExtension(extension);
+    },
+
+    htmlGenerators: {
+        toolbarButton(icon, text, className, ariaLabel, title) {
+            return `<button class="toolbar-btn ${className}" aria-label="${ariaLabel}" title="${title}">
+                <span class="btn-icon">${icon}</span> ${text}
+            </button>`;
+        },
+
+        fileTypeOption(value, label, selected = false) {
+            return `<option value="${value}" ${selected ? 'selected' : ''}>${label}</option>`;
+        },
+
+        filePreview(type, content, fileName = '') {
+            const previews = {
+                image: `<div class="file-preview image-preview">
+                    <img src="${content}" alt="Preview" style="max-width: 100%; max-height: 400px;">
+                </div>`,
+                audio: `<div class="file-preview audio-preview">
+                    <audio controls style="width: 100%;">
+                        <source src="${content}">
+                        Your browser does not support the audio element.
+                    </audio>
+                </div>`,
+                video: `<div class="file-preview video-preview">
+                    <video controls style="max-width: 100%; max-height: 400px;">
+                        <source src="${content}">
+                        Your browser does not support the video element.
+                    </video>
+                </div>`,
+                pdf: `<div class="file-preview pdf-preview">
+                    <object data="${content}" type="application/pdf" style="width: 100%; height: 400px;">
+                        <p>PDF failed to load. <a href="${content}" target="_blank">Open in new tab</a></p>
+                    </object>
+                </div>`,
+                default: `<div class="file-preview binary-preview">
+                    <p>📁 Binary file: Cannot display content</p>
+                    <p>File can be referenced in HTML code</p>
+                </div>`
+            };
+            return previews[type] || previews.default;
+        },
+
+        mediaPreviewContent(type, content, fileName) {
+            const containers = {
+                image: `<div class="media-preview-container">
+                    <img src="${content}" alt="${fileName}">
+                </div>`,
+                audio: `<div class="media-preview-container">
+                    <h3>${fileName}</h3>
+                    <audio controls>
+                        <source src="${content}">
+                        Your browser does not support the audio element.
+                    </audio>
+                </div>`,
+                video: `<div class="media-preview-container">
+                    <h3>${fileName}</h3>
+                    <video controls>
+                        <source src="${content}">
+                        Your browser does not support the video element.
+                    </video>
+                </div>`,
+                pdf: `<div class="media-preview-container">
+                    <h3>${fileName}</h3>
+                    <object data="${content}" type="application/pdf">
+                        <p>PDF failed to load. <a href="${content}" target="_blank">Open in new tab</a></p>
+                    </object>
+                </div>`,
+                svg: (content, fileName, isBinary) => {
+                    const svgDataUrl = isBinary ? content : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(content)}`;
+                    return `<div class="media-preview-container">
+                        <h3>${fileName}</h3>
+                        <img src="${svgDataUrl}" alt="${fileName}">
+                    </div>`;
+                },
+                default: `<div class="media-preview-container">
+                    <h3>${fileName}</h3>
+                    <p>Preview not available for this file type.</p>
+                </div>`
+            };
+            return typeof containers[type] === 'function' ? containers[type](content, fileName) : (containers[type] || containers.default);
+        }
     },
 
     updateMainHtmlSelector() {
