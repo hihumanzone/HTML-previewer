@@ -1176,15 +1176,12 @@ const CodePreviewer = {
         return fileSystem;
     },
 
-    // Helper function to perform case-insensitive file lookup
     findFileInSystem(fileSystem, targetFilename) {
-        // First try exact match for performance
         const exactMatch = fileSystem.get(targetFilename);
         if (exactMatch) {
             return exactMatch;
         }
         
-        // If no exact match, try case-insensitive search
         const targetLower = targetFilename.toLowerCase();
         for (const [filename, file] of fileSystem) {
             if (filename.toLowerCase() === targetLower) {
