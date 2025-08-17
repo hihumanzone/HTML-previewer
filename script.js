@@ -820,6 +820,21 @@ const CodePreviewer = {
         return modes[fileType] || 'text';
     },
 
+    updateToolbarForFileType(panel, newType) {
+        const existingToolbar = panel.querySelector('.editor-toolbar');
+        if (existingToolbar) {
+            existingToolbar.remove();
+        }
+        
+        // Insert new toolbar after panel header
+        const panelHeader = panel.querySelector('.panel-header');
+        const newToolbarHTML = this.generateToolbarHTML(newType);
+        panelHeader.insertAdjacentHTML('afterend', newToolbarHTML);
+        
+        // Rebind toolbar events
+        this.bindToolbarEvents(panel);
+    },
+
     bindFilePanelEvents(panel) {
         const typeSelector = panel.querySelector('.file-type-selector');
         const removeBtn = panel.querySelector('.remove-file-btn');
@@ -866,6 +881,9 @@ const CodePreviewer = {
                         fileInfo.editor.setOption('autoCloseTags', newType === 'html');
                     }
                 }
+                
+                // Regenerate toolbar based on new file type
+                this.updateToolbarForFileType(panel, newType);
             });
         }
         
