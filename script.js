@@ -2814,7 +2814,15 @@ const CodePreviewer = {
                 '                        console.log("🗂️ Available files:", Object.keys(virtualFileSystem));\n' +
                 '                        console.log("📍 Current file path:", currentFilePath);\n' +
                 '                        console.log("🔍 Window execution context:", window.__currentExecutionContext);\n' +
-                '                        const fileData = findFileInSystem(targetPath, currentFilePath);\n' +
+                '                        let fileData;\n' +
+                '                        try {\n' +
+                '                            console.log("🚀 About to call findFileInSystem");\n' +
+                '                            fileData = findFileInSystem(targetPath, currentFilePath);\n' +
+                '                            console.log("✅ findFileInSystem completed, result:", !!fileData);\n' +
+                '                        } catch (error) {\n' +
+                '                            console.error("❌ Error in findFileInSystem:", error);\n' +
+                '                            fileData = null;\n' +
+                '                        }\n' +
                 '                        \n' +
                 '                        if (fileData) {\n' +
                 '                            const truncatedContent = fileData.content.length > 100 ? \n' +
