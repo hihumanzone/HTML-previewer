@@ -2696,6 +2696,39 @@ const CodePreviewer = {
                 '    \n' +
                 '    const originalAudio = window.Audio;\n' +
                 '    window.Audio = function(src) {\n' +
+                '        const audio = new originalAudio(src);\n' +
+                '        const originalSrcSetter = Object.getOwnPropertyDescriptor(HTMLAudioElement.prototype, "src").set;\n' +
+                '        \n' +
+                '        Object.defineProperty(audio, "src", {\n' +
+                '            get: function() {\n' +
+                '                return this._virtualSrc || this.getAttribute("src") || "";\n' +
+                '            },\n' +
+                '            set: function(value) {\n' +
+                '                this._virtualSrc = value;\n' +
+                '                \n' +
+                '                if (value) {\n' +
+                '                    const currentFilePath = getCurrentFilePath();\n' +
+                '                    let targetPath = value.replace(/^\\.\\//, "");\n' +
+                '                    const fileData = findFileInSystem(targetPath, currentFilePath);\n' +
+                '                    \n' +
+                '                    if (fileData && fileData.type === "audio") {\n' +
+                '                        if (fileData.isBinary && fileData.content.startsWith("data:")) {\n' +
+                '                            originalSrcSetter.call(this, fileData.content);\n' +
+                '                        } else {\n' +
+                '                            const blob = new Blob([fileData.content], { type: "audio/mpeg" });\n' +
+                '                            const blobUrl = URL.createObjectURL(blob);\n' +
+                '                            originalSrcSetter.call(this, blobUrl);\n' +
+                '                        }\n' +
+                '                        return;\n' +
+                '                    }\n' +
+                '                }\n' +
+                '                \n' +
+                '                originalSrcSetter.call(this, value);\n' +
+                '            },\n' +
+                '            configurable: true,\n' +
+                '            enumerable: true\n' +
+                '        });\n' +
+                '        \n' +
                 '        if (src) {\n' +
                 '            const currentFilePath = getCurrentFilePath();\n' +
                 '            let targetPath = src.replace(/^\\.\\//, "");\n' +
@@ -2703,20 +2736,16 @@ const CodePreviewer = {
                 '            \n' +
                 '            if (fileData && fileData.type === "audio") {\n' +
                 '                if (fileData.isBinary && fileData.content.startsWith("data:")) {\n' +
-                '                    const audio = new originalAudio();\n' +
                 '                    audio.src = fileData.content;\n' +
-                '                    return audio;\n' +
                 '                } else {\n' +
                 '                    const blob = new Blob([fileData.content], { type: "audio/mpeg" });\n' +
                 '                    const blobUrl = URL.createObjectURL(blob);\n' +
-                '                    const audio = new originalAudio();\n' +
                 '                    audio.src = blobUrl;\n' +
-                '                    return audio;\n' +
                 '                }\n' +
                 '            }\n' +
                 '        }\n' +
                 '        \n' +
-                '        return new originalAudio(src);\n' +
+                '        return audio;\n' +
                 '    };\n' +
                 '    \n' +
                 '    const originalImage = window.Image;\n' +
