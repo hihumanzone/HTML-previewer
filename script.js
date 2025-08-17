@@ -1192,8 +1192,40 @@ const CodePreviewer = {
         return null;
     },
 
+    extractWorkerFileNames(htmlContent) {
+        const workerMatches = htmlContent.match(/new\s+Worker\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/gi) || [];
+        return workerMatches.map(match => {
+            const fileMatch = match.match(/new\s+Worker\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/i);
+            return fileMatch ? fileMatch[1] : null;
+        }).filter(Boolean);
+    },
+
+    createWorkerScript(workerFileNames, fileSystem) {
+        if (workerFileNames.length === 0) return '';
+        
+        let script = '<script>\n';
+        workerFileNames.forEach(fileName => {
+            const file = this.findFileInSystem(fileSystem, fileName);
+            if (file && (file.type === 'javascript' || file.type === 'javascript-module')) {
+                const blobVar = 'workerBlob_' + fileName.replace(/[^a-zA-Z0-9]/g, '_');
+                const urlVar = 'workerUrl_' + fileName.replace(/[^a-zA-Z0-9]/g, '_');
+                script += `const ${blobVar} = new Blob([${JSON.stringify(file.content)}], { type: 'application/javascript' });\n`;
+                script += `const ${urlVar} = URL.createObjectURL(${blobVar});\n`;
+            }
+        });
+        return script + '</script>\n';
+    },
+
+    replaceWorkerCalls(htmlContent, workerFileNames) {
+        workerFileNames.forEach(fileName => {
+            const urlVar = 'workerUrl_' + fileName.replace(/[^a-zA-Z0-9]/g, '_');
+            const regex = new RegExp(`new\\s+Worker\\s*\\(\\s*['"\`]${fileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"\`]\\s*\\)`, 'gi');
+            htmlContent = htmlContent.replace(regex, `new Worker(${urlVar})`);
+        });
+        return htmlContent;
+    },
+
     replaceAssetReferences(htmlContent, fileSystem) {
-        // Handle CSS files
         htmlContent = htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.css)["']([^>]*?)>/gi, (match, before, filename, after) => {
             const file = this.findFileInSystem(fileSystem, filename);
             if (file && file.type === 'css') {
@@ -1202,39 +1234,11 @@ const CodePreviewer = {
             return match;
         });
         
-        // Find all Worker constructor calls to identify worker files
-        const workerMatches = htmlContent.match(/new\s+Worker\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/gi) || [];
-        const workerFileNames = new Set();
-        
-        workerMatches.forEach(match => {
-            const fileMatch = match.match(/new\s+Worker\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/i);
-            if (fileMatch && fileMatch[1]) {
-                workerFileNames.add(fileMatch[1]);
-            }
-        });
-        
-        // Handle worker files by creating blob URLs
-        if (workerFileNames.size > 0) {
-            let workerScript = '<script>\n';
+        const workerFileNames = this.extractWorkerFileNames(htmlContent);
+        if (workerFileNames.length > 0) {
+            const workerScript = this.createWorkerScript(workerFileNames, fileSystem);
+            htmlContent = this.replaceWorkerCalls(htmlContent, workerFileNames);
             
-            workerFileNames.forEach(workerFileName => {
-                const file = this.findFileInSystem(fileSystem, workerFileName);
-                if (file && (file.type === 'javascript' || file.type === 'javascript-module')) {
-                    const blobVarName = 'workerBlob_' + workerFileName.replace(/[^a-zA-Z0-9]/g, '_');
-                    const urlVarName = 'workerUrl_' + workerFileName.replace(/[^a-zA-Z0-9]/g, '_');
-                    
-                    workerScript += `const ${blobVarName} = new Blob([${JSON.stringify(file.content)}], { type: 'application/javascript' });\n`;
-                    workerScript += `const ${urlVarName} = URL.createObjectURL(${blobVarName});\n`;
-                    
-                    // Replace the worker constructor call with the blob URL
-                    const workerRegex = new RegExp(`new\\s+Worker\\s*\\(\\s*['"\`]${workerFileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"\`]\\s*\\)`, 'gi');
-                    htmlContent = htmlContent.replace(workerRegex, `new Worker(${urlVarName})`);
-                }
-            });
-            
-            workerScript += '</script>\n';
-            
-            // Inject the worker script into the head
             if (htmlContent.includes('</head>')) {
                 htmlContent = htmlContent.replace('</head>', workerScript + '</head>');
             } else if (htmlContent.includes('<head>')) {
@@ -1244,11 +1248,10 @@ const CodePreviewer = {
             }
         }
         
-        // Handle regular script files (but skip worker files)
+        const workerFileSet = new Set(workerFileNames);
         htmlContent = htmlContent.replace(/<script([^>]*?)src\s*=\s*["']([^"']+\.(?:js|mjs))["']([^>]*?)><\/script>/gi, (match, before, filename, after) => {
-            // Skip if this is a worker file
-            if (workerFileNames.has(filename)) {
-                return '';  // Remove the script tag since it's handled as a worker
+            if (workerFileSet.has(filename)) {
+                return '';
             }
             
             const file = this.findFileInSystem(fileSystem, filename);
@@ -1358,19 +1361,7 @@ const CodePreviewer = {
     },
 
     processWebWorkers(html, jsFiles) {
-        // Find all Worker constructor calls in the HTML content
-        const workerMatches = html.match(/new\s+Worker\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/gi) || [];
-        const workerFileNames = [];
-        const workerBlobs = [];
-        
-        // Extract worker file names from the matches
-        workerMatches.forEach(match => {
-            const fileMatch = match.match(/new\s+Worker\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/i);
-            if (fileMatch && fileMatch[1]) {
-                workerFileNames.push(fileMatch[1]);
-            }
-        });
-        
+        const workerFileNames = this.extractWorkerFileNames(html);
         if (workerFileNames.length === 0) {
             return { processedHtml: html, workerScript: '' };
         }
@@ -1378,28 +1369,23 @@ const CodePreviewer = {
         let processedHtml = html;
         let workerScript = '<script>\n';
         
-        // Process each worker file
-        workerFileNames.forEach(workerFileName => {
-            // Find the corresponding JavaScript file
+        workerFileNames.forEach(fileName => {
             const workerFileIndex = jsFiles.findIndex(jsFile => 
-                jsFile.filename === workerFileName || 
-                jsFile.filename.toLowerCase() === workerFileName.toLowerCase()
+                jsFile.filename === fileName || 
+                jsFile.filename.toLowerCase() === fileName.toLowerCase()
             );
             
             if (workerFileIndex !== -1) {
                 const workerFile = jsFiles[workerFileIndex];
-                const blobVarName = 'workerBlob_' + workerFileName.replace(/[^a-zA-Z0-9]/g, '_');
-                const urlVarName = 'workerUrl_' + workerFileName.replace(/[^a-zA-Z0-9]/g, '_');
+                const blobVar = 'workerBlob_' + fileName.replace(/[^a-zA-Z0-9]/g, '_');
+                const urlVar = 'workerUrl_' + fileName.replace(/[^a-zA-Z0-9]/g, '_');
                 
-                // Create blob and URL for the worker
-                workerScript += `const ${blobVarName} = new Blob([${JSON.stringify(workerFile.content)}], { type: 'application/javascript' });\n`;
-                workerScript += `const ${urlVarName} = URL.createObjectURL(${blobVarName});\n`;
+                workerScript += `const ${blobVar} = new Blob([${JSON.stringify(workerFile.content)}], { type: 'application/javascript' });\n`;
+                workerScript += `const ${urlVar} = URL.createObjectURL(${blobVar});\n`;
                 
-                // Replace the worker constructor call with the blob URL
-                const workerRegex = new RegExp(`new\\s+Worker\\s*\\(\\s*['"\`]${workerFileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"\`]\\s*\\)`, 'gi');
-                processedHtml = processedHtml.replace(workerRegex, `new Worker(${urlVarName})`);
+                const regex = new RegExp(`new\\s+Worker\\s*\\(\\s*['"\`]${fileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"\`]\\s*\\)`, 'gi');
+                processedHtml = processedHtml.replace(regex, `new Worker(${urlVar})`);
                 
-                // Remove the worker file from jsFiles so it doesn't get inlined as regular JS
                 jsFiles.splice(workerFileIndex, 1);
             }
         });
@@ -1419,7 +1405,6 @@ const CodePreviewer = {
         
         const { html, css, jsFiles, moduleFiles } = this.collectFileContents();
         
-        // Process web workers before processing regular JavaScript
         const { processedHtml, workerScript } = this.processWebWorkers(html, jsFiles);
         
         const moduleScript = this.processModuleFiles(moduleFiles);
