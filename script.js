@@ -2595,22 +2595,28 @@ const CodePreviewer = {
                 '    }\n' +
                 '    \n' +
                 '    function findFileInSystem(targetFilename, currentFilePath = "") {\n' +
+                '        console.log("🔍 findFileInSystem called with:", { targetFilename, currentFilePath });\n' +
                 '        if (currentFilePath) {\n' +
-                '            targetFilename = resolvePath(currentFilePath, targetFilename);\n' +
+                '            const resolvedPath = resolvePath(currentFilePath, targetFilename);\n' +
+                '            console.log("🔧 Path resolved from", targetFilename, "to", resolvedPath);\n' +
+                '            targetFilename = resolvedPath;\n' +
                 '        }\n' +
                 '        \n' +
                 '        const exactMatch = virtualFileSystem[targetFilename];\n' +
                 '        if (exactMatch) {\n' +
+                '            console.log("✅ Found exact match for:", targetFilename);\n' +
                 '            return exactMatch;\n' +
                 '        }\n' +
                 '        \n' +
                 '        const targetLower = targetFilename.toLowerCase();\n' +
                 '        for (const [filename, file] of Object.entries(virtualFileSystem)) {\n' +
                 '            if (filename.toLowerCase() === targetLower) {\n' +
+                '                console.log("✅ Found case-insensitive match:", filename, "for", targetFilename);\n' +
                 '                return file;\n' +
                 '            }\n' +
                 '        }\n' +
                 '        \n' +
+                '        console.log("❌ No match found for:", targetFilename);\n' +
                 '        return null;\n' +
                 '    }\n' +
                 '    \n' +
@@ -2726,6 +2732,7 @@ const CodePreviewer = {
                 '                    if (value) {\n' +
                 '                        const currentFilePath = getCurrentFilePath();\n' +
                 '                        let targetPath = value.replace(/^\\.\\//, "");\n' +
+                '                        console.log("🎵 Audio target path:", targetPath, "from context:", currentFilePath);\n' +
                 '                        const fileData = findFileInSystem(targetPath, currentFilePath);\n' +
                 '                        \n' +
                 '                        if (fileData && fileData.type === "audio") {\n' +
