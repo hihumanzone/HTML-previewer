@@ -10,6 +10,12 @@ const CodePreviewer = {
         files: [],
         nextFileId: 4,
         codeModalEditor: null,
+        mainHtmlFile: '', // Track which HTML file is the main one
+        dragState: {
+            draggedElement: null,
+            draggedFileId: null,
+            dropIndicator: null,
+        },
     },
 
     dom: {},
@@ -30,6 +36,9 @@ const CodePreviewer = {
             MULTI_MODE_RADIO: 'multi-mode-radio',
             ADD_FILE_BTN: 'add-file-btn',
             IMPORT_FILE_BTN: 'import-file-btn',
+            IMPORT_ZIP_BTN: 'import-zip-btn',
+            EXPORT_ZIP_BTN: 'export-zip-btn',
+            MAIN_HTML_SELECT: 'main-html-select',
         },
         CONTAINER_IDS: {
             SINGLE_FILE: 'single-file-container',
@@ -71,6 +80,10 @@ const CodePreviewer = {
             multiModeOption: document.querySelector('label[for="multi-mode-radio"]') || this.getSafeParentElement(CONTROL_IDS.MULTI_MODE_RADIO),
             addFileBtn: document.getElementById(CONTROL_IDS.ADD_FILE_BTN),
             importFileBtn: document.getElementById(CONTROL_IDS.IMPORT_FILE_BTN),
+            importZipBtn: document.getElementById(CONTROL_IDS.IMPORT_ZIP_BTN),
+            exportZipBtn: document.getElementById(CONTROL_IDS.EXPORT_ZIP_BTN),
+            mainHtmlSelect: document.getElementById(CONTROL_IDS.MAIN_HTML_SELECT),
+            mainHtmlSelector: document.getElementById('main-html-selector'),
             singleFileContainer: document.getElementById(CONTAINER_IDS.SINGLE_FILE),
             multiFileContainer: document.getElementById(CONTAINER_IDS.MULTI_FILE),
             modalOverlay: document.getElementById(MODAL_IDS.OVERLAY),
@@ -258,6 +271,11 @@ const CodePreviewer = {
         
         this.dom.addFileBtn.addEventListener('click', () => this.addNewFile());
         this.dom.importFileBtn.addEventListener('click', () => this.importFile());
+        this.dom.importZipBtn.addEventListener('click', () => this.importZip());
+        this.dom.exportZipBtn.addEventListener('click', () => this.exportZip());
+        this.dom.mainHtmlSelect.addEventListener('change', (e) => {
+            this.state.mainHtmlFile = e.target.value;
+        });
     },
 
     initModeToggle() {
@@ -411,8 +429,9 @@ const CodePreviewer = {
         const fileName = `newfile.html`;
         
         const panelHTML = `
-            <div class="editor-panel" data-file-type="html" data-file-id="${fileId}">
+            <div class="editor-panel" data-file-type="html" data-file-id="${fileId}" draggable="true">
                 <div class="panel-header">
+                    <div class="drag-handle" aria-label="Drag to reorder">⋮⋮</div>
                     <input type="text" class="file-name-input" value="${fileName}" aria-label="File name">
                     <select class="file-type-selector" aria-label="File type">
                         <option value="html" selected>HTML</option>
@@ -462,12 +481,15 @@ const CodePreviewer = {
         this.state.files.push({
             id: fileId,
             editor: newEditor,
-            type: 'html'
+            type: 'html',
+            fileName: fileName
         });
         
         this.bindFilePanelEvents(document.querySelector(`[data-file-id="${fileId}"]`));
+        this.bindDragAndDropEvents(document.querySelector(`[data-file-id="${fileId}"]`));
         
         this.updateRemoveButtonsVisibility();
+        this.updateMainHtmlSelector();
     },
 
     importFile() {
@@ -573,8 +595,9 @@ const CodePreviewer = {
         const fileTypeOptions = this.generateFileTypeOptions(fileType);
         
         const panelHTML = `
-            <div class="editor-panel" data-file-type="${fileType}" data-file-id="${fileId}">
+            <div class="editor-panel" data-file-type="${fileType}" data-file-id="${fileId}" draggable="true">
                 <div class="panel-header">
+                    <div class="drag-handle" aria-label="Drag to reorder">⋮⋮</div>
                     <input type="text" class="file-name-input" value="${fileName}" aria-label="File name">
                     <select class="file-type-selector" aria-label="File type">
                         ${fileTypeOptions}
@@ -651,8 +674,10 @@ const CodePreviewer = {
         });
         
         this.bindFilePanelEvents(document.querySelector(`[data-file-id="${fileId}"]`));
+        this.bindDragAndDropEvents(document.querySelector(`[data-file-id="${fileId}"]`));
         
         this.updateRemoveButtonsVisibility();
+        this.updateMainHtmlSelector();
     },
 
     generateFileTypeOptions(selectedType) {
@@ -931,6 +956,7 @@ const CodePreviewer = {
         }
         
         this.updateRemoveButtonsVisibility();
+        this.updateMainHtmlSelector();
     },
 
     updateRemoveButtonsVisibility() {
@@ -971,8 +997,10 @@ const CodePreviewer = {
             }
             
             this.bindFilePanelEvents(panel);
+            this.bindDragAndDropEvents(panel);
         });
         this.updateRemoveButtonsVisibility();
+        this.updateMainHtmlSelector();
         
         const singleFilePanel = document.querySelector('#single-file-container .editor-panel');
         if (singleFilePanel) {
@@ -1833,11 +1861,9 @@ const CodePreviewer = {
     },
 
     generateFullDocumentPreview() {
-        const mainHtmlFile = this.state.files.find(file => 
-            file.type === 'html' && this.isFullHTMLDocument(file.editor.getValue())
-        );
+        const mainHtmlFile = this.getMainHtmlFile();
         
-        if (!mainHtmlFile) {
+        if (!mainHtmlFile || !this.isFullHTMLDocument(mainHtmlFile.editor.getValue())) {
             return this.generateMultiFilePreview();
         }
         
@@ -2045,6 +2071,348 @@ const CodePreviewer = {
             this.dom.toggleConsoleBtn.classList.remove('active');
             this.dom.toggleConsoleBtn.textContent = '📋 Console';
         }
+    },
+
+    // Drag and Drop Functions
+    bindDragAndDropEvents(panel) {
+        const dragHandle = panel.querySelector('.drag-handle');
+        const fileId = panel.dataset.fileId;
+        
+        if (dragHandle) {
+            dragHandle.addEventListener('mousedown', (e) => {
+                panel.draggable = true;
+            });
+        }
+        
+        panel.addEventListener('dragstart', (e) => {
+            this.state.dragState.draggedElement = panel;
+            this.state.dragState.draggedFileId = fileId;
+            panel.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/html', panel.outerHTML);
+        });
+        
+        panel.addEventListener('dragend', (e) => {
+            panel.classList.remove('dragging');
+            this.removeDragIndicators();
+            this.state.dragState.draggedElement = null;
+            this.state.dragState.draggedFileId = null;
+        });
+        
+        panel.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            
+            if (this.state.dragState.draggedElement && this.state.dragState.draggedElement !== panel) {
+                this.showDropIndicator(panel, e);
+            }
+        });
+        
+        panel.addEventListener('drop', (e) => {
+            e.preventDefault();
+            
+            if (this.state.dragState.draggedElement && this.state.dragState.draggedElement !== panel) {
+                this.reorderPanels(this.state.dragState.draggedElement, panel, e);
+            }
+            
+            this.removeDragIndicators();
+        });
+    },
+    
+    showDropIndicator(targetPanel, event) {
+        this.removeDragIndicators();
+        
+        const indicator = document.createElement('div');
+        indicator.className = 'drop-indicator';
+        this.state.dragState.dropIndicator = indicator;
+        
+        const rect = targetPanel.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        
+        if (event.clientY < midY) {
+            targetPanel.parentNode.insertBefore(indicator, targetPanel);
+        } else {
+            targetPanel.parentNode.insertBefore(indicator, targetPanel.nextSibling);
+        }
+    },
+    
+    removeDragIndicators() {
+        const indicators = document.querySelectorAll('.drop-indicator');
+        indicators.forEach(indicator => indicator.remove());
+        this.state.dragState.dropIndicator = null;
+    },
+    
+    reorderPanels(draggedPanel, targetPanel, event) {
+        const rect = targetPanel.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        const insertBefore = event.clientY < midY;
+        
+        // Update DOM
+        if (insertBefore) {
+            targetPanel.parentNode.insertBefore(draggedPanel, targetPanel);
+        } else {
+            targetPanel.parentNode.insertBefore(draggedPanel, targetPanel.nextSibling);
+        }
+        
+        // Update state files array to match new order
+        this.updateFilesOrder();
+    },
+    
+    updateFilesOrder() {
+        const panels = Array.from(document.querySelectorAll('.editor-panel[data-file-id]'));
+        const newFilesOrder = [];
+        
+        panels.forEach(panel => {
+            const fileId = panel.dataset.fileId;
+            const fileInfo = this.state.files.find(f => f.id === fileId);
+            if (fileInfo) {
+                newFilesOrder.push(fileInfo);
+            }
+        });
+        
+        this.state.files = newFilesOrder;
+    },
+
+    // ZIP Import/Export Functions
+    async exportZip() {
+        try {
+            if (typeof JSZip === 'undefined') {
+                this.showNotification('JSZip library not available', 'error');
+                return;
+            }
+            
+            const zip = new JSZip();
+            
+            // Add all files to ZIP
+            this.state.files.forEach(file => {
+                const filename = this.getFileNameFromPanel(file.id) || `file_${file.id}`;
+                let content = file.content || file.editor.getValue();
+                
+                // Handle path-style names by creating folder structure
+                if (filename.includes('/')) {
+                    const pathParts = filename.split('/');
+                    const fileName = pathParts.pop();
+                    const folderPath = pathParts.join('/');
+                    
+                    // Create nested folder structure
+                    let currentFolder = zip;
+                    pathParts.forEach(folderName => {
+                        currentFolder = currentFolder.folder(folderName);
+                    });
+                    
+                    if (file.isBinary && content.startsWith('data:')) {
+                        // For binary files with data URLs, extract the base64 content
+                        const base64Content = content.split(',')[1];
+                        currentFolder.file(fileName, base64Content, {base64: true});
+                    } else {
+                        currentFolder.file(fileName, content);
+                    }
+                } else {
+                    if (file.isBinary && content.startsWith('data:')) {
+                        // For binary files with data URLs, extract the base64 content
+                        const base64Content = content.split(',')[1];
+                        zip.file(filename, base64Content, {base64: true});
+                    } else {
+                        zip.file(filename, content);
+                    }
+                }
+            });
+            
+            // Generate and download ZIP
+            const blob = await zip.generateAsync({type: 'blob'});
+            const url = URL.createObjectURL(blob);
+            
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'project.zip';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            URL.revokeObjectURL(url);
+            this.showNotification('Project exported as ZIP successfully!', 'success');
+            
+        } catch (error) {
+            console.error('Error exporting ZIP:', error);
+            this.showNotification('Failed to export project as ZIP', 'error');
+        }
+    },
+    
+    async importZip() {
+        try {
+            if (typeof JSZip === 'undefined') {
+                this.showNotification('JSZip library not available', 'error');
+                return;
+            }
+            
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = '.zip';
+            
+            fileInput.addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                try {
+                    const zip = await JSZip.loadAsync(file);
+                    
+                    // Process each file in the ZIP
+                    for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
+                        if (zipEntry.dir) continue; // Skip directories
+                        
+                        let content;
+                        let isBinary = false;
+                        
+                        // Determine if file is binary
+                        const extension = relativePath.split('.').pop().toLowerCase();
+                        isBinary = this.isBinaryFile(relativePath, '');
+                        
+                        if (isBinary) {
+                            // For binary files, get as base64 and create data URL
+                            const base64Content = await zipEntry.async('base64');
+                            const mimeType = this.getMimeTypeFromExtension(extension);
+                            content = `data:${mimeType};base64,${base64Content}`;
+                        } else {
+                            // For text files, get as string
+                            content = await zipEntry.async('string');
+                        }
+                        
+                        // Determine file type from extension
+                        const fileType = this.getFileTypeFromExtension(extension);
+                        
+                        // Use the relative path as filename (preserves folder structure in name)
+                        const fileName = relativePath;
+                        
+                        // Check for duplicate filenames
+                        const existingFilenames = this.getExistingFilenames();
+                        if (existingFilenames.includes(fileName)) {
+                            this.showNotification(`File '${fileName}' already exists, skipping...`, 'warn');
+                            continue;
+                        }
+                        
+                        // Add the file
+                        this.addNewFileWithContent(fileName, fileType, content, isBinary);
+                    }
+                    
+                    this.showNotification('ZIP project imported successfully!', 'success');
+                    
+                } catch (error) {
+                    console.error('Error processing ZIP file:', error);
+                    this.showNotification('Failed to import ZIP file', 'error');
+                }
+                
+                document.body.removeChild(fileInput);
+            });
+            
+            document.body.appendChild(fileInput);
+            fileInput.click();
+            
+        } catch (error) {
+            console.error('Error importing ZIP:', error);
+            this.showNotification('Failed to import ZIP file', 'error');
+        }
+    },
+    
+    getMimeTypeFromExtension(extension) {
+        const mimeTypes = {
+            // Images
+            'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif',
+            'webp': 'image/webp', 'bmp': 'image/bmp', 'ico': 'image/x-icon', 'svg': 'image/svg+xml',
+            // Audio
+            'mp3': 'audio/mpeg', 'wav': 'audio/wav', 'ogg': 'audio/ogg', 'm4a': 'audio/mp4',
+            'aac': 'audio/aac', 'flac': 'audio/flac', 'wma': 'audio/x-ms-wma',
+            // Video
+            'mp4': 'video/mp4', 'webm': 'video/webm', 'mov': 'video/quicktime',
+            'avi': 'video/x-msvideo', 'mkv': 'video/x-matroska', 'wmv': 'video/x-ms-wmv',
+            'flv': 'video/x-flv', 'm4v': 'video/mp4',
+            // Fonts
+            'woff': 'font/woff', 'woff2': 'font/woff2', 'ttf': 'font/ttf', 'otf': 'font/otf',
+            'eot': 'application/vnd.ms-fontobject',
+            // Documents
+            'pdf': 'application/pdf',
+            // Text files
+            'txt': 'text/plain', 'html': 'text/html', 'css': 'text/css', 'js': 'text/javascript',
+            'json': 'application/json', 'xml': 'application/xml'
+        };
+        
+        return mimeTypes[extension] || 'application/octet-stream';
+    },
+    
+    getFileTypeFromExtension(extension) {
+        const typeMap = {
+            'html': 'html', 'htm': 'html',
+            'css': 'css',
+            'js': 'javascript', 'mjs': 'javascript-module',
+            'json': 'json',
+            'xml': 'xml',
+            'md': 'markdown', 'markdown': 'markdown',
+            'txt': 'text',
+            'svg': 'svg',
+            'jpg': 'image', 'jpeg': 'image', 'png': 'image', 'gif': 'image', 'webp': 'image', 'bmp': 'image', 'ico': 'image',
+            'mp3': 'audio', 'wav': 'audio', 'ogg': 'audio', 'm4a': 'audio', 'aac': 'audio', 'flac': 'audio', 'wma': 'audio',
+            'mp4': 'video', 'webm': 'video', 'mov': 'video', 'avi': 'video', 'mkv': 'video', 'wmv': 'video', 'flv': 'video', 'm4v': 'video',
+            'woff': 'font', 'woff2': 'font', 'ttf': 'font', 'otf': 'font', 'eot': 'font',
+            'pdf': 'pdf'
+        };
+        
+        return typeMap[extension] || 'binary';
+    },
+
+    // Main HTML File Selection Functions
+    updateMainHtmlSelector() {
+        const htmlFiles = this.state.files.filter(f => f.type === 'html');
+        
+        if (htmlFiles.length <= 1) {
+            this.dom.mainHtmlSelector.style.display = 'none';
+            return;
+        }
+        
+        // Show the selector
+        this.dom.mainHtmlSelector.style.display = 'flex';
+        
+        // Clear existing options except the first one
+        this.dom.mainHtmlSelect.innerHTML = '<option value="">Auto-detect</option>';
+        
+        // Add options for each HTML file
+        htmlFiles.forEach(file => {
+            const fileName = this.getFileNameFromPanel(file.id) || `file_${file.id}`;
+            const option = document.createElement('option');
+            option.value = file.id;
+            option.textContent = fileName;
+            
+            if (this.state.mainHtmlFile === file.id) {
+                option.selected = true;
+            }
+            
+            this.dom.mainHtmlSelect.appendChild(option);
+        });
+    },
+    
+    getMainHtmlFile() {
+        if (this.state.mainHtmlFile) {
+            const file = this.state.files.find(f => f.id === this.state.mainHtmlFile && f.type === 'html');
+            if (file) {
+                return file;
+            }
+        }
+        
+        // Auto-detect: prefer index.html or the first HTML file with full document
+        const htmlFiles = this.state.files.filter(f => f.type === 'html');
+        
+        // Look for index.html first
+        const indexFile = htmlFiles.find(f => {
+            const fileName = this.getFileNameFromPanel(f.id) || '';
+            return fileName.toLowerCase().includes('index.html');
+        });
+        
+        if (indexFile) return indexFile;
+        
+        // Look for files with full HTML document structure
+        const fullDocFile = htmlFiles.find(f => this.isFullHTMLDocument(f.editor.getValue()));
+        if (fullDocFile) return fullDocFile;
+        
+        // Return the first HTML file
+        return htmlFiles[0] || null;
     },
 
     console: {

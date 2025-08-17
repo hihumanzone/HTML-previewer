@@ -631,3 +631,121 @@ body {
     justify-content: center;
     min-height: 200px;
 }
+
+/* Drag and Drop Styles */
+.drag-handle {
+    cursor: grab;
+    color: var(--border-color);
+    font-size: 1rem;
+    padding: 0.25rem;
+    user-select: none;
+    line-height: 1;
+}
+
+.drag-handle:hover {
+    color: var(--accent-color);
+}
+
+.drag-handle:active {
+    cursor: grabbing;
+}
+
+.editor-panel.dragging {
+    opacity: 0.5;
+    transform: rotate(2deg);
+}
+
+.editor-panel.drag-over {
+    border: 2px dashed var(--accent-color);
+}
+
+.drop-indicator {
+    height: 3px;
+    background-color: var(--accent-color);
+    border-radius: 2px;
+    margin: 0.5rem 0;
+    transition: all 0.2s ease;
+}
+
+/* ZIP Import/Export Buttons */
+.import-zip-btn, .export-zip-btn {
+    background-color: var(--accent-color);
+    color: var(--bg-color);
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: bold;
+    transition: background-color 0.2s;
+}
+
+.import-zip-btn:hover, .export-zip-btn:hover {
+    background-color: #6a9ae8;
+}
+
+.export-zip-btn {
+    background-color: var(--warn-color);
+}
+
+.export-zip-btn:hover {
+    background-color: #e89c62;
+}
+
+/* Main HTML File Selector */
+.main-html-selector {
+    background-color: var(--secondary-color);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.8rem;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+}
+
+.main-html-selector label {
+    font-weight: bold;
+    color: var(--accent-color);
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+#main-html-select {
+    background-color: var(--header-bg);
+    color: var(--primary-color);
+    border: 1px solid var(--border-color);
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    flex: 1;
+    max-width: 200px;
+}
+
+#main-html-select:focus {
+    border-color: var(--accent-color);
+    outline: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .files-header-buttons {
+        flex-wrap: wrap;
+        gap: 0.3rem;
+    }
+    
+    .import-zip-btn, .export-zip-btn {
+        padding: 0.4rem 0.8rem;
+        font-size: 0.75rem;
+    }
+    
+    .main-html-selector {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    
+    #main-html-select {
+        max-width: 100%;
+    }
+}
