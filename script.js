@@ -2718,6 +2718,9 @@ const CodePreviewer = {
                 '                    return this._virtualSrc || this.getAttribute("src") || "";\n' +
                 '                },\n' +
                 '                set: function(value) {\n' +
+                '                    if (this._settingSrc) return;\n' +
+                '                    this._settingSrc = true;\n' +
+                '                    \n' +
                 '                    this._virtualSrc = value;\n' +
                 '                    \n' +
                 '                    if (value) {\n' +
@@ -2733,11 +2736,13 @@ const CodePreviewer = {
                 '                                const blobUrl = URL.createObjectURL(blob);\n' +
                 '                                originalSrcSetter.call(this, blobUrl);\n' +
                 '                            }\n' +
+                '                            this._settingSrc = false;\n' +
                 '                            return;\n' +
                 '                        }\n' +
                 '                    }\n' +
                 '                    \n' +
                 '                    originalSrcSetter.call(this, value);\n' +
+                '                    this._settingSrc = false;\n' +
                 '                },\n' +
                 '                configurable: true,\n' +
                 '                enumerable: true\n' +
@@ -2750,12 +2755,14 @@ const CodePreviewer = {
                 '            const fileData = findFileInSystem(targetPath, currentFilePath);\n' +
                 '            \n' +
                 '            if (fileData && fileData.type === "audio") {\n' +
-                '                if (fileData.isBinary && fileData.content.startsWith("data:")) {\n' +
-                '                    audio.src = fileData.content;\n' +
-                '                } else {\n' +
-                '                    const blob = new Blob([fileData.content], { type: "audio/mpeg" });\n' +
-                '                    const blobUrl = URL.createObjectURL(blob);\n' +
-                '                    audio.src = blobUrl;\n' +
+                '                if (originalSrcSetter) {\n' +
+                '                    if (fileData.isBinary && fileData.content.startsWith("data:")) {\n' +
+                '                        originalSrcSetter.call(audio, fileData.content);\n' +
+                '                    } else {\n' +
+                '                        const blob = new Blob([fileData.content], { type: "audio/mpeg" });\n' +
+                '                        const blobUrl = URL.createObjectURL(blob);\n' +
+                '                        originalSrcSetter.call(audio, blobUrl);\n' +
+                '                    }\n' +
                 '                }\n' +
                 '            }\n' +
                 '        }\n' +
@@ -2786,36 +2793,34 @@ const CodePreviewer = {
                 '                    return this._virtualSrc || this.getAttribute("src") || "";\n' +
                 '                },\n' +
                 '                set: function(value) {\n' +
+                '                    if (this._settingSrc) return;\n' +
+                '                    this._settingSrc = true;\n' +
+                '                    \n' +
                 '                    this._virtualSrc = value;\n' +
                 '                    \n' +
                 '                    if (value) {\n' +
                 '                        const currentFilePath = getCurrentFilePath();\n' +
                 '                        let targetPath = value.replace(/^\\.\\//, "");\n' +
-                '                        console.log("Image target path:", targetPath);\n' +
                 '                        const fileData = findFileInSystem(targetPath, currentFilePath);\n' +
-                '                        console.log("Image file data found:", fileData);\n' +
                 '                        \n' +
                 '                        if (fileData && (fileData.type === "image" || fileData.type === "svg")) {\n' +
-                '                            console.log("Processing image file, type:", fileData.type, "isBinary:", fileData.isBinary);\n' +
                 '                            if (fileData.isBinary && fileData.content.startsWith("data:")) {\n' +
-                '                                console.log("Using data URL directly for image");\n' +
                 '                                originalSrcSetter.call(this, fileData.content);\n' +
                 '                            } else if (fileData.type === "svg") {\n' +
-                '                                console.log("Processing SVG file");\n' +
                 '                                const svgDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(fileData.content)}`;\n' +
                 '                                originalSrcSetter.call(this, svgDataUrl);\n' +
                 '                            } else {\n' +
-                '                                console.log("Creating blob for image, content type:", typeof fileData.content);\n' +
                 '                                const blob = new Blob([fileData.content], { type: "image/png" });\n' +
                 '                                const blobUrl = URL.createObjectURL(blob);\n' +
-                '                                console.log("Created blob URL for image:", blobUrl);\n' +
                 '                                originalSrcSetter.call(this, blobUrl);\n' +
                 '                            }\n' +
+                '                            this._settingSrc = false;\n' +
                 '                            return;\n' +
                 '                        }\n' +
                 '                    }\n' +
                 '                    \n' +
                 '                    originalSrcSetter.call(this, value);\n' +
+                '                    this._settingSrc = false;\n' +
                 '                },\n' +
                 '                configurable: true,\n' +
                 '                enumerable: true\n' +
