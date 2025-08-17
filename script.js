@@ -1350,7 +1350,7 @@ const CodePreviewer = {
 
     generateSingleFilePreview() {
         const singleFileContent = this.state.editors.singleFile ? this.state.editors.singleFile.getValue() : '';
-        const captureScript = this.console.getCaptureScript();
+        const captureScript = this.console.getCaptureScript(null);
         
         if (singleFileContent.includes('</head>')) {
             return singleFileContent.replace('</head>', captureScript + '\n</head>');
@@ -1651,11 +1651,11 @@ const CodePreviewer = {
         const mainHtmlPath = this.getFileNameFromPanel(mainHtmlFile.id) || 'index.html';
         let processedHtml = this.replaceAssetReferences(mainHtmlFile.editor.getValue(), fileSystem, mainHtmlPath);
         
-        return this.injectConsoleScript(processedHtml);
+        return this.injectConsoleScript(processedHtml, fileSystem);
     },
 
-    injectConsoleScript(htmlContent) {
-        const captureScript = this.console.getCaptureScript();
+    injectConsoleScript(htmlContent, fileSystem = null) {
+        const captureScript = this.console.getCaptureScript(fileSystem);
         
         if (htmlContent.includes('</head>')) {
             return htmlContent.replace('</head>', captureScript + '\n</head>');
@@ -1795,7 +1795,7 @@ const CodePreviewer = {
             '    <meta charset="UTF-8">\n' +
             '    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
             '    <title>Live Preview</title>\n' +
-            '    ' + this.console.getCaptureScript() + '\n' +
+            '    ' + this.console.getCaptureScript(fileSystem) + '\n' +
             '    ' + workerScript + '\n' +
             '    <style>' + css + '</style>\n' +
             '</head>\n' +
@@ -2534,10 +2534,104 @@ const CodePreviewer = {
                 this.log(event.data);
             }
         },
-        getCaptureScript() {
+        getCaptureScript(fileSystem = null) {
             const MESSAGE_TYPE = CodePreviewer.constants.CONSOLE_MESSAGE_TYPE;
+            
+            // Create file system data for injection
+            let fileSystemData = '{}';
+            if (fileSystem && fileSystem instanceof Map) {
+                const fileObj = {};
+                fileSystem.forEach((fileData, filename) => {
+                    fileObj[filename] = {
+                        content: fileData.content,
+                        type: fileData.type,
+                        isBinary: fileData.isBinary || false
+                    };
+                });
+                fileSystemData = JSON.stringify(fileObj);
+            }
+            
             return '<script>\n' +
                 '(function() {\n' +
+                '    // Virtual file system for fetch override\n' +
+                '    const virtualFileSystem = ' + fileSystemData + ';\n' +
+                '    \n' +
+                '    // Override fetch to serve virtual files\n' +
+                '    const originalFetch = window.fetch;\n' +
+                '    window.fetch = function(input, init) {\n' +
+                '        let url = input;\n' +
+                '        if (typeof input === "object" && input.url) {\n' +
+                '            url = input.url;\n' +
+                '        }\n' +
+                '        \n' +
+                '        // Normalize the URL - remove leading ./ and resolve relative paths\n' +
+                '        const normalizedUrl = url.replace(/^\.\//, "");\n' +
+                '        \n' +
+                '        // Check if file exists in virtual file system\n' +
+                '        if (virtualFileSystem[normalizedUrl]) {\n' +
+                '            const fileData = virtualFileSystem[normalizedUrl];\n' +
+                '            \n' +
+                '            // Create mock response\n' +
+                '            const response = {\n' +
+                '                ok: true,\n' +
+                '                status: 200,\n' +
+                '                statusText: "OK",\n' +
+                '                headers: new Headers({\n' +
+                '                    "Content-Type": fileData.type === "json" ? "application/json" : \n' +
+                '                                   fileData.type === "html" ? "text/html" :\n' +
+                '                                   fileData.type === "css" ? "text/css" :\n' +
+                '                                   fileData.type === "javascript" ? "text/javascript" :\n' +
+                '                                   fileData.type === "xml" ? "application/xml" :\n' +
+                '                                   "text/plain"\n' +
+                '                }),\n' +
+                '                url: url,\n' +
+                '                text: () => Promise.resolve(fileData.content),\n' +
+                '                json: () => {\n' +
+                '                    try {\n' +
+                '                        return Promise.resolve(JSON.parse(fileData.content));\n' +
+                '                    } catch (e) {\n' +
+                '                        return Promise.reject(new Error("Invalid JSON"));\n' +
+                '                    }\n' +
+                '                },\n' +
+                '                blob: () => {\n' +
+                '                    if (fileData.isBinary && fileData.content.startsWith("data:")) {\n' +
+                '                        const [header, base64] = fileData.content.split(",");\n' +
+                '                        const mimeType = header.match(/data:([^;]+)/)[1];\n' +
+                '                        const byteCharacters = atob(base64);\n' +
+                '                        const byteNumbers = new Array(byteCharacters.length);\n' +
+                '                        for (let i = 0; i < byteCharacters.length; i++) {\n' +
+                '                            byteNumbers[i] = byteCharacters.charCodeAt(i);\n' +
+                '                        }\n' +
+                '                        const byteArray = new Uint8Array(byteNumbers);\n' +
+                '                        return Promise.resolve(new Blob([byteArray], { type: mimeType }));\n' +
+                '                    } else {\n' +
+                '                        return Promise.resolve(new Blob([fileData.content], { type: "text/plain" }));\n' +
+                '                    }\n' +
+                '                },\n' +
+                '                arrayBuffer: () => {\n' +
+                '                    if (fileData.isBinary && fileData.content.startsWith("data:")) {\n' +
+                '                        const [header, base64] = fileData.content.split(",");\n' +
+                '                        const byteCharacters = atob(base64);\n' +
+                '                        const byteNumbers = new Array(byteCharacters.length);\n' +
+                '                        for (let i = 0; i < byteCharacters.length; i++) {\n' +
+                '                            byteNumbers[i] = byteCharacters.charCodeAt(i);\n' +
+                '                        }\n' +
+                '                        return Promise.resolve(new Uint8Array(byteNumbers).buffer);\n' +
+                '                    } else {\n' +
+                '                        const encoder = new TextEncoder();\n' +
+                '                        return Promise.resolve(encoder.encode(fileData.content).buffer);\n' +
+                '                    }\n' +
+                '                }\n' +
+                '            };\n' +
+                '            \n' +
+                '            return Promise.resolve(response);\n' +
+                '        }\n' +
+                '        \n' +
+                '        // If not found in virtual file system, use original fetch\n' +
+                '        return originalFetch.apply(this, arguments);\n' +
+                '    };\n' +
+                '    \n' +
+                '    // Console capture functionality\n' +
                 '    const postLog = (level, args) => {\n' +
                 '        const formattedArgs = args.map(arg => {\n' +
                 '            if (arg instanceof Error) return { message: arg.message, stack: arg.stack };\n' +
