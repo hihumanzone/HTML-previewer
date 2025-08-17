@@ -558,3 +558,264 @@ body {
     .controls { flex-direction: column; }
     .btn { width: 100%; }
 }
+
+/* Media Preview Modal Styles */
+.media-preview-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    text-align: center;
+    max-width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+}
+
+.media-preview-container h3 {
+    margin-bottom: 1rem;
+    color: var(--primary-color);
+    font-size: 1.2rem;
+    flex-shrink: 0;
+}
+
+.media-preview-container img {
+    max-width: calc(100% - 2rem);
+    max-height: calc(100% - 4rem);
+    object-fit: contain;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    flex-shrink: 1;
+}
+
+.media-preview-container audio,
+.media-preview-container video {
+    max-width: calc(100% - 2rem);
+    max-height: calc(100% - 4rem);
+    border-radius: 8px;
+    flex-shrink: 1;
+}
+
+.media-preview-container object {
+    max-width: calc(100% - 2rem);
+    max-height: calc(100% - 4rem);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    flex-shrink: 1;
+}
+
+.media-preview-container p {
+    color: var(--primary-color);
+    margin-top: 1rem;
+}
+
+.media-preview-container a {
+    color: var(--accent-color);
+    text-decoration: none;
+}
+
+.media-preview-container a:hover {
+    text-decoration: underline;
+}
+
+/* Ensure media modal has proper styling */
+#media-modal .modal-content {
+    max-width: 90vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#media-modal .modal-header {
+    flex-shrink: 0;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+#media-modal .modal-body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+    flex: 1;
+    overflow: hidden;
+    padding: 1rem;
+}
+
+#media-modal-content {
+    max-width: 100%;
+    max-height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#media-modal-content img,
+#media-modal-content video,
+#media-modal-content audio,
+#media-modal-content object {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: 8px;
+}
+
+#media-modal-content img {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+#media-modal-content object {
+    border: 1px solid var(--border-color);
+}
+
+/* Drag and Drop Styles */
+.drag-handle {
+    cursor: grab;
+    color: var(--border-color);
+    font-size: 1rem;
+    padding: 0.25rem;
+    user-select: none;
+    line-height: 1;
+}
+
+.drag-handle:hover {
+    color: var(--accent-color);
+}
+
+.drag-handle:active {
+    cursor: grabbing;
+}
+
+.editor-panel.dragging {
+    opacity: 0.5;
+    transform: rotate(2deg);
+}
+
+.editor-panel.drag-over {
+    border: 2px dashed var(--accent-color);
+}
+
+.drop-indicator {
+    height: 3px;
+    background-color: var(--accent-color);
+    border-radius: 2px;
+    margin: 0.5rem 0;
+    transition: all 0.2s ease;
+}
+
+/* Drag clone for touch devices */
+.drag-clone {
+    pointer-events: none;
+    width: 300px;
+    z-index: 10000;
+    border: 2px solid var(--accent-color);
+    background: var(--bg-color);
+    border-radius: 8px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+.drag-clone .editor-wrapper {
+    max-height: 100px;
+    overflow: hidden;
+}
+
+/* Touch improvements */
+@media (pointer: coarse) {
+    .drag-handle {
+        padding: 0.5rem;
+        font-size: 1.2rem;
+        min-width: 44px;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .editor-panel {
+        margin-bottom: 0.5rem;
+    }
+}
+
+/* ZIP Import/Export Buttons */
+.import-zip-btn, .export-zip-btn {
+    background-color: var(--accent-color);
+    color: var(--bg-color);
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: bold;
+    transition: background-color 0.2s;
+}
+
+.import-zip-btn:hover, .export-zip-btn:hover {
+    background-color: #6a9ae8;
+}
+
+.export-zip-btn {
+    background-color: var(--warn-color);
+}
+
+.export-zip-btn:hover {
+    background-color: #e89c62;
+}
+
+/* Main HTML File Selector */
+.main-html-selector {
+    background-color: var(--secondary-color);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.8rem;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+}
+
+.main-html-selector label {
+    font-weight: bold;
+    color: var(--accent-color);
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+#main-html-select {
+    background-color: var(--header-bg);
+    color: var(--primary-color);
+    border: 1px solid var(--border-color);
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    flex: 1;
+    max-width: 200px;
+}
+
+#main-html-select:focus {
+    border-color: var(--accent-color);
+    outline: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .files-header-buttons {
+        flex-wrap: wrap;
+        gap: 0.3rem;
+    }
+    
+    .import-zip-btn, .export-zip-btn {
+        padding: 0.4rem 0.8rem;
+        font-size: 0.75rem;
+    }
+    
+    .main-html-selector {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    
+    #main-html-select {
+        max-width: 100%;
+    }
+}

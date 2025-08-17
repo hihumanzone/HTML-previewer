@@ -10,6 +10,12 @@ const CodePreviewer = {
         files: [],
         nextFileId: 4,
         codeModalEditor: null,
+        mainHtmlFile: '',
+        dragState: {
+            draggedElement: null,
+            draggedFileId: null,
+            dropIndicator: null,
+        },
     },
 
     dom: {},
@@ -30,6 +36,9 @@ const CodePreviewer = {
             MULTI_MODE_RADIO: 'multi-mode-radio',
             ADD_FILE_BTN: 'add-file-btn',
             IMPORT_FILE_BTN: 'import-file-btn',
+            IMPORT_ZIP_BTN: 'import-zip-btn',
+            EXPORT_ZIP_BTN: 'export-zip-btn',
+            MAIN_HTML_SELECT: 'main-html-select',
         },
         CONTAINER_IDS: {
             SINGLE_FILE: 'single-file-container',
@@ -43,6 +52,154 @@ const CodePreviewer = {
         CONSOLE_ID: 'console-output',
         MODAL_CONSOLE_PANEL_ID: 'modal-console-panel',
         CONSOLE_MESSAGE_TYPE: 'console',
+        
+        FILE_TYPES: {
+            EXTENSIONS: {
+                'html': 'html', 'htm': 'html', 'xhtml': 'html',
+                'css': 'css', 'scss': 'css', 'sass': 'css', 'less': 'css',
+                'js': 'javascript', 'jsx': 'javascript', 'ts': 'javascript', 'tsx': 'javascript',
+                'mjs': 'javascript-module', 'esm': 'javascript-module',
+                'json': 'json',
+                'xml': 'xml',
+                'md': 'markdown', 'markdown': 'markdown',
+                'txt': 'text',
+                'svg': 'svg',
+                'jpg': 'image', 'jpeg': 'image', 'png': 'image', 'gif': 'image', 
+                'webp': 'image', 'bmp': 'image', 'ico': 'image', 'tiff': 'image',
+                'mp3': 'audio', 'wav': 'audio', 'ogg': 'audio', 'm4a': 'audio', 
+                'aac': 'audio', 'flac': 'audio', 'wma': 'audio',
+                'mp4': 'video', 'webm': 'video', 'mov': 'video', 'avi': 'video', 
+                'mkv': 'video', 'wmv': 'video', 'flv': 'video', 'm4v': 'video',
+                'woff': 'font', 'woff2': 'font', 'ttf': 'font', 'otf': 'font', 'eot': 'font',
+                'pdf': 'pdf'
+            },
+            
+            MIME_TYPES: {
+                'html': 'text/html',
+                'css': 'text/css',
+                'javascript': 'text/javascript',
+                'javascript-module': 'text/javascript',
+                'json': 'application/json',
+                'xml': 'application/xml',
+                'markdown': 'text/markdown',
+                'text': 'text/plain',
+                'svg': 'image/svg+xml',
+                'image': 'image/png',
+                'audio': 'audio/mpeg',
+                'video': 'video/mp4',
+                'font': 'font/woff2',
+                'pdf': 'application/pdf',
+                'binary': 'application/octet-stream'
+            },
+            
+            EXTENSION_MIME_MAP: {
+                'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif',
+                'webp': 'image/webp', 'bmp': 'image/bmp', 'ico': 'image/x-icon', 'svg': 'image/svg+xml',
+                'mp3': 'audio/mpeg', 'wav': 'audio/wav', 'ogg': 'audio/ogg', 'm4a': 'audio/mp4',
+                'aac': 'audio/aac', 'flac': 'audio/flac', 'wma': 'audio/x-ms-wma',
+                'mp4': 'video/mp4', 'webm': 'video/webm', 'mov': 'video/quicktime',
+                'avi': 'video/x-msvideo', 'mkv': 'video/x-matroska', 'wmv': 'video/x-ms-wmv',
+                'flv': 'video/x-flv', 'm4v': 'video/mp4',
+                'woff': 'font/woff', 'woff2': 'font/woff2', 'ttf': 'font/ttf', 'otf': 'font/otf',
+                'eot': 'application/vnd.ms-fontobject',
+                'pdf': 'application/pdf',
+                'txt': 'text/plain', 'html': 'text/html', 'css': 'text/css', 'js': 'text/javascript',
+                'json': 'application/json', 'xml': 'application/xml'
+            },
+            
+            BINARY_EXTENSIONS: [
+                'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'ico', 'tiff',
+                'mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'wma',
+                'mp4', 'webm', 'mov', 'avi', 'mkv', 'wmv', 'flv', 'm4v',
+                'woff', 'woff2', 'ttf', 'otf', 'eot',
+                'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+                'zip', 'rar', '7z', 'tar', 'gz',
+                'exe', 'dll', 'so', 'dylib'
+            ],
+            
+            EDITABLE_TYPES: ['html', 'css', 'javascript', 'javascript-module', 'json', 'xml', 'markdown', 'text', 'svg'],
+            PREVIEWABLE_TYPES: ['html', 'css', 'javascript', 'javascript-module', 'json', 'xml', 'markdown', 'text', 'svg', 'image', 'audio', 'video', 'pdf'],
+            CODEMIRROR_MODES: {
+                'html': 'htmlmixed',
+                'css': 'css',
+                'javascript': 'javascript',
+                'javascript-module': 'javascript',
+                'json': 'javascript',
+                'xml': 'xml',
+                'markdown': 'markdown',
+                'text': 'text',
+                'svg': 'xml'
+            }
+        }
+    },
+
+    fileTypeUtils: {
+        getExtension(filename) {
+            return filename ? filename.split('.').pop().toLowerCase() : '';
+        },
+
+        getTypeFromExtension(filename) {
+            const extension = this.getExtension(filename);
+            return CodePreviewer.constants.FILE_TYPES.EXTENSIONS[extension] || 'binary';
+        },
+
+        getMimeTypeFromExtension(extension) {
+            return CodePreviewer.constants.FILE_TYPES.EXTENSION_MIME_MAP[extension] || 'application/octet-stream';
+        },
+
+        getMimeTypeFromFileType(fileType) {
+            return CodePreviewer.constants.FILE_TYPES.MIME_TYPES[fileType] || 'text/plain';
+        },
+
+        isBinaryExtension(extension) {
+            return CodePreviewer.constants.FILE_TYPES.BINARY_EXTENSIONS.includes(extension);
+        },
+
+        isBinaryFile(filename, mimeType) {
+            if (!filename) return false;
+            
+            const extension = this.getExtension(filename);
+            
+            if (this.isBinaryExtension(extension)) {
+                return true;
+            }
+            
+            if (mimeType) {
+                if (mimeType === 'image/svg+xml') {
+                    return false;
+                }
+                
+                return mimeType.startsWith('image/') || 
+                       mimeType.startsWith('audio/') || 
+                       mimeType.startsWith('video/') || 
+                       mimeType.startsWith('application/') ||
+                       mimeType.startsWith('font/');
+            }
+            
+            return false;
+        },
+
+        isEditableType(fileType) {
+            return CodePreviewer.constants.FILE_TYPES.EDITABLE_TYPES.includes(fileType);
+        },
+
+        isPreviewableType(fileType) {
+            return CodePreviewer.constants.FILE_TYPES.PREVIEWABLE_TYPES.includes(fileType);
+        },
+
+        getCodeMirrorMode(fileType) {
+            return CodePreviewer.constants.FILE_TYPES.CODEMIRROR_MODES[fileType] || 'text';
+        },
+
+        detectTypeFromContent(content, filename) {
+            if (!content) return this.getTypeFromExtension(filename);
+            
+            if (/<\s*html/i.test(content)) return 'html';
+            if (/^\s*[\.\#\@]|\s*\w+\s*\{/m.test(content)) return 'css';
+            if (CodePreviewer.isModuleFile(content, filename)) return 'javascript-module';
+            
+            return this.getTypeFromExtension(filename);
+        }
     },
 
     init() {
@@ -71,6 +228,10 @@ const CodePreviewer = {
             multiModeOption: document.querySelector('label[for="multi-mode-radio"]') || this.getSafeParentElement(CONTROL_IDS.MULTI_MODE_RADIO),
             addFileBtn: document.getElementById(CONTROL_IDS.ADD_FILE_BTN),
             importFileBtn: document.getElementById(CONTROL_IDS.IMPORT_FILE_BTN),
+            importZipBtn: document.getElementById(CONTROL_IDS.IMPORT_ZIP_BTN),
+            exportZipBtn: document.getElementById(CONTROL_IDS.EXPORT_ZIP_BTN),
+            mainHtmlSelect: document.getElementById(CONTROL_IDS.MAIN_HTML_SELECT),
+            mainHtmlSelector: document.getElementById('main-html-selector'),
             singleFileContainer: document.getElementById(CONTAINER_IDS.SINGLE_FILE),
             multiFileContainer: document.getElementById(CONTAINER_IDS.MULTI_FILE),
             modalOverlay: document.getElementById(MODAL_IDS.OVERLAY),
@@ -80,6 +241,9 @@ const CodePreviewer = {
             modalConsolePanel: document.getElementById(MODAL_CONSOLE_PANEL_ID),
             editorGrid: document.querySelector('.editor-grid'),
             saveCodeBtn: document.getElementById('save-code-btn'),
+            mediaModal: document.getElementById('media-modal'),
+            mediaModalContent: document.getElementById('media-modal-content'),
+            mediaModalTitle: document.getElementById('media-modal-title'),
         };
     },
 
@@ -201,6 +365,10 @@ const CodePreviewer = {
                 if (codeModal && codeModal.getAttribute('aria-hidden') === 'false') {
                     this.closeCodeModal();
                 }
+                const mediaModal = document.getElementById('media-modal');
+                if (mediaModal && mediaModal.getAttribute('aria-hidden') === 'false') {
+                    this.closeMediaModal();
+                }
             }
         });
 
@@ -221,6 +389,19 @@ const CodePreviewer = {
             });
         }
 
+        const mediaModal = document.getElementById('media-modal');
+        const mediaModalCloseBtn = mediaModal?.querySelector('.close-btn');
+        
+        if (mediaModalCloseBtn) {
+            mediaModalCloseBtn.addEventListener('click', () => this.closeMediaModal());
+        }
+        
+        if (mediaModal) {
+            mediaModal.addEventListener('click', (e) => {
+                if (e.target === mediaModal) this.closeMediaModal();
+            });
+        }
+
         this.dom.singleModeRadio.addEventListener('change', () => this.switchMode('single'));
         this.dom.multiModeRadio.addEventListener('change', () => this.switchMode('multi'));
         
@@ -237,6 +418,11 @@ const CodePreviewer = {
         
         this.dom.addFileBtn.addEventListener('click', () => this.addNewFile());
         this.dom.importFileBtn.addEventListener('click', () => this.importFile());
+        this.dom.importZipBtn.addEventListener('click', () => this.importZip());
+        this.dom.exportZipBtn.addEventListener('click', () => this.exportZip());
+        this.dom.mainHtmlSelect.addEventListener('change', (e) => {
+            this.state.mainHtmlFile = e.target.value;
+        });
     },
 
     initModeToggle() {
@@ -290,39 +476,20 @@ const CodePreviewer = {
         return false;
     },
 
-    autoDetectFileType(filename, content) {
-        if (!filename) return 'javascript';
+    autoDetectFileType(filename, content, mimeType) {
+        if (!filename) return 'text';
         
-        const extension = filename.split('.').pop().toLowerCase();
+        const extension = this.fileTypeUtils.getExtension(filename);
         
-        switch (extension) {
-            case 'html':
-            case 'htm':
-            case 'xhtml':
-                return 'html';
-            case 'css':
-            case 'scss':
-            case 'sass':
-            case 'less':
-                return 'css';
-            case 'mjs':
-            case 'esm':
-                return 'javascript-module';
-            case 'js':
-            case 'jsx':
-            case 'ts':
-            case 'tsx':
-                return this.isModuleFile(content, filename) ? 'javascript-module' : 'javascript';
-            case 'json':
-                return 'javascript';
-            default:
-                if (content) {
-                    if (/<\s*html/i.test(content)) return 'html';
-                    if (/^\s*[\.\#\@]|\s*\w+\s*\{/m.test(content)) return 'css';
-                    if (this.isModuleFile(content, filename)) return 'javascript-module';
-                }
-                return 'javascript';
+        if (this.fileTypeUtils.isBinaryExtension(extension) || (mimeType && mimeType.startsWith('image/') && mimeType !== 'image/svg+xml')) {
+            return extension === 'svg' ? 'svg' : this.fileTypeUtils.getTypeFromExtension(filename);
         }
+        
+        if (mimeType && (mimeType.startsWith('audio/') || mimeType.startsWith('video/') || mimeType.startsWith('font/') || mimeType === 'application/pdf')) {
+            return this.fileTypeUtils.getTypeFromExtension(filename);
+        }
+        
+        return this.fileTypeUtils.detectTypeFromContent(content, filename);
     },
 
     getFileNameFromPanel(fileId) {
@@ -334,13 +501,25 @@ const CodePreviewer = {
         return null;
     },
 
+    getExistingFilenames() {
+        const filenames = [];
+        this.state.files.forEach(file => {
+            const filename = this.getFileNameFromPanel(file.id);
+            if (filename) {
+                filenames.push(filename);
+            }
+        });
+        return filenames;
+    },
+
     addNewFile() {
         const fileId = `file-${this.state.nextFileId++}`;
         const fileName = `newfile.html`;
         
         const panelHTML = `
-            <div class="editor-panel" data-file-type="html" data-file-id="${fileId}">
+            <div class="editor-panel" data-file-type="html" data-file-id="${fileId}" draggable="true">
                 <div class="panel-header">
+                    <div class="drag-handle" aria-label="Drag to reorder">⋮⋮</div>
                     <input type="text" class="file-name-input" value="${fileName}" aria-label="File name">
                     <select class="file-type-selector" aria-label="File type">
                         <option value="html" selected>HTML</option>
@@ -350,26 +529,7 @@ const CodePreviewer = {
                     </select>
                     <button class="remove-file-btn" aria-label="Remove file">&times;</button>
                 </div>
-                <div class="editor-toolbar">
-                    <button class="toolbar-btn clear-btn" aria-label="Clear content" title="Clear">
-                        <span class="btn-icon">🗑️</span> Clear
-                    </button>
-                    <button class="toolbar-btn paste-btn" aria-label="Paste from clipboard" title="Paste">
-                        <span class="btn-icon">📋</span> Paste
-                    </button>
-                    <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
-                        <span class="btn-icon">📄</span> Copy
-                    </button>
-                    <button class="toolbar-btn expand-btn" aria-label="Expand code view" title="Expand">
-                        <span class="btn-icon">🔍</span> Expand
-                    </button>
-                    <button class="toolbar-btn export-btn" aria-label="Export file" title="Export">
-                        <span class="btn-icon">💾</span> Export
-                    </button>
-                    <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
-                        <span class="btn-icon">📁</span> Collapse
-                    </button>
-                </div>
+                ${this.generateToolbarHTML('html')}
                 <label for="${fileId}" class="sr-only">Code Editor</label>
                 <div class="editor-wrapper">
                     <textarea id="${fileId}"></textarea>
@@ -409,38 +569,75 @@ const CodePreviewer = {
         this.state.files.push({
             id: fileId,
             editor: newEditor,
-            type: 'html'
+            type: 'html',
+            fileName: fileName
         });
         
         this.bindFilePanelEvents(document.querySelector(`[data-file-id="${fileId}"]`));
+        this.bindDragAndDropEvents(document.querySelector(`[data-file-id="${fileId}"]`));
         
         this.updateRemoveButtonsVisibility();
+        this.updateMainHtmlSelector();
     },
 
     importFile() {
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
-        fileInput.accept = '.html,.htm,.css,.js,.mjs,.jsx,.ts,.tsx';
+        fileInput.accept = '*/*';
+        fileInput.multiple = true;
         fileInput.style.display = 'none';
         
+        const cleanup = () => {
+            if (document.body.contains(fileInput)) {
+                document.body.removeChild(fileInput);
+            }
+        };
+        
         fileInput.addEventListener('change', async (event) => {
-            const file = event.target.files[0];
-            if (!file) return;
+            const files = Array.from(event.target.files);
+            if (files.length === 0) {
+                cleanup();
+                return;
+            }
             
             try {
-                const content = await this.readFileContent(file);
+                for (const file of files) {
+                    const existingFilenames = this.getExistingFilenames();
+                    if (existingFilenames.includes(file.name)) {
+                        this.showNotification(`A file named "${file.name}" already exists. Please rename the existing file first or choose a different file.`, 'error');
+                        continue;
+                    }
+                    
+                    const fileData = await this.readFileContent(file);
+                    
+                    const detectedType = this.autoDetectFileType(file.name, fileData.isBinary ? null : fileData.content, file.type);
+                    
+                    this.addNewFileWithContent(file.name, detectedType, fileData.content, fileData.isBinary);
+                }
                 
-                const detectedType = this.autoDetectFileType(file.name, content);
-                
-                this.addNewFileWithContent(file.name, detectedType, content);
+                if (files.length > 1) {
+                    this.showNotification(`Successfully imported ${files.length} files`, 'success');
+                }
                 
             } catch (error) {
                 console.error('Error importing file:', error);
                 alert('Error importing file. Please try again.');
             }
             
-            document.body.removeChild(fileInput);
+            cleanup();
         });
+        
+        fileInput.addEventListener('cancel', cleanup);
+        
+        const focusHandler = () => {
+            setTimeout(() => {
+                if (document.body.contains(fileInput)) {
+                    cleanup();
+                }
+            }, 100);
+        };
+        
+        window.addEventListener('focus', focusHandler, { once: true });
         
         document.body.appendChild(fileInput);
         fileInput.click();
@@ -449,99 +646,197 @@ const CodePreviewer = {
     readFileContent(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
-            reader.onload = (e) => resolve(e.target.result);
+            reader.onload = (e) => resolve({
+                content: e.target.result,
+                isBinary: this.isBinaryFile(file.name, file.type)
+            });
             reader.onerror = (e) => reject(e);
-            reader.readAsText(file);
+            
+            if (this.isBinaryFile(file.name, file.type)) {
+                reader.readAsDataURL(file);
+            } else {
+                reader.readAsText(file);
+            }
         });
     },
 
-    addNewFileWithContent(fileName, fileType, content) {
+    isBinaryFile(filename, mimeType) {
+        return this.fileTypeUtils.isBinaryFile(filename, mimeType);
+    },
+
+    addNewFileWithContent(fileName, fileType, content, isBinary = false) {
         const fileId = `file-${this.state.nextFileId++}`;
         
+        const fileTypeOptions = this.generateFileTypeOptions(fileType);
+        
         const panelHTML = `
-            <div class="editor-panel" data-file-type="${fileType}" data-file-id="${fileId}">
+            <div class="editor-panel" data-file-type="${fileType}" data-file-id="${fileId}" draggable="true">
                 <div class="panel-header">
+                    <div class="drag-handle" aria-label="Drag to reorder">⋮⋮</div>
                     <input type="text" class="file-name-input" value="${fileName}" aria-label="File name">
                     <select class="file-type-selector" aria-label="File type">
-                        <option value="html" ${fileType === 'html' ? 'selected' : ''}>HTML</option>
-                        <option value="css" ${fileType === 'css' ? 'selected' : ''}>CSS</option>
-                        <option value="javascript" ${fileType === 'javascript' ? 'selected' : ''}>JavaScript</option>
-                        <option value="javascript-module" ${fileType === 'javascript-module' ? 'selected' : ''}>JavaScript Module</option>
+                        ${fileTypeOptions}
                     </select>
                     <button class="remove-file-btn" aria-label="Remove file">&times;</button>
                 </div>
-                <div class="editor-toolbar">
-                    <button class="toolbar-btn clear-btn" aria-label="Clear content" title="Clear">
-                        <span class="btn-icon">🗑️</span> Clear
-                    </button>
-                    <button class="toolbar-btn paste-btn" aria-label="Paste from clipboard" title="Paste">
-                        <span class="btn-icon">📋</span> Paste
-                    </button>
-                    <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
-                        <span class="btn-icon">📄</span> Copy
-                    </button>
-                    <button class="toolbar-btn expand-btn" aria-label="Expand code view" title="Expand">
-                        <span class="btn-icon">🔍</span> Expand
-                    </button>
-                    <button class="toolbar-btn export-btn" aria-label="Export file" title="Export">
-                        <span class="btn-icon">💾</span> Export
-                    </button>
-                    <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
-                        <span class="btn-icon">📁</span> Collapse
-                    </button>
-                </div>
-                <label for="${fileId}" class="sr-only">Code Editor</label>
+                ${this.generateToolbarHTML(fileType)}
+                <label for="${fileId}" class="sr-only">${this.getFileTypeLabel(fileType)}</label>
                 <div class="editor-wrapper">
-                    <textarea id="${fileId}"></textarea>
+                    ${this.generateFileContentDisplay(fileId, fileType, content, isBinary)}
                 </div>
             </div>
         `;
         
         this.dom.editorGrid.insertAdjacentHTML('beforeend', panelHTML);
         
-        const newTextarea = document.getElementById(fileId);
         let newEditor;
         
-        if (typeof CodeMirror !== 'undefined') {
-            const mode = fileType === 'html' ? 'htmlmixed' : 
-                       fileType === 'css' ? 'css' : 'javascript';
+        if (this.isEditableFileType(fileType)) {
+            const newTextarea = document.getElementById(fileId);
             
-            newEditor = CodeMirror.fromTextArea(newTextarea, {
-                lineNumbers: true,
-                mode: mode,
-                theme: 'dracula',
-                autoCloseTags: fileType === 'html',
-                lineWrapping: true,
-            });
-            
-            newEditor.setValue(content);
+            if (typeof CodeMirror !== 'undefined') {
+                const mode = this.getCodeMirrorMode(fileType);
+                
+                newEditor = CodeMirror.fromTextArea(newTextarea, {
+                    lineNumbers: true,
+                    mode: mode,
+                    theme: 'dracula',
+                    autoCloseTags: fileType === 'html',
+                    lineWrapping: true,
+                    readOnly: isBinary ? 'nocursor' : false
+                });
+                
+                if (!isBinary) {
+                    newEditor.setValue(content);
+                }
+            } else {
+                Object.assign(newTextarea.style, {
+                    fontFamily: 'monospace', fontSize: '14px', lineHeight: '1.5',
+                    resize: 'none', border: 'none', outline: 'none',
+                    background: '#282a36', color: '#f8f8f2', padding: '1rem',
+                    width: '100%', height: '400px'
+                });
+                
+                newEditor = {
+                    setValue: (value) => newTextarea.value = value,
+                    getValue: () => newTextarea.value,
+                    refresh: () => {},
+                    setOption: () => {},
+                };
+                
+                if (!isBinary) {
+                    newEditor.setValue(content);
+                }
+            }
         } else {
-            Object.assign(newTextarea.style, {
-                fontFamily: 'monospace', fontSize: '14px', lineHeight: '1.5',
-                resize: 'none', border: 'none', outline: 'none',
-                background: '#282a36', color: '#f8f8f2', padding: '1rem',
-                width: '100%', height: '400px'
-            });
-            
             newEditor = {
-                setValue: (value) => newTextarea.value = value,
-                getValue: () => newTextarea.value,
+                setValue: () => {},
+                getValue: () => content,
                 refresh: () => {},
                 setOption: () => {},
             };
-            
-            newEditor.setValue(content);
         }
         
         this.state.files.push({
             id: fileId,
             editor: newEditor,
-            type: fileType
+            type: fileType,
+            content: content,
+            isBinary: isBinary,
+            fileName: fileName
         });
         
         this.bindFilePanelEvents(document.querySelector(`[data-file-id="${fileId}"]`));
+        this.bindDragAndDropEvents(document.querySelector(`[data-file-id="${fileId}"]`));
         
         this.updateRemoveButtonsVisibility();
+        this.updateMainHtmlSelector();
+    },
+
+    generateFileTypeOptions(selectedType) {
+        const fileTypes = [
+            { value: 'html', label: 'HTML' },
+            { value: 'css', label: 'CSS' },
+            { value: 'javascript', label: 'JavaScript' },
+            { value: 'javascript-module', label: 'JavaScript Module' },
+            { value: 'json', label: 'JSON' },
+            { value: 'xml', label: 'XML' },
+            { value: 'markdown', label: 'Markdown' },
+            { value: 'text', label: 'Text' },
+            { value: 'svg', label: 'SVG' },
+            { value: 'image', label: 'Image' },
+            { value: 'audio', label: 'Audio' },
+            { value: 'video', label: 'Video' },
+            { value: 'font', label: 'Font' },
+            { value: 'pdf', label: 'PDF' },
+            { value: 'binary', label: 'Binary' }
+        ];
+        
+        return fileTypes.map(type => 
+            `<option value="${type.value}" ${selectedType === type.value ? 'selected' : ''}>${type.label}</option>`
+        ).join('');
+    },
+
+    generateToolbarHTML(fileType) {
+        const isEditable = this.isEditableFileType(fileType);
+        const hasExpandPreview = this.hasExpandPreview(fileType);
+        
+        let toolbarHTML = '<div class="editor-toolbar">';
+        
+        if (isEditable) {
+            toolbarHTML += this.htmlGenerators.toolbarButton('🗑️', 'Clear', 'clear-btn', 'Clear content', 'Clear');
+            toolbarHTML += this.htmlGenerators.toolbarButton('📋', 'Paste', 'paste-btn', 'Paste from clipboard', 'Paste');
+            toolbarHTML += this.htmlGenerators.toolbarButton('📄', 'Copy', 'copy-btn', 'Copy to clipboard', 'Copy');
+        }
+        
+        if (hasExpandPreview) {
+            const expandLabel = isEditable ? "Expand code view" : "View media";
+            const expandTitle = isEditable ? "Expand" : "View";
+            toolbarHTML += this.htmlGenerators.toolbarButton('🔍', expandTitle, 'expand-btn', expandLabel, expandTitle);
+        }
+        
+        toolbarHTML += this.htmlGenerators.toolbarButton('💾', 'Export', 'export-btn', 'Export file', 'Export');
+        toolbarHTML += this.htmlGenerators.toolbarButton('📁', 'Collapse', 'collapse-btn', 'Collapse/Expand editor', 'Collapse/Expand');
+        
+        toolbarHTML += '</div>';
+        return toolbarHTML;
+    },
+
+    hasExpandPreview(fileType) {
+        return this.fileTypeUtils.isPreviewableType(fileType);
+    },
+
+    getFileTypeLabel(fileType) {
+        return `${fileType.charAt(0).toUpperCase() + fileType.slice(1)} ${this.isEditableFileType(fileType) ? 'Editor' : 'Viewer'}`;
+    },
+
+    generateFileContentDisplay(fileId, fileType, content, isBinary) {
+        if (this.isEditableFileType(fileType)) {
+            return `<textarea id="${fileId}"></textarea>`;
+        }
+        
+        return this.htmlGenerators.filePreview(fileType, content);
+    },
+
+    isEditableFileType(fileType) {
+        return this.fileTypeUtils.isEditableType(fileType);
+    },
+
+    getCodeMirrorMode(fileType) {
+        return this.fileTypeUtils.getCodeMirrorMode(fileType);
+    },
+
+    updateToolbarForFileType(panel, newType) {
+        const existingToolbar = panel.querySelector('.editor-toolbar');
+        if (existingToolbar) {
+            existingToolbar.remove();
+        }
+        
+        const panelHeader = panel.querySelector('.panel-header');
+        const newToolbarHTML = this.generateToolbarHTML(newType);
+        panelHeader.insertAdjacentHTML('afterend', newToolbarHTML);
+        
+        this.bindToolbarEvents(panel);
     },
 
     bindFilePanelEvents(panel) {
@@ -590,6 +885,8 @@ const CodePreviewer = {
                         fileInfo.editor.setOption('autoCloseTags', newType === 'html');
                     }
                 }
+                
+                this.updateToolbarForFileType(panel, newType);
             });
         }
         
@@ -619,12 +916,14 @@ const CodePreviewer = {
         }
         
         this.updateRemoveButtonsVisibility();
+        this.updateMainHtmlSelector();
     },
 
     updateRemoveButtonsVisibility() {
         const allPanels = document.querySelectorAll('.editor-panel[data-file-id]');
+        const actualPanels = Array.from(allPanels).filter(panel => !panel.classList.contains('drag-clone'));
         
-        allPanels.forEach(panel => {
+        actualPanels.forEach(panel => {
             const removeBtn = panel.querySelector('.remove-file-btn');
             if (removeBtn) {
                 removeBtn.style.display = 'block';
@@ -659,8 +958,10 @@ const CodePreviewer = {
             }
             
             this.bindFilePanelEvents(panel);
+            this.bindDragAndDropEvents(panel);
         });
         this.updateRemoveButtonsVisibility();
+        this.updateMainHtmlSelector();
         
         const singleFilePanel = document.querySelector('#single-file-container .editor-panel');
         if (singleFilePanel) {
@@ -808,6 +1109,14 @@ const CodePreviewer = {
     },
 
     expandCode(panel) {
+        const fileId = panel.dataset.fileId;
+        const fileType = panel.dataset.fileType;
+        
+        if (!this.isEditableFileType(fileType)) {
+            this.showMediaPreview(panel);
+            return;
+        }
+        
         const editor = this.getEditorFromPanel(panel);
         if (!editor) return;
 
@@ -838,6 +1147,52 @@ const CodePreviewer = {
         this.openCodeModal(content, fileName, language, panel);
     },
 
+    showMediaPreview(panel) {
+        const fileId = panel.dataset.fileId;
+        const fileType = panel.dataset.fileType;
+        const fileNameInput = panel.querySelector('.file-name-input');
+        const fileName = fileNameInput ? fileNameInput.value : 'Media File';
+        
+        const fileInfo = this.state.files.find(f => f.id === fileId);
+        if (!fileInfo) {
+            console.error('File info not found for media preview');
+            return;
+        }
+        
+        let previewContent = '';
+        
+        if (fileType === 'svg') {
+            previewContent = this.htmlGenerators.mediaPreviewContent('svg', fileInfo.content, fileName, fileInfo.isBinary);
+        } else {
+            previewContent = this.htmlGenerators.mediaPreviewContent(fileType, fileInfo.content, fileName);
+        }
+        
+        this.openMediaModal(fileName, previewContent);
+    },
+
+    openMediaModal(fileName, content) {
+        if (!this.dom.mediaModal || !this.dom.mediaModalContent || !this.dom.mediaModalTitle) {
+            console.error('Media modal elements not found');
+            return;
+        }
+        
+        this.dom.mediaModalTitle.textContent = `${fileName}`;
+        this.dom.mediaModalContent.innerHTML = content;
+        
+        this.dom.mediaModal.style.display = 'flex';
+        this.dom.mediaModal.setAttribute('aria-hidden', 'false');
+    },
+
+    closeMediaModal() {
+        if (this.dom.mediaModal) {
+            this.dom.mediaModal.style.display = 'none';
+            this.dom.mediaModal.setAttribute('aria-hidden', 'true');
+        }
+        if (this.dom.mediaModalContent) {
+            this.dom.mediaModalContent.innerHTML = '';
+        }
+    },
+
     openCodeModal(content, fileName, language, sourcePanel) {
         try {
             const modal = document.getElementById('code-modal');
@@ -859,20 +1214,20 @@ const CodePreviewer = {
                         lineNumbers: true,
                         mode: language,
                         theme: 'dracula',
-                        readOnly: false, // Make editable
+                        readOnly: false,
                         lineWrapping: true,
                         autoCloseTags: true,
                         viewportMargin: Infinity,
                     });
                 } else {
                     this.state.codeModalEditor.setOption('mode', language);
-                    this.state.codeModalEditor.setOption('readOnly', false); // Make editable
+                    this.state.codeModalEditor.setOption('readOnly', false);
                 }
 
                 this.state.codeModalEditor.setValue(content);
             } else {
                 editorTextarea.value = content;
-                editorTextarea.readOnly = false; // Make editable
+                editorTextarea.readOnly = false;
                 editorTextarea.style.display = 'block';
                 editorTextarea.style.width = '100%';
                 editorTextarea.style.height = '100%';
@@ -990,41 +1345,7 @@ const CodePreviewer = {
     },
 
     showNotification(message, type = 'info') {
-        let notification = document.getElementById('notification');
-        if (!notification) {
-            notification = document.createElement('div');
-            notification.id = 'notification';
-            notification.style.cssText = `
-                position: fixed; top: 20px; right: 20px; background: var(--secondary-color);
-                color: var(--primary-color); padding: 1rem; border-radius: 8px;
-                border: 1px solid var(--border-color); z-index: 2000; opacity: 0;
-                transform: translateX(100%); transition: all 0.3s ease; max-width: 300px;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            `;
-            document.body.appendChild(notification);
-        }
-        
-        notification.textContent = message;
-        notification.className = `notification-${type}`;
-        
-        const colors = {
-            success: { border: 'var(--accent-color)', bg: 'rgba(137, 180, 250, 0.1)' },
-            warn: { border: 'var(--warn-color)', bg: 'rgba(250, 179, 135, 0.1)' },
-            error: { border: 'var(--error-color)', bg: 'rgba(243, 139, 168, 0.1)' }
-        };
-        
-        if (colors[type]) {
-            notification.style.borderColor = colors[type].border;
-            notification.style.background = colors[type].bg;
-        }
-        
-        notification.style.opacity = '1';
-        notification.style.transform = 'translateX(0)';
-        
-        setTimeout(() => {
-            notification.style.opacity = '0';
-            notification.style.transform = 'translateX(100%)';
-        }, 3000);
+        this.notificationSystem.show(message, type);
     },
 
     generateSingleFilePreview() {
@@ -1164,19 +1485,61 @@ const CodePreviewer = {
         const fileSystem = new Map();
         
         this.state.files.forEach(file => {
-            const filename = this.getFileNameFromPanel(file.id);
-            if (filename && file.editor) {
-                fileSystem.set(filename, {
-                    content: file.editor.getValue(),
-                    type: file.type
-                });
+            const currentFilename = this.getFileNameFromPanel(file.id);
+            const originalFilename = file.fileName;
+            
+            if (currentFilename && file.editor) {
+                const fileData = {
+                    content: file.content || file.editor.getValue(),
+                    type: file.type,
+                    isBinary: file.isBinary || false
+                };
+                
+                fileSystem.set(currentFilename, fileData);
+                
+                if (originalFilename && originalFilename !== currentFilename) {
+                    fileSystem.set(originalFilename, fileData);
+                }
             }
         });
         
         return fileSystem;
     },
 
-    findFileInSystem(fileSystem, targetFilename) {
+    getMimeTypeFromFileType(fileType) {
+        return this.fileTypeUtils.getMimeTypeFromFileType(fileType);
+    },
+
+    resolvePath(basePath, relativePath) {
+        if (relativePath.startsWith('/')) {
+            return relativePath.substring(1);
+        }
+        
+        const baseDir = basePath.includes('/') ? basePath.substring(0, basePath.lastIndexOf('/')) : '';
+        
+        const baseParts = baseDir ? baseDir.split('/') : [];
+        const relativeParts = relativePath.split('/');
+        
+        const resultParts = [...baseParts];
+        
+        for (const part of relativeParts) {
+            if (part === '..') {
+                if (resultParts.length > 0) {
+                    resultParts.pop();
+                }
+            } else if (part !== '.' && part !== '') {
+                resultParts.push(part);
+            }
+        }
+        
+        return resultParts.join('/');
+    },
+
+    findFileInSystem(fileSystem, targetFilename, currentFilePath = '') {
+        if (currentFilePath) {
+            targetFilename = this.resolvePath(currentFilePath, targetFilename);
+        }
+        
         const exactMatch = fileSystem.get(targetFilename);
         if (exactMatch) {
             return exactMatch;
@@ -1200,12 +1563,12 @@ const CodePreviewer = {
         }).filter(Boolean);
     },
 
-    createWorkerScript(workerFileNames, fileSystem) {
+    createWorkerScript(workerFileNames, fileSystem, currentFilePath = '') {
         if (workerFileNames.length === 0) return '';
         
         let script = '<script>\n';
         workerFileNames.forEach(fileName => {
-            const file = this.findFileInSystem(fileSystem, fileName);
+            const file = this.findFileInSystem(fileSystem, fileName, currentFilePath);
             if (file && (file.type === 'javascript' || file.type === 'javascript-module')) {
                 const blobVar = 'workerBlob_' + fileName.replace(/[^a-zA-Z0-9]/g, '_');
                 const urlVar = 'workerUrl_' + fileName.replace(/[^a-zA-Z0-9]/g, '_');
@@ -1225,18 +1588,20 @@ const CodePreviewer = {
         return htmlContent;
     },
 
-    replaceAssetReferences(htmlContent, fileSystem) {
-        htmlContent = htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.css)["']([^>]*?)>/gi, (match, before, filename, after) => {
-            const file = this.findFileInSystem(fileSystem, filename);
-            if (file && file.type === 'css') {
-                return `<style>${file.content}</style>`;
-            }
-            return match;
-        });
+    replaceAssetReferences(htmlContent, fileSystem, currentFilePath = '') {
+        htmlContent = this.assetReplacers.replaceCSS(htmlContent, fileSystem, currentFilePath);
+        htmlContent = this.assetReplacers.replaceImages(htmlContent, fileSystem, currentFilePath);
+        htmlContent = this.assetReplacers.replaceVideoSources(htmlContent, fileSystem, currentFilePath);
+        htmlContent = this.assetReplacers.replaceSourceElements(htmlContent, fileSystem, currentFilePath);
+        htmlContent = this.assetReplacers.replaceAudioSources(htmlContent, fileSystem, currentFilePath);
+        htmlContent = this.assetReplacers.replaceFavicons(htmlContent, fileSystem, currentFilePath);
+        htmlContent = this.assetReplacers.replaceDownloadLinks(htmlContent, fileSystem, currentFilePath);
+        htmlContent = this.assetReplacers.replaceFontLinks(htmlContent, fileSystem, currentFilePath);
+        htmlContent = this.assetReplacers.replaceStyleTags(htmlContent, fileSystem, currentFilePath);
         
         const workerFileNames = this.extractWorkerFileNames(htmlContent);
         if (workerFileNames.length > 0) {
-            const workerScript = this.createWorkerScript(workerFileNames, fileSystem);
+            const workerScript = this.createWorkerScript(workerFileNames, fileSystem, currentFilePath);
             htmlContent = this.replaceWorkerCalls(htmlContent, workerFileNames);
             
             if (htmlContent.includes('</head>')) {
@@ -1249,33 +1614,42 @@ const CodePreviewer = {
         }
         
         const workerFileSet = new Set(workerFileNames);
-        htmlContent = htmlContent.replace(/<script([^>]*?)src\s*=\s*["']([^"']+\.(?:js|mjs))["']([^>]*?)><\/script>/gi, (match, before, filename, after) => {
-            if (workerFileSet.has(filename)) {
-                return '';
-            }
-            
-            const file = this.findFileInSystem(fileSystem, filename);
-            if (file && (file.type === 'javascript' || file.type === 'javascript-module')) {
-                const scriptType = file.type === 'javascript-module' ? ' type="module"' : '';
-                return `<script${scriptType}>${file.content}</script>`;
-            }
-            return match;
-        });
+        htmlContent = this.assetReplacers.replaceScriptTags(htmlContent, fileSystem, currentFilePath, workerFileSet);
         
         return htmlContent;
     },
 
-    generateFullDocumentPreview() {
-        const mainHtmlFile = this.state.files.find(file => 
-            file.type === 'html' && this.isFullHTMLDocument(file.editor.getValue())
-        );
+    replaceCSSAssetReferences(cssContent, fileSystem, currentFilePath = '') {
+        cssContent = cssContent.replace(/background-image\s*:\s*url\s*\(\s*["']?([^"')]+)["']?\s*\)/gi, (match, filename) => {
+            const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
+            if (file && (file.type === 'image' || file.type === 'svg')) {
+                const src = file.isBinary ? file.content : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(file.content)}`;
+                return `background-image: url("${src}")`;
+            }
+            return match;
+        });
         
-        if (!mainHtmlFile) {
+        cssContent = cssContent.replace(/@font-face\s*{[^}]*src\s*:\s*url\s*\(\s*["']?([^"')]+)["']?\s*\)[^}]*}/gi, (match, filename) => {
+            const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
+            if (file && file.type === 'font') {
+                return match.replace(filename, file.content);
+            }
+            return match;
+        });
+        
+        return cssContent;
+    },
+
+    generateFullDocumentPreview() {
+        const mainHtmlFile = this.getMainHtmlFile();
+        
+        if (!mainHtmlFile || !this.isFullHTMLDocument(mainHtmlFile.editor.getValue())) {
             return this.generateMultiFilePreview();
         }
         
         const fileSystem = this.createVirtualFileSystem();
-        let processedHtml = this.replaceAssetReferences(mainHtmlFile.editor.getValue(), fileSystem);
+        const mainHtmlPath = this.getFileNameFromPanel(mainHtmlFile.id) || 'index.html';
+        let processedHtml = this.replaceAssetReferences(mainHtmlFile.editor.getValue(), fileSystem, mainHtmlPath);
         
         return this.injectConsoleScript(processedHtml);
     },
@@ -1407,6 +1781,11 @@ const CodePreviewer = {
         
         const { processedHtml, workerScript } = this.processWebWorkers(html, jsFiles);
         
+        const fileSystem = this.createVirtualFileSystem();
+        const mainHtmlFile = this.getMainHtmlFile();
+        const mainHtmlPath = mainHtmlFile ? (this.getFileNameFromPanel(mainHtmlFile.id) || 'index.html') : 'index.html';
+        const htmlWithAssets = this.replaceAssetReferences(processedHtml, fileSystem, mainHtmlPath);
+        
         const moduleScript = this.processModuleFiles(moduleFiles);
         const jsScript = this.processJavaScriptFiles(jsFiles);
 
@@ -1421,7 +1800,7 @@ const CodePreviewer = {
             '    <style>' + css + '</style>\n' +
             '</head>\n' +
             '<body>\n' +
-            '    ' + processedHtml + '\n' +
+            '    ' + htmlWithAssets + '\n' +
             '    ' + moduleScript + '\n' +
             '    ' + jsScript + '\n' +
             '</body>\n' +
@@ -1474,6 +1853,654 @@ const CodePreviewer = {
             this.dom.toggleConsoleBtn.classList.remove('active');
             this.dom.toggleConsoleBtn.textContent = '📋 Console';
         }
+    },
+
+    bindDragAndDropEvents(panel) {
+        const dragHandle = panel.querySelector('.drag-handle');
+        const fileId = panel.dataset.fileId;
+        
+        let touchStartY = 0;
+        let touchStartX = 0;
+        let isDragging = false;
+        let dragClone = null;
+        let lastTargetPanel = null;
+        
+        if (dragHandle) {
+            dragHandle.addEventListener('mousedown', (e) => {
+                panel.draggable = true;
+            });
+            
+            dragHandle.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                const touch = e.touches[0];
+                touchStartY = touch.clientY;
+                touchStartX = touch.clientX;
+                isDragging = false;
+                lastTargetPanel = null;
+                
+                const startDragThreshold = 10;
+                let startDrag = false;
+                
+                const touchMoveHandler = (e) => {
+                    e.preventDefault();
+                    const touch = e.touches[0];
+                    const deltaY = Math.abs(touch.clientY - touchStartY);
+                    const deltaX = Math.abs(touch.clientX - touchStartX);
+                    
+                    if (!startDrag && (deltaY > startDragThreshold || deltaX > startDragThreshold)) {
+                        startDrag = true;
+                        isDragging = true;
+                        
+                        panel.classList.add('dragging');
+                        this.state.dragState.draggedElement = panel;
+                        this.state.dragState.draggedFileId = fileId;
+                        
+                        dragClone = panel.cloneNode(true);
+                        dragClone.removeAttribute('data-file-id');
+                        dragClone.style.position = 'fixed';
+                        dragClone.style.pointerEvents = 'none';
+                        dragClone.style.zIndex = '10000';
+                        dragClone.style.opacity = '0.8';
+                        dragClone.style.transform = 'rotate(5deg)';
+                        dragClone.classList.add('drag-clone');
+                        document.body.appendChild(dragClone);
+                    }
+                    
+                    if (isDragging && dragClone) {
+                        dragClone.style.left = (touch.clientX - 50) + 'px';
+                        dragClone.style.top = (touch.clientY - 50) + 'px';
+                        
+                        const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+                        const targetPanel = elementBelow?.closest('.editor-panel[data-file-id]');
+                        
+                        if (targetPanel !== lastTargetPanel) {
+                            if (targetPanel && targetPanel !== panel) {
+                                this.showDropIndicator(targetPanel, { clientY: touch.clientY });
+                            } else {
+                                this.removeDragIndicators();
+                            }
+                            lastTargetPanel = targetPanel;
+                        }
+                    }
+                };
+                
+                const touchEndHandler = (e) => {
+                    e.preventDefault();
+                    
+                    if (isDragging) {
+                        const touch = e.changedTouches[0];
+                        const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+                        const targetPanel = elementBelow?.closest('.editor-panel[data-file-id]');
+                        
+                        if (targetPanel && targetPanel !== panel) {
+                            this.reorderPanels(panel, targetPanel, { clientY: touch.clientY });
+                        }
+                        
+                        panel.classList.remove('dragging');
+                        this.removeDragIndicators();
+                        this.state.dragState.draggedElement = null;
+                        this.state.dragState.draggedFileId = null;
+                        
+                        if (dragClone) {
+                            document.body.removeChild(dragClone);
+                            dragClone = null;
+                        }
+                        
+                        this.cleanupOrphanedDragClones();
+                    }
+                    
+                    isDragging = false;
+                    document.removeEventListener('touchmove', touchMoveHandler);
+                    document.removeEventListener('touchend', touchEndHandler);
+                };
+                
+                document.addEventListener('touchmove', touchMoveHandler, { passive: false });
+                document.addEventListener('touchend', touchEndHandler, { passive: false });
+            }, { passive: false });
+        }
+        
+        panel.addEventListener('dragstart', (e) => {
+            this.state.dragState.draggedElement = panel;
+            this.state.dragState.draggedFileId = fileId;
+            panel.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/html', panel.outerHTML);
+        });
+        
+        panel.addEventListener('dragend', (e) => {
+            panel.classList.remove('dragging');
+            this.removeDragIndicators();
+            this.state.dragState.draggedElement = null;
+            this.state.dragState.draggedFileId = null;
+            this.cleanupOrphanedDragClones();
+        });
+        
+        panel.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            
+            if (this.state.dragState.draggedElement && this.state.dragState.draggedElement !== panel) {
+                this.showDropIndicator(panel, e);
+            }
+        });
+        
+        panel.addEventListener('drop', (e) => {
+            e.preventDefault();
+            
+            if (this.state.dragState.draggedElement && this.state.dragState.draggedElement !== panel) {
+                this.reorderPanels(this.state.dragState.draggedElement, panel, e);
+            }
+            
+            this.removeDragIndicators();
+        });
+    },
+    
+    showDropIndicator(targetPanel, event) {
+        this.removeDragIndicators();
+        
+        const indicator = document.createElement('div');
+        indicator.className = 'drop-indicator';
+        this.state.dragState.dropIndicator = indicator;
+        
+        const rect = targetPanel.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        
+        if (event.clientY < midY) {
+            targetPanel.parentNode.insertBefore(indicator, targetPanel);
+        } else {
+            targetPanel.parentNode.insertBefore(indicator, targetPanel.nextSibling);
+        }
+    },
+    
+    removeDragIndicators() {
+        const indicators = document.querySelectorAll('.drop-indicator');
+        indicators.forEach(indicator => indicator.remove());
+        this.state.dragState.dropIndicator = null;
+    },
+    
+    cleanupOrphanedDragClones() {
+        const orphanedClones = document.querySelectorAll('.drag-clone');
+        orphanedClones.forEach(clone => {
+            if (clone.parentNode) {
+                clone.parentNode.removeChild(clone);
+            }
+        });
+    },
+
+    reorderPanels(draggedPanel, targetPanel, event) {
+        const rect = targetPanel.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        const insertBefore = event.clientY < midY;
+        
+        if (insertBefore) {
+            targetPanel.parentNode.insertBefore(draggedPanel, targetPanel);
+        } else {
+            targetPanel.parentNode.insertBefore(draggedPanel, targetPanel.nextSibling);
+        }
+        
+        this.updateFilesOrder();
+    },
+    
+    updateFilesOrder() {
+        const panels = Array.from(document.querySelectorAll('.editor-panel[data-file-id]'))
+            .filter(panel => !panel.classList.contains('drag-clone'));
+        const newFilesOrder = [];
+        
+        panels.forEach(panel => {
+            const fileId = panel.dataset.fileId;
+            const fileInfo = this.state.files.find(f => f.id === fileId);
+            if (fileInfo) {
+                newFilesOrder.push(fileInfo);
+            }
+        });
+        
+        this.state.files = newFilesOrder;
+    },
+
+    async exportZip() {
+        try {
+            if (typeof JSZip === 'undefined') {
+                this.showNotification('JSZip library not available', 'error');
+                return;
+            }
+            
+            const zip = new JSZip();
+            
+            this.state.files.forEach(file => {
+                const filename = this.getFileNameFromPanel(file.id) || `file_${file.id}`;
+                let content = file.content || file.editor.getValue();
+                
+                if (filename.includes('/')) {
+                    const pathParts = filename.split('/');
+                    const fileName = pathParts.pop();
+                    const folderPath = pathParts.join('/');
+                    
+                    let currentFolder = zip;
+                    pathParts.forEach(folderName => {
+                        currentFolder = currentFolder.folder(folderName);
+                    });
+                    
+                    if (file.isBinary && content.startsWith('data:')) {
+                        const base64Content = content.split(',')[1];
+                        currentFolder.file(fileName, base64Content, {base64: true});
+                    } else {
+                        currentFolder.file(fileName, content);
+                    }
+                } else {
+                    if (file.isBinary && content.startsWith('data:')) {
+                        const base64Content = content.split(',')[1];
+                        zip.file(filename, base64Content, {base64: true});
+                    } else {
+                        zip.file(filename, content);
+                    }
+                }
+            });
+            
+            const blob = await zip.generateAsync({type: 'blob'});
+            const url = URL.createObjectURL(blob);
+            
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'project.zip';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            URL.revokeObjectURL(url);
+            this.showNotification('Project exported as ZIP successfully!', 'success');
+            
+        } catch (error) {
+            console.error('Error exporting ZIP:', error);
+            this.showNotification('Failed to export project as ZIP', 'error');
+        }
+    },
+    
+    async importZip() {
+        try {
+            if (typeof JSZip === 'undefined') {
+                this.showNotification('JSZip library not available', 'error');
+                return;
+            }
+            
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = '.zip';
+            fileInput.style.display = 'none';
+            
+            const cleanup = () => {
+                if (document.body.contains(fileInput)) {
+                    document.body.removeChild(fileInput);
+                }
+            };
+            
+            fileInput.addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (!file) {
+                    cleanup();
+                    return;
+                }
+                
+                try {
+                    const zip = await JSZip.loadAsync(file);
+                    
+                    for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
+                        if (zipEntry.dir) continue;
+                        
+                        let content;
+                        let isBinary = false;
+                        
+                        const extension = relativePath.split('.').pop().toLowerCase();
+                        isBinary = this.isBinaryFile(relativePath, '');
+                        
+                        if (isBinary) {
+                            const base64Content = await zipEntry.async('base64');
+                            const mimeType = this.getMimeTypeFromExtension(extension);
+                            content = `data:${mimeType};base64,${base64Content}`;
+                        } else {
+                            content = await zipEntry.async('string');
+                        }
+                        
+                        const fileType = this.getFileTypeFromExtension(extension);
+                        
+                        const fileName = relativePath;
+                        
+                        const existingFilenames = this.getExistingFilenames();
+                        if (existingFilenames.includes(fileName)) {
+                            this.showNotification(`File '${fileName}' already exists, skipping...`, 'warn');
+                            continue;
+                        }
+                        
+                        this.addNewFileWithContent(fileName, fileType, content, isBinary);
+                    }
+                    
+                    this.showNotification('ZIP project imported successfully!', 'success');
+                    
+                } catch (error) {
+                    console.error('Error processing ZIP file:', error);
+                    this.showNotification('Failed to import ZIP file', 'error');
+                }
+                
+                cleanup();
+            });
+            
+            fileInput.addEventListener('cancel', cleanup);
+            
+            const focusHandler = () => {
+                setTimeout(() => {
+                    if (document.body.contains(fileInput)) {
+                        cleanup();
+                    }
+                }, 100);
+            };
+            
+            window.addEventListener('focus', focusHandler, { once: true });
+            
+            document.body.appendChild(fileInput);
+            fileInput.click();
+            
+        } catch (error) {
+            console.error('Error importing ZIP:', error);
+            this.showNotification('Failed to import ZIP file', 'error');
+        }
+    },
+    
+    getMimeTypeFromExtension(extension) {
+        return this.fileTypeUtils.getMimeTypeFromExtension(extension);
+    },
+    
+    getFileTypeFromExtension(extension) {
+        return this.fileTypeUtils.getTypeFromExtension(extension);
+    },
+
+    htmlGenerators: {
+        toolbarButton(icon, text, className, ariaLabel, title) {
+            return `<button class="toolbar-btn ${className}" aria-label="${ariaLabel}" title="${title}">
+                <span class="btn-icon">${icon}</span> ${text}
+            </button>`;
+        },
+
+        fileTypeOption(value, label, selected = false) {
+            return `<option value="${value}" ${selected ? 'selected' : ''}>${label}</option>`;
+        },
+
+        filePreview(type, content, fileName = '') {
+            const previews = {
+                image: `<div class="file-preview image-preview">
+                    <img src="${content}" alt="Preview" style="max-width: 100%; max-height: 400px;">
+                </div>`,
+                audio: `<div class="file-preview audio-preview">
+                    <audio controls style="width: 100%;">
+                        <source src="${content}">
+                        Your browser does not support the audio element.
+                    </audio>
+                </div>`,
+                video: `<div class="file-preview video-preview">
+                    <video controls style="max-width: 100%; max-height: 400px;">
+                        <source src="${content}">
+                        Your browser does not support the video element.
+                    </video>
+                </div>`,
+                pdf: `<div class="file-preview pdf-preview">
+                    <object data="${content}" type="application/pdf" style="width: 100%; height: 400px;">
+                        <p>PDF failed to load. <a href="${content}" target="_blank">Open in new tab</a></p>
+                    </object>
+                </div>`,
+                default: `<div class="file-preview binary-preview">
+                    <p>📁 Binary file: Cannot display content</p>
+                    <p>File can be referenced in HTML code</p>
+                </div>`
+            };
+            return previews[type] || previews.default;
+        },
+
+        mediaPreviewContent(type, content, fileName) {
+            const containers = {
+                image: `<div class="media-preview-container">
+                    <img src="${content}" alt="${fileName}">
+                </div>`,
+                audio: `<div class="media-preview-container">
+                    <h3>${fileName}</h3>
+                    <audio controls>
+                        <source src="${content}">
+                        Your browser does not support the audio element.
+                    </audio>
+                </div>`,
+                video: `<div class="media-preview-container">
+                    <h3>${fileName}</h3>
+                    <video controls>
+                        <source src="${content}">
+                        Your browser does not support the video element.
+                    </video>
+                </div>`,
+                pdf: `<div class="media-preview-container">
+                    <h3>${fileName}</h3>
+                    <object data="${content}" type="application/pdf">
+                        <p>PDF failed to load. <a href="${content}" target="_blank">Open in new tab</a></p>
+                    </object>
+                </div>`,
+                svg: (content, fileName, isBinary) => {
+                    const svgDataUrl = isBinary ? content : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(content)}`;
+                    return `<div class="media-preview-container">
+                        <h3>${fileName}</h3>
+                        <img src="${svgDataUrl}" alt="${fileName}">
+                    </div>`;
+                },
+                default: `<div class="media-preview-container">
+                    <h3>${fileName}</h3>
+                    <p>Preview not available for this file type.</p>
+                </div>`
+            };
+            return typeof containers[type] === 'function' ? containers[type](content, fileName) : (containers[type] || containers.default);
+        }
+    },
+
+    notificationSystem: {
+        show(message, type = 'info') {
+            let notification = document.getElementById('notification');
+            if (!notification) {
+                notification = document.createElement('div');
+                notification.id = 'notification';
+                notification.style.cssText = `
+                    position: fixed; top: 20px; right: 20px; background: var(--secondary-color);
+                    color: var(--primary-color); padding: 1rem; border-radius: 8px;
+                    border: 1px solid var(--border-color); z-index: 2000; opacity: 0;
+                    transform: translateX(100%); transition: all 0.3s ease; max-width: 300px;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                `;
+                document.body.appendChild(notification);
+            }
+            
+            notification.textContent = message;
+            notification.className = `notification-${type}`;
+            
+            const colors = {
+                success: { border: 'var(--accent-color)', bg: 'rgba(137, 180, 250, 0.1)' },
+                warn: { border: 'var(--warn-color)', bg: 'rgba(250, 179, 135, 0.1)' },
+                error: { border: 'var(--error-color)', bg: 'rgba(243, 139, 168, 0.1)' }
+            };
+            
+            if (colors[type]) {
+                notification.style.borderColor = colors[type].border;
+                notification.style.background = colors[type].bg;
+            }
+            
+            notification.style.opacity = '1';
+            notification.style.transform = 'translateX(0)';
+            
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                notification.style.transform = 'translateX(100%)';
+            }, 3000);
+        }
+    },
+
+    assetReplacers: {
+        replaceCSS(htmlContent, fileSystem, currentFilePath) {
+            return htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.css)["']([^>]*?)>/gi, (match, before, filename, after) => {
+                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
+                if (file && file.type === 'css') {
+                    return `<style>${file.content}</style>`;
+                }
+                return match;
+            });
+        },
+
+        replaceImages(htmlContent, fileSystem, currentFilePath) {
+            return htmlContent.replace(/<img([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
+                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
+                if (file && (file.type === 'image' || file.type === 'svg')) {
+                    const src = file.isBinary ? file.content : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(file.content)}`;
+                    const newSrc = `src="${src}"`;
+                    return match.replace(/src\s*=\s*["'][^"']*["']/i, newSrc);
+                }
+                return match;
+            });
+        },
+
+        replaceVideoSources(htmlContent, fileSystem, currentFilePath) {
+            return htmlContent.replace(/<video([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
+                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
+                if (file && file.type === 'video') {
+                    const newSrc = `src="${file.content}"`;
+                    return match.replace(/src\s*=\s*["'][^"']*["']/i, newSrc);
+                }
+                return match;
+            });
+        },
+
+        replaceSourceElements(htmlContent, fileSystem, currentFilePath) {
+            return htmlContent.replace(/<source([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
+                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
+                if (file && (file.type === 'video' || file.type === 'audio')) {
+                    const newSrc = `src="${file.content}"`;
+                    return match.replace(/src\s*=\s*["'][^"']*["']/i, newSrc);
+                }
+                return match;
+            });
+        },
+
+        replaceAudioSources(htmlContent, fileSystem, currentFilePath) {
+            return htmlContent.replace(/<audio([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
+                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
+                if (file && file.type === 'audio') {
+                    const newSrc = `src="${file.content}"`;
+                    return match.replace(/src\s*=\s*["'][^"']*["']/i, newSrc);
+                }
+                return match;
+            });
+        },
+
+        replaceFavicons(htmlContent, fileSystem, currentFilePath) {
+            return htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.ico)["']([^>]*?)>/gi, (match, before, filename, after) => {
+                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
+                if (file && file.type === 'image') {
+                    const newHref = `href="${file.content}"`;
+                    return match.replace(/href\s*=\s*["'][^"']*["']/i, newHref);
+                }
+                return match;
+            });
+        },
+
+        replaceDownloadLinks(htmlContent, fileSystem, currentFilePath) {
+            return htmlContent.replace(/<a([^>]*?)href\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
+                if (match.includes('download') || !filename.includes('://')) {
+                    const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
+                    if (file) {
+                        let href;
+                        if (file.isBinary) {
+                            href = file.content;
+                        } else {
+                            const mimeType = CodePreviewer.getMimeTypeFromFileType(file.type);
+                            href = `data:${mimeType};charset=utf-8,${encodeURIComponent(file.content)}`;
+                        }
+                        const newHref = `href="${href}"`;
+                        return match.replace(/href\s*=\s*["'][^"']*["']/i, newHref);
+                    }
+                }
+                return match;
+            });
+        },
+
+        replaceFontLinks(htmlContent, fileSystem, currentFilePath) {
+            return htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.(?:woff|woff2|ttf|otf|eot))["']([^>]*?)>/gi, (match, before, filename, after) => {
+                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
+                if (file && file.type === 'font') {
+                    return `<link${before}href="${file.content}"${after}>`;
+                }
+                return match;
+            });
+        },
+
+        replaceStyleTags(htmlContent, fileSystem, currentFilePath) {
+            return htmlContent.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (match, cssContent) => {
+                const updatedCSS = CodePreviewer.replaceCSSAssetReferences(cssContent, fileSystem, currentFilePath);
+                return match.replace(cssContent, updatedCSS);
+            });
+        },
+
+        replaceScriptTags(htmlContent, fileSystem, currentFilePath, workerFileSet) {
+            return htmlContent.replace(/<script([^>]*?)src\s*=\s*["']([^"']+\.(?:js|mjs))["']([^>]*?)><\/script>/gi, (match, before, filename, after) => {
+                if (workerFileSet.has(filename)) {
+                    return '';
+                }
+                
+                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
+                if (file && (file.type === 'javascript' || file.type === 'javascript-module')) {
+                    const scriptType = file.type === 'javascript-module' ? ' type="module"' : '';
+                    return `<script${scriptType}>${file.content}</script>`;
+                }
+                return match;
+            });
+        }
+    },
+
+    updateMainHtmlSelector() {
+        const htmlFiles = this.state.files.filter(f => f.type === 'html');
+        
+        if (htmlFiles.length <= 1) {
+            this.dom.mainHtmlSelector.style.display = 'none';
+            return;
+        }
+        
+        this.dom.mainHtmlSelector.style.display = 'flex';
+        
+        this.dom.mainHtmlSelect.innerHTML = '<option value="">Auto-detect</option>';
+        
+        htmlFiles.forEach(file => {
+            const fileName = this.getFileNameFromPanel(file.id) || `file_${file.id}`;
+            const option = document.createElement('option');
+            option.value = file.id;
+            option.textContent = fileName;
+            
+            if (this.state.mainHtmlFile === file.id) {
+                option.selected = true;
+            }
+            
+            this.dom.mainHtmlSelect.appendChild(option);
+        });
+    },
+    
+    getMainHtmlFile() {
+        if (this.state.mainHtmlFile) {
+            const file = this.state.files.find(f => f.id === this.state.mainHtmlFile && f.type === 'html');
+            if (file) {
+                return file;
+            }
+        }
+        
+        const htmlFiles = this.state.files.filter(f => f.type === 'html');
+        
+        const indexFile = htmlFiles.find(f => {
+            const fileName = this.getFileNameFromPanel(f.id) || '';
+            return fileName.toLowerCase().includes('index.html');
+        });
+        
+        if (indexFile) return indexFile;
+        
+        const fullDocFile = htmlFiles.find(f => this.isFullHTMLDocument(f.editor.getValue()));
+        if (fullDocFile) return fullDocFile;
+        
+        return htmlFiles[0] || null;
     },
 
     console: {
