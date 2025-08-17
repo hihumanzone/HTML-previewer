@@ -2803,6 +2803,8 @@ const CodePreviewer = {
                 '                        let targetPath = value.replace(/^\\.\\//, "");\n' +
                 '                        console.log("🖼️ Image target path:", targetPath);\n' +
                 '                        console.log("🗂️ Available files:", Object.keys(virtualFileSystem));\n' +
+                '                        console.log("📍 Current file path:", currentFilePath);\n' +
+                '                        console.log("🔍 Window execution context:", window.__currentExecutionContext);\n' +
                 '                        const fileData = findFileInSystem(targetPath, currentFilePath);\n' +
                 '                        \n' +
                 '                        if (fileData) {\n' +
