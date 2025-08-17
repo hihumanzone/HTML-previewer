@@ -2569,7 +2569,6 @@ const CodePreviewer = {
             return '<script>\n' +
                 '(function() {\n' +
                 fileSystemScript + '\n' +
-                '    console.log("Virtual file system loaded:", virtualFileSystem);\n' +
                 '    \n' +
                 '    // Override fetch to serve virtual files\n' +
                 '    const originalFetch = window.fetch;\n' +
