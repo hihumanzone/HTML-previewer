@@ -290,11 +290,41 @@ const CodePreviewer = {
         return false;
     },
 
-    autoDetectFileType(filename, content) {
-        if (!filename) return 'javascript';
+    autoDetectFileType(filename, content, mimeType) {
+        if (!filename) return 'text';
         
         const extension = filename.split('.').pop().toLowerCase();
         
+        // Image files
+        const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'ico', 'tiff'];
+        if (imageExtensions.includes(extension) || (mimeType && mimeType.startsWith('image/'))) {
+            return extension === 'svg' ? 'svg' : 'image';
+        }
+        
+        // Audio files  
+        const audioExtensions = ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'wma'];
+        if (audioExtensions.includes(extension) || (mimeType && mimeType.startsWith('audio/'))) {
+            return 'audio';
+        }
+        
+        // Video files
+        const videoExtensions = ['mp4', 'webm', 'mov', 'avi', 'mkv', 'wmv', 'flv', 'm4v'];
+        if (videoExtensions.includes(extension) || (mimeType && mimeType.startsWith('video/'))) {
+            return 'video';
+        }
+        
+        // Font files
+        const fontExtensions = ['woff', 'woff2', 'ttf', 'otf', 'eot'];
+        if (fontExtensions.includes(extension) || (mimeType && mimeType.startsWith('font/'))) {
+            return 'font';
+        }
+        
+        // Document files
+        if (extension === 'pdf' || mimeType === 'application/pdf') {
+            return 'pdf';
+        }
+        
+        // Text-based files
         switch (extension) {
             case 'html':
             case 'htm':
@@ -314,14 +344,24 @@ const CodePreviewer = {
             case 'tsx':
                 return this.isModuleFile(content, filename) ? 'javascript-module' : 'javascript';
             case 'json':
-                return 'javascript';
+                return 'json';
+            case 'xml':
+                return 'xml';
+            case 'md':
+            case 'markdown':
+                return 'markdown';
+            case 'txt':
+                return 'text';
+            case 'svg':
+                return 'svg';
             default:
+                // Content-based detection for text files
                 if (content) {
                     if (/<\s*html/i.test(content)) return 'html';
                     if (/^\s*[\.\#\@]|\s*\w+\s*\{/m.test(content)) return 'css';
                     if (this.isModuleFile(content, filename)) return 'javascript-module';
                 }
-                return 'javascript';
+                return 'binary';
         }
     },
 
@@ -420,7 +460,7 @@ const CodePreviewer = {
     importFile() {
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
-        fileInput.accept = '.html,.htm,.css,.js,.mjs,.jsx,.ts,.tsx';
+        fileInput.accept = '*/*';
         fileInput.style.display = 'none';
         
         fileInput.addEventListener('change', async (event) => {
@@ -428,11 +468,11 @@ const CodePreviewer = {
             if (!file) return;
             
             try {
-                const content = await this.readFileContent(file);
+                const fileData = await this.readFileContent(file);
                 
-                const detectedType = this.autoDetectFileType(file.name, content);
+                const detectedType = this.autoDetectFileType(file.name, fileData.isBinary ? null : fileData.content, file.type);
                 
-                this.addNewFileWithContent(file.name, detectedType, content);
+                this.addNewFileWithContent(file.name, detectedType, fileData.content, fileData.isBinary);
                 
             } catch (error) {
                 console.error('Error importing file:', error);
@@ -449,24 +489,72 @@ const CodePreviewer = {
     readFileContent(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
-            reader.onload = (e) => resolve(e.target.result);
+            reader.onload = (e) => resolve({
+                content: e.target.result,
+                isBinary: this.isBinaryFile(file.name, file.type)
+            });
             reader.onerror = (e) => reject(e);
-            reader.readAsText(file);
+            
+            // Use appropriate reading method based on file type
+            if (this.isBinaryFile(file.name, file.type)) {
+                reader.readAsDataURL(file);
+            } else {
+                reader.readAsText(file);
+            }
         });
     },
 
-    addNewFileWithContent(fileName, fileType, content) {
+    isBinaryFile(filename, mimeType) {
+        if (!filename) return false;
+        
+        const extension = filename.split('.').pop().toLowerCase();
+        const binaryExtensions = [
+            // Images
+            'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'ico', 'tiff',
+            // Audio
+            'mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'wma',
+            // Video  
+            'mp4', 'webm', 'mov', 'avi', 'mkv', 'wmv', 'flv', 'm4v',
+            // Fonts
+            'woff', 'woff2', 'ttf', 'otf', 'eot',
+            // Documents
+            'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+            // Archives
+            'zip', 'rar', '7z', 'tar', 'gz',
+            // Other binary
+            'exe', 'dll', 'so', 'dylib'
+        ];
+        
+        // Check by extension
+        if (binaryExtensions.includes(extension)) {
+            return true;
+        }
+        
+        // Check by MIME type
+        if (mimeType) {
+            return mimeType.startsWith('image/') || 
+                   mimeType.startsWith('audio/') || 
+                   mimeType.startsWith('video/') || 
+                   mimeType.startsWith('application/') ||
+                   mimeType.startsWith('font/');
+        }
+        
+        return false;
+    },
+
+    addNewFileWithContent(fileName, fileType, content, isBinary = false) {
         const fileId = `file-${this.state.nextFileId++}`;
+        
+        const fileTypeOptions = this.generateFileTypeOptions(fileType);
+        const fileIcon = this.getFileTypeIcon(fileType);
         
         const panelHTML = `
             <div class="editor-panel" data-file-type="${fileType}" data-file-id="${fileId}">
                 <div class="panel-header">
+                    <span class="file-icon">${fileIcon}</span>
                     <input type="text" class="file-name-input" value="${fileName}" aria-label="File name">
                     <select class="file-type-selector" aria-label="File type">
-                        <option value="html" ${fileType === 'html' ? 'selected' : ''}>HTML</option>
-                        <option value="css" ${fileType === 'css' ? 'selected' : ''}>CSS</option>
-                        <option value="javascript" ${fileType === 'javascript' ? 'selected' : ''}>JavaScript</option>
-                        <option value="javascript-module" ${fileType === 'javascript-module' ? 'selected' : ''}>JavaScript Module</option>
+                        ${fileTypeOptions}
                     </select>
                     <button class="remove-file-btn" aria-label="Remove file">&times;</button>
                 </div>
@@ -490,58 +578,205 @@ const CodePreviewer = {
                         <span class="btn-icon">📁</span> Collapse
                     </button>
                 </div>
-                <label for="${fileId}" class="sr-only">Code Editor</label>
+                <label for="${fileId}" class="sr-only">${this.getFileTypeLabel(fileType)}</label>
                 <div class="editor-wrapper">
-                    <textarea id="${fileId}"></textarea>
+                    ${this.generateFileContentDisplay(fileId, fileType, content, isBinary)}
                 </div>
             </div>
         `;
         
         this.dom.editorGrid.insertAdjacentHTML('beforeend', panelHTML);
         
-        const newTextarea = document.getElementById(fileId);
         let newEditor;
         
-        if (typeof CodeMirror !== 'undefined') {
-            const mode = fileType === 'html' ? 'htmlmixed' : 
-                       fileType === 'css' ? 'css' : 'javascript';
+        // Create appropriate editor based on file type
+        if (this.isEditableFileType(fileType)) {
+            const newTextarea = document.getElementById(fileId);
             
-            newEditor = CodeMirror.fromTextArea(newTextarea, {
-                lineNumbers: true,
-                mode: mode,
-                theme: 'dracula',
-                autoCloseTags: fileType === 'html',
-                lineWrapping: true,
-            });
-            
-            newEditor.setValue(content);
+            if (typeof CodeMirror !== 'undefined') {
+                const mode = this.getCodeMirrorMode(fileType);
+                
+                newEditor = CodeMirror.fromTextArea(newTextarea, {
+                    lineNumbers: true,
+                    mode: mode,
+                    theme: 'dracula',
+                    autoCloseTags: fileType === 'html',
+                    lineWrapping: true,
+                    readOnly: isBinary ? 'nocursor' : false
+                });
+                
+                if (!isBinary) {
+                    newEditor.setValue(content);
+                }
+            } else {
+                Object.assign(newTextarea.style, {
+                    fontFamily: 'monospace', fontSize: '14px', lineHeight: '1.5',
+                    resize: 'none', border: 'none', outline: 'none',
+                    background: '#282a36', color: '#f8f8f2', padding: '1rem',
+                    width: '100%', height: '400px'
+                });
+                
+                newEditor = {
+                    setValue: (value) => newTextarea.value = value,
+                    getValue: () => newTextarea.value,
+                    refresh: () => {},
+                    setOption: () => {},
+                };
+                
+                if (!isBinary) {
+                    newEditor.setValue(content);
+                }
+            }
         } else {
-            Object.assign(newTextarea.style, {
-                fontFamily: 'monospace', fontSize: '14px', lineHeight: '1.5',
-                resize: 'none', border: 'none', outline: 'none',
-                background: '#282a36', color: '#f8f8f2', padding: '1rem',
-                width: '100%', height: '400px'
-            });
-            
+            // For non-editable files, create a simple container
             newEditor = {
-                setValue: (value) => newTextarea.value = value,
-                getValue: () => newTextarea.value,
+                setValue: () => {},
+                getValue: () => content,
                 refresh: () => {},
                 setOption: () => {},
             };
-            
-            newEditor.setValue(content);
         }
         
         this.state.files.push({
             id: fileId,
             editor: newEditor,
-            type: fileType
+            type: fileType,
+            content: content,
+            isBinary: isBinary,
+            fileName: fileName
         });
         
         this.bindFilePanelEvents(document.querySelector(`[data-file-id="${fileId}"]`));
         
         this.updateRemoveButtonsVisibility();
+    },
+
+    generateFileTypeOptions(selectedType) {
+        const fileTypes = [
+            { value: 'html', label: 'HTML' },
+            { value: 'css', label: 'CSS' },
+            { value: 'javascript', label: 'JavaScript' },
+            { value: 'javascript-module', label: 'JavaScript Module' },
+            { value: 'json', label: 'JSON' },
+            { value: 'xml', label: 'XML' },
+            { value: 'markdown', label: 'Markdown' },
+            { value: 'text', label: 'Text' },
+            { value: 'svg', label: 'SVG' },
+            { value: 'image', label: 'Image' },
+            { value: 'audio', label: 'Audio' },
+            { value: 'video', label: 'Video' },
+            { value: 'font', label: 'Font' },
+            { value: 'pdf', label: 'PDF' },
+            { value: 'binary', label: 'Binary' }
+        ];
+        
+        return fileTypes.map(type => 
+            `<option value="${type.value}" ${selectedType === type.value ? 'selected' : ''}>${type.label}</option>`
+        ).join('');
+    },
+
+    getFileTypeIcon(fileType) {
+        const icons = {
+            html: '📄',
+            css: '🎨',
+            javascript: '⚡',
+            'javascript-module': '📦',
+            json: '📋',
+            xml: '📋',
+            markdown: '📝',
+            text: '📄',
+            svg: '🖼️',
+            image: '🖼️',
+            audio: '🎵',
+            video: '🎬',
+            font: '🔤',
+            pdf: '📕',
+            binary: '📁'
+        };
+        
+        return icons[fileType] || '📁';
+    },
+
+    getFileTypeLabel(fileType) {
+        const labels = {
+            html: 'HTML Editor',
+            css: 'CSS Editor',
+            javascript: 'JavaScript Editor',
+            'javascript-module': 'JavaScript Module Editor',
+            json: 'JSON Editor',
+            xml: 'XML Editor',
+            markdown: 'Markdown Editor',
+            text: 'Text Editor',
+            svg: 'SVG Viewer',
+            image: 'Image Viewer',
+            audio: 'Audio Player',
+            video: 'Video Player',
+            font: 'Font Viewer',
+            pdf: 'PDF Viewer',
+            binary: 'Binary File'
+        };
+        
+        return labels[fileType] || 'File Viewer';
+    },
+
+    generateFileContentDisplay(fileId, fileType, content, isBinary) {
+        if (this.isEditableFileType(fileType)) {
+            return `<textarea id="${fileId}"></textarea>`;
+        }
+        
+        // For non-editable files, create appropriate preview
+        switch (fileType) {
+            case 'image':
+                return `<div class="file-preview image-preview">
+                    <img src="${content}" alt="Preview" style="max-width: 100%; max-height: 400px;">
+                </div>`;
+            case 'audio':
+                return `<div class="file-preview audio-preview">
+                    <audio controls style="width: 100%;">
+                        <source src="${content}">
+                        Your browser does not support the audio element.
+                    </audio>
+                </div>`;
+            case 'video':
+                return `<div class="file-preview video-preview">
+                    <video controls style="max-width: 100%; max-height: 400px;">
+                        <source src="${content}">
+                        Your browser does not support the video element.
+                    </video>
+                </div>`;
+            case 'pdf':
+                return `<div class="file-preview pdf-preview">
+                    <object data="${content}" type="application/pdf" style="width: 100%; height: 400px;">
+                        <p>PDF failed to load. <a href="${content}" target="_blank">Open in new tab</a></p>
+                    </object>
+                </div>`;
+            default:
+                return `<div class="file-preview binary-preview">
+                    <p>📁 Binary file: Cannot display content</p>
+                    <p>File can be referenced in HTML code</p>
+                </div>`;
+        }
+    },
+
+    isEditableFileType(fileType) {
+        const editableTypes = ['html', 'css', 'javascript', 'javascript-module', 'json', 'xml', 'markdown', 'text', 'svg'];
+        return editableTypes.includes(fileType);
+    },
+
+    getCodeMirrorMode(fileType) {
+        const modes = {
+            html: 'htmlmixed',
+            css: 'css',
+            javascript: 'javascript',
+            'javascript-module': 'javascript',
+            json: 'javascript',
+            xml: 'xml',
+            markdown: 'markdown',
+            text: 'text',
+            svg: 'xml'
+        };
+        
+        return modes[fileType] || 'text';
     },
 
     bindFilePanelEvents(panel) {
