@@ -395,6 +395,17 @@ const CodePreviewer = {
         return null;
     },
 
+    getExistingFilenames() {
+        const filenames = [];
+        this.state.files.forEach(file => {
+            const filename = this.getFileNameFromPanel(file.id);
+            if (filename) {
+                filenames.push(filename);
+            }
+        });
+        return filenames;
+    },
+
     addNewFile() {
         const fileId = `file-${this.state.nextFileId++}`;
         const fileName = `newfile.html`;
@@ -470,6 +481,13 @@ const CodePreviewer = {
             if (!file) return;
             
             try {
+                // Check for duplicate filename
+                const existingFilenames = this.getExistingFilenames();
+                if (existingFilenames.includes(file.name)) {
+                    this.showNotification(`A file named "${file.name}" already exists. Please rename the existing file first or choose a different file.`, 'error');
+                    return;
+                }
+                
                 const fileData = await this.readFileContent(file);
                 
                 const detectedType = this.autoDetectFileType(file.name, fileData.isBinary ? null : fileData.content, file.type);
@@ -1568,17 +1586,45 @@ const CodePreviewer = {
         const fileSystem = new Map();
         
         this.state.files.forEach(file => {
-            let filename = file.fileName || this.getFileNameFromPanel(file.id);
-            if (filename && file.editor) {
-                fileSystem.set(filename, {
+            const currentFilename = this.getFileNameFromPanel(file.id);
+            const originalFilename = file.fileName;
+            
+            if (currentFilename && file.editor) {
+                const fileData = {
                     content: file.content || file.editor.getValue(),
                     type: file.type,
                     isBinary: file.isBinary || false
-                });
+                };
+                
+                // Map both current and original filenames to the same content
+                fileSystem.set(currentFilename, fileData);
+                
+                // If the filename was changed, also map the original filename
+                if (originalFilename && originalFilename !== currentFilename) {
+                    fileSystem.set(originalFilename, fileData);
+                }
             }
         });
         
         return fileSystem;
+    },
+
+    getMimeTypeFromFileType(fileType) {
+        const mimeTypes = {
+            'html': 'text/html',
+            'css': 'text/css',
+            'javascript': 'text/javascript',
+            'javascript-module': 'text/javascript',
+            'json': 'application/json',
+            'xml': 'application/xml',
+            'svg': 'image/svg+xml',
+            'text': 'text/plain',
+            'image': 'image/png', // fallback for images
+            'audio': 'audio/mpeg', // fallback for audio
+            'video': 'video/mp4', // fallback for video
+            'pdf': 'application/pdf'
+        };
+        return mimeTypes[fileType] || 'text/plain';
     },
 
     findFileInSystem(fileSystem, targetFilename) {
@@ -1646,7 +1692,10 @@ const CodePreviewer = {
             if (file && (file.type === 'image' || file.type === 'svg')) {
                 // For binary images, use the data URL; for SVG use the text content as data URL
                 const src = file.isBinary ? file.content : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(file.content)}`;
-                return `<img${before}src="${src}"${after}>`;
+                
+                // Reconstruct the img tag by replacing only the src attribute value
+                const newSrc = `src="${src}"`;
+                return match.replace(/src\s*=\s*["'][^"']*["']/i, newSrc);
             }
             return match;
         });
@@ -1655,7 +1704,8 @@ const CodePreviewer = {
         htmlContent = htmlContent.replace(/<video([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
             const file = this.findFileInSystem(fileSystem, filename);
             if (file && file.type === 'video') {
-                return `<video${before}src="${file.content}"${after}>`;
+                const newSrc = `src="${file.content}"`;
+                return match.replace(/src\s*=\s*["'][^"']*["']/i, newSrc);
             }
             return match;
         });
@@ -1664,7 +1714,8 @@ const CodePreviewer = {
         htmlContent = htmlContent.replace(/<source([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
             const file = this.findFileInSystem(fileSystem, filename);
             if (file && (file.type === 'video' || file.type === 'audio')) {
-                return `<source${before}src="${file.content}"${after}>`;
+                const newSrc = `src="${file.content}"`;
+                return match.replace(/src\s*=\s*["'][^"']*["']/i, newSrc);
             }
             return match;
         });
@@ -1673,7 +1724,8 @@ const CodePreviewer = {
         htmlContent = htmlContent.replace(/<audio([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
             const file = this.findFileInSystem(fileSystem, filename);
             if (file && file.type === 'audio') {
-                return `<audio${before}src="${file.content}"${after}>`;
+                const newSrc = `src="${file.content}"`;
+                return match.replace(/src\s*=\s*["'][^"']*["']/i, newSrc);
             }
             return match;
         });
@@ -1682,7 +1734,31 @@ const CodePreviewer = {
         htmlContent = htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.ico)["']([^>]*?)>/gi, (match, before, filename, after) => {
             const file = this.findFileInSystem(fileSystem, filename);
             if (file && file.type === 'image') {
-                return `<link${before}href="${file.content}"${after}>`;
+                const newHref = `href="${file.content}"`;
+                return match.replace(/href\s*=\s*["'][^"']*["']/i, newHref);
+            }
+            return match;
+        });
+        
+        // Replace download links (anchor tags with download attribute)
+        htmlContent = htmlContent.replace(/<a([^>]*?)href\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
+            // Only replace if the anchor has a download attribute or points to a local file
+            if (match.includes('download') || !filename.includes('://')) {
+                const file = this.findFileInSystem(fileSystem, filename);
+                if (file) {
+                    // For binary files, use the data URL; for text files, create a data URL
+                    let href;
+                    if (file.isBinary) {
+                        href = file.content;
+                    } else {
+                        // Create a data URL for text files
+                        const mimeType = this.getMimeTypeFromFileType(file.type);
+                        href = `data:${mimeType};charset=utf-8,${encodeURIComponent(file.content)}`;
+                    }
+                    // Replace only the href attribute value to preserve other attributes
+                    const newHref = `href="${href}"`;
+                    return match.replace(/href\s*=\s*["'][^"']*["']/i, newHref);
+                }
             }
             return match;
         });
