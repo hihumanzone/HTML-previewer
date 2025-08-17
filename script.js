@@ -1734,6 +1734,10 @@ const CodePreviewer = {
         
         const { processedHtml, workerScript } = this.processWebWorkers(html, jsFiles);
         
+        // Apply asset replacement to the HTML content
+        const fileSystem = this.createVirtualFileSystem();
+        const htmlWithAssets = this.replaceAssetReferences(processedHtml, fileSystem);
+        
         const moduleScript = this.processModuleFiles(moduleFiles);
         const jsScript = this.processJavaScriptFiles(jsFiles);
 
@@ -1748,7 +1752,7 @@ const CodePreviewer = {
             '    <style>' + css + '</style>\n' +
             '</head>\n' +
             '<body>\n' +
-            '    ' + processedHtml + '\n' +
+            '    ' + htmlWithAssets + '\n' +
             '    ' + moduleScript + '\n' +
             '    ' + jsScript + '\n' +
             '</body>\n' +
