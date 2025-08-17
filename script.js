@@ -1193,6 +1193,7 @@ const CodePreviewer = {
     },
 
     replaceAssetReferences(htmlContent, fileSystem) {
+        // Handle CSS files
         htmlContent = htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.css)["']([^>]*?)>/gi, (match, before, filename, after) => {
             const file = this.findFileInSystem(fileSystem, filename);
             if (file && file.type === 'css') {
@@ -1201,7 +1202,55 @@ const CodePreviewer = {
             return match;
         });
         
+        // Find all Worker constructor calls to identify worker files
+        const workerMatches = htmlContent.match(/new\s+Worker\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/gi) || [];
+        const workerFileNames = new Set();
+        
+        workerMatches.forEach(match => {
+            const fileMatch = match.match(/new\s+Worker\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/i);
+            if (fileMatch && fileMatch[1]) {
+                workerFileNames.add(fileMatch[1]);
+            }
+        });
+        
+        // Handle worker files by creating blob URLs
+        if (workerFileNames.size > 0) {
+            let workerScript = '<script>\n';
+            
+            workerFileNames.forEach(workerFileName => {
+                const file = this.findFileInSystem(fileSystem, workerFileName);
+                if (file && (file.type === 'javascript' || file.type === 'javascript-module')) {
+                    const blobVarName = 'workerBlob_' + workerFileName.replace(/[^a-zA-Z0-9]/g, '_');
+                    const urlVarName = 'workerUrl_' + workerFileName.replace(/[^a-zA-Z0-9]/g, '_');
+                    
+                    workerScript += `const ${blobVarName} = new Blob([${JSON.stringify(file.content)}], { type: 'application/javascript' });\n`;
+                    workerScript += `const ${urlVarName} = URL.createObjectURL(${blobVarName});\n`;
+                    
+                    // Replace the worker constructor call with the blob URL
+                    const workerRegex = new RegExp(`new\\s+Worker\\s*\\(\\s*['"\`]${workerFileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"\`]\\s*\\)`, 'gi');
+                    htmlContent = htmlContent.replace(workerRegex, `new Worker(${urlVarName})`);
+                }
+            });
+            
+            workerScript += '</script>\n';
+            
+            // Inject the worker script into the head
+            if (htmlContent.includes('</head>')) {
+                htmlContent = htmlContent.replace('</head>', workerScript + '</head>');
+            } else if (htmlContent.includes('<head>')) {
+                htmlContent = htmlContent.replace('<head>', '<head>\n' + workerScript);
+            } else {
+                htmlContent = htmlContent.replace(/<html[^>]*>/i, '$&\n<head>\n' + workerScript + '\n</head>');
+            }
+        }
+        
+        // Handle regular script files (but skip worker files)
         htmlContent = htmlContent.replace(/<script([^>]*?)src\s*=\s*["']([^"']+\.(?:js|mjs))["']([^>]*?)><\/script>/gi, (match, before, filename, after) => {
+            // Skip if this is a worker file
+            if (workerFileNames.has(filename)) {
+                return '';  // Remove the script tag since it's handled as a worker
+            }
+            
             const file = this.findFileInSystem(fileSystem, filename);
             if (file && (file.type === 'javascript' || file.type === 'javascript-module')) {
                 const scriptType = file.type === 'javascript-module' ? ' type="module"' : '';
@@ -1308,12 +1357,71 @@ const CodePreviewer = {
         return '';
     },
 
+    processWebWorkers(html, jsFiles) {
+        // Find all Worker constructor calls in the HTML content
+        const workerMatches = html.match(/new\s+Worker\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/gi) || [];
+        const workerFileNames = [];
+        const workerBlobs = [];
+        
+        // Extract worker file names from the matches
+        workerMatches.forEach(match => {
+            const fileMatch = match.match(/new\s+Worker\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/i);
+            if (fileMatch && fileMatch[1]) {
+                workerFileNames.push(fileMatch[1]);
+            }
+        });
+        
+        if (workerFileNames.length === 0) {
+            return { processedHtml: html, workerScript: '' };
+        }
+        
+        let processedHtml = html;
+        let workerScript = '<script>\n';
+        
+        // Process each worker file
+        workerFileNames.forEach(workerFileName => {
+            // Find the corresponding JavaScript file
+            const workerFileIndex = jsFiles.findIndex(jsFile => 
+                jsFile.filename === workerFileName || 
+                jsFile.filename.toLowerCase() === workerFileName.toLowerCase()
+            );
+            
+            if (workerFileIndex !== -1) {
+                const workerFile = jsFiles[workerFileIndex];
+                const blobVarName = 'workerBlob_' + workerFileName.replace(/[^a-zA-Z0-9]/g, '_');
+                const urlVarName = 'workerUrl_' + workerFileName.replace(/[^a-zA-Z0-9]/g, '_');
+                
+                // Create blob and URL for the worker
+                workerScript += `const ${blobVarName} = new Blob([${JSON.stringify(workerFile.content)}], { type: 'application/javascript' });\n`;
+                workerScript += `const ${urlVarName} = URL.createObjectURL(${blobVarName});\n`;
+                
+                // Replace the worker constructor call with the blob URL
+                const workerRegex = new RegExp(`new\\s+Worker\\s*\\(\\s*['"\`]${workerFileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"\`]\\s*\\)`, 'gi');
+                processedHtml = processedHtml.replace(workerRegex, `new Worker(${urlVarName})`);
+                
+                // Remove the worker file from jsFiles so it doesn't get inlined as regular JS
+                jsFiles.splice(workerFileIndex, 1);
+            }
+        });
+        
+        workerScript += '</script>\n';
+        
+        return { 
+            processedHtml: processedHtml, 
+            workerScript: workerFileNames.length > 0 ? workerScript : '' 
+        };
+    },
+
     generateMultiFilePreview() {
         if (this.detectFullDocumentMode()) {
             return this.generateFullDocumentPreview();
         }
         
         const { html, css, jsFiles, moduleFiles } = this.collectFileContents();
+        
+        // Process web workers before processing regular JavaScript
+        const { processedHtml, workerScript } = this.processWebWorkers(html, jsFiles);
+        
         const moduleScript = this.processModuleFiles(moduleFiles);
         const jsScript = this.processJavaScriptFiles(jsFiles);
 
@@ -1324,10 +1432,11 @@ const CodePreviewer = {
             '    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
             '    <title>Live Preview</title>\n' +
             '    ' + this.console.getCaptureScript() + '\n' +
+            '    ' + workerScript + '\n' +
             '    <style>' + css + '</style>\n' +
             '</head>\n' +
             '<body>\n' +
-            '    ' + html + '\n' +
+            '    ' + processedHtml + '\n' +
             '    ' + moduleScript + '\n' +
             '    ' + jsScript + '\n' +
             '</body>\n' +
