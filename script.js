@@ -991,9 +991,11 @@ const CodePreviewer = {
     },
 
     updateRemoveButtonsVisibility() {
+        // Filter out drag clones and only get actual editor panels
         const allPanels = document.querySelectorAll('.editor-panel[data-file-id]');
+        const actualPanels = Array.from(allPanels).filter(panel => !panel.classList.contains('drag-clone'));
         
-        allPanels.forEach(panel => {
+        actualPanels.forEach(panel => {
             const removeBtn = panel.querySelector('.remove-file-btn');
             if (removeBtn) {
                 removeBtn.style.display = 'block';
@@ -2159,6 +2161,7 @@ const CodePreviewer = {
         let touchStartX = 0;
         let isDragging = false;
         let dragClone = null;
+        let lastTargetPanel = null; // Track last target to reduce flicker
         
         if (dragHandle) {
             dragHandle.addEventListener('mousedown', (e) => {
@@ -2172,6 +2175,7 @@ const CodePreviewer = {
                 touchStartY = touch.clientY;
                 touchStartX = touch.clientX;
                 isDragging = false;
+                lastTargetPanel = null;
                 
                 // Start dragging after a small movement threshold
                 const startDragThreshold = 10;
@@ -2194,6 +2198,7 @@ const CodePreviewer = {
                         
                         // Create drag clone for visual feedback
                         dragClone = panel.cloneNode(true);
+                        dragClone.removeAttribute('data-file-id'); // Remove to prevent selector conflicts
                         dragClone.style.position = 'fixed';
                         dragClone.style.pointerEvents = 'none';
                         dragClone.style.zIndex = '10000';
@@ -2212,10 +2217,14 @@ const CodePreviewer = {
                         const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
                         const targetPanel = elementBelow?.closest('.editor-panel[data-file-id]');
                         
-                        if (targetPanel && targetPanel !== panel) {
-                            this.showDropIndicator(targetPanel, { clientY: touch.clientY });
-                        } else {
-                            this.removeDragIndicators();
+                        // Only update indicators if target changed (reduces flickering)
+                        if (targetPanel !== lastTargetPanel) {
+                            if (targetPanel && targetPanel !== panel) {
+                                this.showDropIndicator(targetPanel, { clientY: touch.clientY });
+                            } else {
+                                this.removeDragIndicators();
+                            }
+                            lastTargetPanel = targetPanel;
                         }
                     }
                 };
@@ -2242,6 +2251,9 @@ const CodePreviewer = {
                             document.body.removeChild(dragClone);
                             dragClone = null;
                         }
+                        
+                        // Additional cleanup: remove any orphaned drag clones
+                        this.cleanupOrphanedDragClones();
                     }
                     
                     isDragging = false;
@@ -2268,6 +2280,7 @@ const CodePreviewer = {
             this.removeDragIndicators();
             this.state.dragState.draggedElement = null;
             this.state.dragState.draggedFileId = null;
+            this.cleanupOrphanedDragClones();
         });
         
         panel.addEventListener('dragover', (e) => {
@@ -2313,6 +2326,16 @@ const CodePreviewer = {
         this.state.dragState.dropIndicator = null;
     },
     
+    cleanupOrphanedDragClones() {
+        // Remove any orphaned drag clones that may have been left behind
+        const orphanedClones = document.querySelectorAll('.drag-clone');
+        orphanedClones.forEach(clone => {
+            if (clone.parentNode) {
+                clone.parentNode.removeChild(clone);
+            }
+        });
+    },
+
     reorderPanels(draggedPanel, targetPanel, event) {
         const rect = targetPanel.getBoundingClientRect();
         const midY = rect.top + rect.height / 2;
@@ -2330,7 +2353,9 @@ const CodePreviewer = {
     },
     
     updateFilesOrder() {
-        const panels = Array.from(document.querySelectorAll('.editor-panel[data-file-id]'));
+        // Filter out drag clones and only get actual editor panels
+        const panels = Array.from(document.querySelectorAll('.editor-panel[data-file-id]'))
+            .filter(panel => !panel.classList.contains('drag-clone'));
         const newFilesOrder = [];
         
         panels.forEach(panel => {
