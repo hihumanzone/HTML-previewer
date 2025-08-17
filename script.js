@@ -496,33 +496,64 @@ const CodePreviewer = {
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
         fileInput.accept = '*/*';
+        fileInput.multiple = true; // Allow multiple file selection
         fileInput.style.display = 'none';
         
+        const cleanup = () => {
+            if (document.body.contains(fileInput)) {
+                document.body.removeChild(fileInput);
+            }
+        };
+        
         fileInput.addEventListener('change', async (event) => {
-            const file = event.target.files[0];
-            if (!file) return;
+            const files = Array.from(event.target.files);
+            if (files.length === 0) {
+                cleanup();
+                return;
+            }
             
             try {
-                // Check for duplicate filename
-                const existingFilenames = this.getExistingFilenames();
-                if (existingFilenames.includes(file.name)) {
-                    this.showNotification(`A file named "${file.name}" already exists. Please rename the existing file first or choose a different file.`, 'error');
-                    return;
+                for (const file of files) {
+                    // Check for duplicate filename
+                    const existingFilenames = this.getExistingFilenames();
+                    if (existingFilenames.includes(file.name)) {
+                        this.showNotification(`A file named "${file.name}" already exists. Please rename the existing file first or choose a different file.`, 'error');
+                        continue;
+                    }
+                    
+                    const fileData = await this.readFileContent(file);
+                    
+                    const detectedType = this.autoDetectFileType(file.name, fileData.isBinary ? null : fileData.content, file.type);
+                    
+                    this.addNewFileWithContent(file.name, detectedType, fileData.content, fileData.isBinary);
                 }
                 
-                const fileData = await this.readFileContent(file);
-                
-                const detectedType = this.autoDetectFileType(file.name, fileData.isBinary ? null : fileData.content, file.type);
-                
-                this.addNewFileWithContent(file.name, detectedType, fileData.content, fileData.isBinary);
+                if (files.length > 1) {
+                    this.showNotification(`Successfully imported ${files.length} files`, 'success');
+                }
                 
             } catch (error) {
                 console.error('Error importing file:', error);
                 alert('Error importing file. Please try again.');
             }
             
-            document.body.removeChild(fileInput);
+            cleanup();
         });
+        
+        // Handle cancellation (when user closes dialog without selecting)
+        fileInput.addEventListener('cancel', cleanup);
+        
+        // Add a fallback for when focus is lost (indicating dialog was closed)
+        const focusHandler = () => {
+            // Small delay to allow change event to fire first if a file was selected
+            setTimeout(() => {
+                if (document.body.contains(fileInput)) {
+                    cleanup();
+                }
+            }, 100);
+        };
+        
+        window.addEventListener('focus', focusHandler, { once: true });
         
         document.body.appendChild(fileInput);
         fileInput.click();
@@ -2123,12 +2154,107 @@ const CodePreviewer = {
         const dragHandle = panel.querySelector('.drag-handle');
         const fileId = panel.dataset.fileId;
         
+        // Touch state for mobile drag and drop
+        let touchStartY = 0;
+        let touchStartX = 0;
+        let isDragging = false;
+        let dragClone = null;
+        
         if (dragHandle) {
             dragHandle.addEventListener('mousedown', (e) => {
                 panel.draggable = true;
             });
+            
+            // Touch events for mobile drag and drop
+            dragHandle.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                const touch = e.touches[0];
+                touchStartY = touch.clientY;
+                touchStartX = touch.clientX;
+                isDragging = false;
+                
+                // Start dragging after a small movement threshold
+                const startDragThreshold = 10;
+                let startDrag = false;
+                
+                const touchMoveHandler = (e) => {
+                    e.preventDefault();
+                    const touch = e.touches[0];
+                    const deltaY = Math.abs(touch.clientY - touchStartY);
+                    const deltaX = Math.abs(touch.clientX - touchStartX);
+                    
+                    if (!startDrag && (deltaY > startDragThreshold || deltaX > startDragThreshold)) {
+                        startDrag = true;
+                        isDragging = true;
+                        
+                        // Create visual feedback
+                        panel.classList.add('dragging');
+                        this.state.dragState.draggedElement = panel;
+                        this.state.dragState.draggedFileId = fileId;
+                        
+                        // Create drag clone for visual feedback
+                        dragClone = panel.cloneNode(true);
+                        dragClone.style.position = 'fixed';
+                        dragClone.style.pointerEvents = 'none';
+                        dragClone.style.zIndex = '10000';
+                        dragClone.style.opacity = '0.8';
+                        dragClone.style.transform = 'rotate(5deg)';
+                        dragClone.classList.add('drag-clone');
+                        document.body.appendChild(dragClone);
+                    }
+                    
+                    if (isDragging && dragClone) {
+                        // Move clone with finger
+                        dragClone.style.left = (touch.clientX - 50) + 'px';
+                        dragClone.style.top = (touch.clientY - 50) + 'px';
+                        
+                        // Find element under touch point
+                        const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+                        const targetPanel = elementBelow?.closest('.editor-panel[data-file-id]');
+                        
+                        if (targetPanel && targetPanel !== panel) {
+                            this.showDropIndicator(targetPanel, { clientY: touch.clientY });
+                        } else {
+                            this.removeDragIndicators();
+                        }
+                    }
+                };
+                
+                const touchEndHandler = (e) => {
+                    e.preventDefault();
+                    
+                    if (isDragging) {
+                        const touch = e.changedTouches[0];
+                        const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+                        const targetPanel = elementBelow?.closest('.editor-panel[data-file-id]');
+                        
+                        if (targetPanel && targetPanel !== panel) {
+                            this.reorderPanels(panel, targetPanel, { clientY: touch.clientY });
+                        }
+                        
+                        // Cleanup
+                        panel.classList.remove('dragging');
+                        this.removeDragIndicators();
+                        this.state.dragState.draggedElement = null;
+                        this.state.dragState.draggedFileId = null;
+                        
+                        if (dragClone) {
+                            document.body.removeChild(dragClone);
+                            dragClone = null;
+                        }
+                    }
+                    
+                    isDragging = false;
+                    document.removeEventListener('touchmove', touchMoveHandler);
+                    document.removeEventListener('touchend', touchEndHandler);
+                };
+                
+                document.addEventListener('touchmove', touchMoveHandler, { passive: false });
+                document.addEventListener('touchend', touchEndHandler, { passive: false });
+            }, { passive: false });
         }
         
+        // Mouse drag and drop events (desktop)
         panel.addEventListener('dragstart', (e) => {
             this.state.dragState.draggedElement = panel;
             this.state.dragState.draggedFileId = fileId;
@@ -2293,10 +2419,20 @@ const CodePreviewer = {
             const fileInput = document.createElement('input');
             fileInput.type = 'file';
             fileInput.accept = '.zip';
+            fileInput.style.display = 'none';
+            
+            const cleanup = () => {
+                if (document.body.contains(fileInput)) {
+                    document.body.removeChild(fileInput);
+                }
+            };
             
             fileInput.addEventListener('change', async (e) => {
                 const file = e.target.files[0];
-                if (!file) return;
+                if (!file) {
+                    cleanup();
+                    return;
+                }
                 
                 try {
                     const zip = await JSZip.loadAsync(file);
@@ -2346,8 +2482,23 @@ const CodePreviewer = {
                     this.showNotification('Failed to import ZIP file', 'error');
                 }
                 
-                document.body.removeChild(fileInput);
+                cleanup();
             });
+            
+            // Handle cancellation (when user closes dialog without selecting)
+            fileInput.addEventListener('cancel', cleanup);
+            
+            // Add a fallback for when focus is lost (indicating dialog was closed)
+            const focusHandler = () => {
+                // Small delay to allow change event to fire first if a file was selected
+                setTimeout(() => {
+                    if (document.body.contains(fileInput)) {
+                        cleanup();
+                    }
+                }, 100);
+            };
+            
+            window.addEventListener('focus', focusHandler, { once: true });
             
             document.body.appendChild(fileInput);
             fileInput.click();

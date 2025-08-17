@@ -622,7 +622,15 @@ body {
 #media-modal .modal-content {
     max-width: 90vw;
     max-height: 90vh;
-    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#media-modal .modal-header {
+    flex-shrink: 0;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border-color);
 }
 
 #media-modal .modal-body {
@@ -630,6 +638,35 @@ body {
     align-items: center;
     justify-content: center;
     min-height: 200px;
+    flex: 1;
+    overflow: hidden;
+    padding: 1rem;
+}
+
+#media-modal-content {
+    max-width: 100%;
+    max-height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#media-modal-content img,
+#media-modal-content video,
+#media-modal-content audio,
+#media-modal-content object {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: 8px;
+}
+
+#media-modal-content img {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+#media-modal-content object {
+    border: 1px solid var(--border-color);
 }
 
 /* Drag and Drop Styles */
@@ -665,6 +702,39 @@ body {
     border-radius: 2px;
     margin: 0.5rem 0;
     transition: all 0.2s ease;
+}
+
+/* Drag clone for touch devices */
+.drag-clone {
+    pointer-events: none;
+    width: 300px;
+    z-index: 10000;
+    border: 2px solid var(--accent-color);
+    background: var(--bg-color);
+    border-radius: 8px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+.drag-clone .editor-wrapper {
+    max-height: 100px;
+    overflow: hidden;
+}
+
+/* Touch improvements */
+@media (pointer: coarse) {
+    .drag-handle {
+        padding: 0.5rem;
+        font-size: 1.2rem;
+        min-width: 44px;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .editor-panel {
+        margin-bottom: 0.5rem;
+    }
 }
 
 /* ZIP Import/Export Buttons */
