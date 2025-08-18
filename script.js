@@ -2694,6 +2694,105 @@ const CodePreviewer = {
                 '        return originalFetch.apply(this, arguments);\n' +
                 '    };\n' +
                 '    \n' +
+                '    // Override XMLHttpRequest to handle virtual file system (for Phaser.js and other libraries)\n' +
+                '    const OriginalXMLHttpRequest = window.XMLHttpRequest;\n' +
+                '    window.XMLHttpRequest = function() {\n' +
+                '        const xhr = new OriginalXMLHttpRequest();\n' +
+                '        const originalOpen = xhr.open;\n' +
+                '        const originalSend = xhr.send;\n' +
+                '        \n' +
+                '        let requestUrl = "";\n' +
+                '        let requestMethod = "";\n' +
+                '        \n' +
+                '        xhr.open = function(method, url, async, user, password) {\n' +
+                '            requestMethod = method.toUpperCase();\n' +
+                '            requestUrl = url;\n' +
+                '            \n' +
+                '            const currentFilePath = getCurrentFilePath();\n' +
+                '            let targetPath = url.replace(/^\\.\\//, "");\n' +
+                '            const fileData = findFileInSystem(targetPath, currentFilePath);\n' +
+                '            \n' +
+                '            if (fileData && requestMethod === "GET") {\n' +
+                '                // Intercept the request for virtual file system\n' +
+                '                this._virtualFileData = fileData;\n' +
+                '                this._isVirtualRequest = true;\n' +
+                '                // Call original open with a dummy URL to maintain compatibility\n' +
+                '                return originalOpen.call(this, method, "data:text/plain,virtual", async, user, password);\n' +
+                '            } else {\n' +
+                '                this._isVirtualRequest = false;\n' +
+                '                return originalOpen.call(this, method, url, async, user, password);\n' +
+                '            }\n' +
+                '        };\n' +
+                '        \n' +
+                '        xhr.send = function(data) {\n' +
+                '            if (this._isVirtualRequest && this._virtualFileData) {\n' +
+                '                const fileData = this._virtualFileData;\n' +
+                '                \n' +
+                '                // Simulate successful response\n' +
+                '                setTimeout(() => {\n' +
+                '                    Object.defineProperty(this, "readyState", { value: 4, writable: false });\n' +
+                '                    Object.defineProperty(this, "status", { value: 200, writable: false });\n' +
+                '                    Object.defineProperty(this, "statusText", { value: "OK", writable: false });\n' +
+                '                    \n' +
+                '                    if (fileData.isBinary && fileData.content.startsWith("data:")) {\n' +
+                '                        // For binary files, provide the data URL directly\n' +
+                '                        Object.defineProperty(this, "responseText", { value: fileData.content, writable: false });\n' +
+                '                        Object.defineProperty(this, "response", { value: fileData.content, writable: false });\n' +
+                '                        \n' +
+                '                        // For binary data, also provide as ArrayBuffer if needed\n' +
+                '                        if (this.responseType === "arraybuffer") {\n' +
+                '                            const [header, base64] = fileData.content.split(",");\n' +
+                '                            const byteCharacters = atob(base64);\n' +
+                '                            const byteNumbers = new Array(byteCharacters.length);\n' +
+                '                            for (let i = 0; i < byteCharacters.length; i++) {\n' +
+                '                                byteNumbers[i] = byteCharacters.charCodeAt(i);\n' +
+                '                            }\n' +
+                '                            const arrayBuffer = new Uint8Array(byteNumbers).buffer;\n' +
+                '                            Object.defineProperty(this, "response", { value: arrayBuffer, writable: false });\n' +
+                '                        }\n' +
+                '                    } else {\n' +
+                '                        // For text files\n' +
+                '                        Object.defineProperty(this, "responseText", { value: fileData.content, writable: false });\n' +
+                '                        Object.defineProperty(this, "response", { value: fileData.content, writable: false });\n' +
+                '                    }\n' +
+                '                    \n' +
+                '                    // Set appropriate headers\n' +
+                '                    const getResponseHeader = (name) => {\n' +
+                '                        const lowerName = name.toLowerCase();\n' +
+                '                        if (lowerName === "content-type") {\n' +
+                '                            if (fileData.type === "image") return "image/png";\n' +
+                '                            if (fileData.type === "audio") return "audio/mpeg";\n' +
+                '                            if (fileData.type === "video") return "video/mp4";\n' +
+                '                            if (fileData.type === "json") return "application/json";\n' +
+                '                            if (fileData.type === "css") return "text/css";\n' +
+                '                            if (fileData.type === "javascript") return "text/javascript";\n' +
+                '                            if (fileData.type === "html") return "text/html";\n' +
+                '                            return "text/plain";\n' +
+                '                        }\n' +
+                '                        return null;\n' +
+                '                    };\n' +
+                '                    \n' +
+                '                    this.getResponseHeader = getResponseHeader;\n' +
+                '                    this.getAllResponseHeaders = () => `content-type: ${getResponseHeader("content-type")}\\r\\n`;\n' +
+                '                    \n' +
+                '                    // Trigger events\n' +
+                '                    if (this.onreadystatechange) {\n' +
+                '                        this.onreadystatechange();\n' +
+                '                    }\n' +
+                '                    if (this.onload) {\n' +
+                '                        this.onload();\n' +
+                '                    }\n' +
+                '                }, 0);\n' +
+                '                \n' +
+                '                return;\n' +
+                '            }\n' +
+                '            \n' +
+                '            return originalSend.call(this, data);\n' +
+                '        };\n' +
+                '        \n' +
+                '        return xhr;\n' +
+                '    };\n' +
+                '    \n' +
                 '    // Override Image constructor to handle virtual file system\n' +
                 '    const OriginalImage = window.Image;\n' +
                 '    window.Image = function() {\n' +
