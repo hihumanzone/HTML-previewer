@@ -2698,16 +2698,16 @@ const CodePreviewer = {
                 '    const OriginalImage = window.Image;\n' +
                 '    window.Image = function() {\n' +
                 '        const img = new OriginalImage();\n' +
-                '        const originalSrcDescriptor = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, "src") || \n' +
-                '                                     Object.getOwnPropertyDescriptor(Image.prototype, "src");\n' +
                 '        \n' +
-                '        let _src = "";\n' +
+                '        let _originalSrc = "";\n' +
+                '        let _resolvedSrc = "";\n' +
+                '        \n' +
                 '        Object.defineProperty(img, "src", {\n' +
                 '            get: function() {\n' +
-                '                return _src;\n' +
+                '                return _resolvedSrc || _originalSrc;\n' +
                 '            },\n' +
                 '            set: function(value) {\n' +
-                '                _src = value;\n' +
+                '                _originalSrc = value;\n' +
                 '                \n' +
                 '                const currentFilePath = getCurrentFilePath();\n' +
                 '                let targetPath = value.replace(/^\\.\\//, "");\n' +
@@ -2716,17 +2716,11 @@ const CodePreviewer = {
                 '                if (fileData && (fileData.type === "image" || fileData.type === "svg")) {\n' +
                 '                    const dataUrl = fileData.isBinary ? fileData.content : \n' +
                 '                                   `data:image/svg+xml;charset=utf-8,${encodeURIComponent(fileData.content)}`;\n' +
-                '                    if (originalSrcDescriptor && originalSrcDescriptor.set) {\n' +
-                '                        originalSrcDescriptor.set.call(this, dataUrl);\n' +
-                '                    } else {\n' +
-                '                        this.setAttribute("src", dataUrl);\n' +
-                '                    }\n' +
+                '                    _resolvedSrc = dataUrl;\n' +
+                '                    img.setAttribute("src", dataUrl);\n' +
                 '                } else {\n' +
-                '                    if (originalSrcDescriptor && originalSrcDescriptor.set) {\n' +
-                '                        originalSrcDescriptor.set.call(this, value);\n' +
-                '                    } else {\n' +
-                '                        this.setAttribute("src", value);\n' +
-                '                    }\n' +
+                '                    _resolvedSrc = value;\n' +
+                '                    img.setAttribute("src", value);\n' +
                 '                }\n' +
                 '            },\n' +
                 '            enumerable: true,\n' +
@@ -2740,33 +2734,27 @@ const CodePreviewer = {
                 '    const OriginalAudio = window.Audio;\n' +
                 '    window.Audio = function(src) {\n' +
                 '        const audio = new OriginalAudio();\n' +
-                '        const originalSrcDescriptor = Object.getOwnPropertyDescriptor(HTMLAudioElement.prototype, "src") || \n' +
-                '                                     Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "src");\n' +
                 '        \n' +
-                '        let _src = "";\n' +
+                '        let _originalSrc = "";\n' +
+                '        let _resolvedSrc = "";\n' +
+                '        \n' +
                 '        Object.defineProperty(audio, "src", {\n' +
                 '            get: function() {\n' +
-                '                return _src;\n' +
+                '                return _resolvedSrc || _originalSrc;\n' +
                 '            },\n' +
                 '            set: function(value) {\n' +
-                '                _src = value;\n' +
+                '                _originalSrc = value;\n' +
                 '                \n' +
                 '                const currentFilePath = getCurrentFilePath();\n' +
                 '                let targetPath = value.replace(/^\\.\\//, "");\n' +
                 '                const fileData = findFileInSystem(targetPath, currentFilePath);\n' +
                 '                \n' +
                 '                if (fileData && fileData.type === "audio") {\n' +
-                '                    if (originalSrcDescriptor && originalSrcDescriptor.set) {\n' +
-                '                        originalSrcDescriptor.set.call(this, fileData.content);\n' +
-                '                    } else {\n' +
-                '                        this.setAttribute("src", fileData.content);\n' +
-                '                    }\n' +
+                '                    _resolvedSrc = fileData.content;\n' +
+                '                    audio.setAttribute("src", fileData.content);\n' +
                 '                } else {\n' +
-                '                    if (originalSrcDescriptor && originalSrcDescriptor.set) {\n' +
-                '                        originalSrcDescriptor.set.call(this, value);\n' +
-                '                    } else {\n' +
-                '                        this.setAttribute("src", value);\n' +
-                '                    }\n' +
+                '                    _resolvedSrc = value;\n' +
+                '                    audio.setAttribute("src", value);\n' +
                 '                }\n' +
                 '            },\n' +
                 '            enumerable: true,\n' +
