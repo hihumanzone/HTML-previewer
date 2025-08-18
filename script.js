@@ -2739,9 +2739,9 @@ const CodePreviewer = {
                 '                    setTimeout(() => {\n' +
                 '                        try {\n' +
                 '                            // Set response properties\n' +
-                '                            xhr.readyState = 4;\n' +
-                '                            xhr.status = 200;\n' +
-                '                            xhr.statusText = "OK";\n' +
+                '                            Object.defineProperty(xhr, "readyState", { value: 4, configurable: true });\n' +
+                '                            Object.defineProperty(xhr, "status", { value: 200, configurable: true });\n' +
+                '                            Object.defineProperty(xhr, "statusText", { value: "OK", configurable: true });\n' +
                 '                            \n' +
                 '                            // Set response content\n' +
                 '                            if (virtualFileData.isBinary && virtualFileData.content.startsWith("data:")) {\n' +
@@ -2754,16 +2754,16 @@ const CodePreviewer = {
                 '                                    for (let i = 0; i < byteCharacters.length; i++) {\n' +
                 '                                        byteNumbers[i] = byteCharacters.charCodeAt(i);\n' +
                 '                                    }\n' +
-                '                                    xhr.response = new Uint8Array(byteNumbers).buffer;\n' +
+                '                                    Object.defineProperty(xhr, "response", { value: new Uint8Array(byteNumbers).buffer, configurable: true });\n' +
                 '                                } else {\n' +
                 '                                    // Return data URL for other response types\n' +
-                '                                    xhr.response = virtualFileData.content;\n' +
-                '                                    xhr.responseText = virtualFileData.content;\n' +
+                '                                    Object.defineProperty(xhr, "response", { value: virtualFileData.content, configurable: true });\n' +
+                '                                    Object.defineProperty(xhr, "responseText", { value: virtualFileData.content, configurable: true });\n' +
                 '                                }\n' +
                 '                            } else {\n' +
                 '                                // For text files\n' +
-                '                                xhr.responseText = virtualFileData.content;\n' +
-                '                                xhr.response = virtualFileData.content;\n' +
+                '                                Object.defineProperty(xhr, "responseText", { value: virtualFileData.content, configurable: true });\n' +
+                '                                Object.defineProperty(xhr, "response", { value: virtualFileData.content, configurable: true });\n' +
                 '                            }\n' +
                 '                            \n' +
                 '                            // Set headers\n' +
