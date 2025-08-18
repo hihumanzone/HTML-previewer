@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phaser.js Test with Assets</title>
+    <script src="phaser.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #282c34;
+            color: white;
+        }
+        
+        #game-container {
+            margin: 20px auto;
+            border: 2px solid #61dafb;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+    <h1>Phaser.js Asset Loading Test</h1>
+    <div id="game-container"></div>
+    
+    <script>
+        class PreloaderScene extends Phaser.Scene {
+            constructor() {
+                super('PreloaderScene');
+            }
+            
+            preload() {
+                const { width, height } = this.cameras.main;
+                
+                const progressBox = this.add.graphics();
+                progressBox.fillStyle(0x222222, 0.8);
+                progressBox.fillRect(width / 2 - 160, height / 2 - 25, 320, 50);
+                
+                const progressBar = this.add.graphics();
+                const loadingText = this.make.text({
+                    x: width / 2,
+                    y: height / 2 - 50,
+                    text: 'Loading...',
+                    style: { font: '20px monospace', fill: '#ffffff' }
+                }).setOrigin(0.5);
+                
+                this.load.on('progress', (value) => {
+                    progressBar.clear();
+                    progressBar.fillStyle(0xffffff, 1);
+                    progressBar.fillRect(width / 2 - 150, height / 2 - 15, 300 * value, 30);
+                });
+                
+                this.load.on('complete', () => {
+                    progressBar.destroy();
+                    progressBox.destroy();
+                    loadingText.destroy();
+                });
+                
+                this.load.image('mainMenu', 'assets/main_menu.png');
+                this.load.image('mainBanner', 'assets/main_banner.png');
+                this.load.image('playButton', 'assets/play_button.png');
+                this.load.image('myRoom', 'assets/my_room.png');
+                this.load.image('garden', 'assets/garden.png');
+                
+                this.load.spritesheet('jack', 'assets/jack.png', { frameWidth: 64, frameHeight: 64 });
+                
+                this.load.audio('menuMusic', ['assets/music/menu.mp3']);
+                this.load.audio('roomMusic', ['assets/music/room.mp3']);
+                this.load.audio('gardenMusic', ['assets/music/garden.mp3']);
+                
+                this.load.audio('button', ['assets/sfx/button.mp3']);
+                this.load.audio('door', ['assets/sfx/door.mp3']);
+                this.load.audio('walking', ['assets/sfx/walking.mp3']);
+            }
+            
+            create() {
+                this.scene.start('MainMenuScene');
+            }
+        }
+        
+        class MainMenuScene extends Phaser.Scene {
+            constructor() {
+                super('MainMenuScene');
+            }
+            
+            create() {
+                const { width, height } = this.cameras.main;
+                
+                if (this.textures.exists('mainMenu')) {
+                    this.add.image(width / 2, height / 2, 'mainMenu');
+                }
+                
+                if (this.textures.exists('jack')) {
+                    const jack = this.add.sprite(100, 100, 'jack');
+                }
+                
+                this.add.text(width / 2, height - 50, 'Asset Loading Test Complete', {
+                    fontSize: '16px',
+                    fill: '#ffffff'
+                }).setOrigin(0.5);
+            }
+        }
+        
+        const config = {
+            type: Phaser.AUTO,
+            width: 800,
+            height: 600,
+            parent: 'game-container',
+            backgroundColor: '#2c3e50',
+            scene: [PreloaderScene, MainMenuScene]
+        };
+        
+        const game = new Phaser.Game(config);
+    </script>
+</body>
+</html>

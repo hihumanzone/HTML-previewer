@@ -253,7 +253,7 @@ const CodePreviewer = {
     },
 
     initEditors() {
-        if (typeof CodeMirror === 'undefined') {
+        if (typeof window.CodeMirror === 'undefined') {
             console.warn('CodeMirror not available, using fallback textarea editors');
             this.initFallbackEditors();
             return;
@@ -268,16 +268,16 @@ const CodePreviewer = {
         });
 
         if (this.dom.htmlEditor) {
-            this.state.editors.html = CodeMirror.fromTextArea(this.dom.htmlEditor, editorConfig('htmlmixed'));
+            this.state.editors.html = window.CodeMirror.fromTextArea(this.dom.htmlEditor, editorConfig('htmlmixed'));
         }
         if (this.dom.cssEditor) {
-            this.state.editors.css = CodeMirror.fromTextArea(this.dom.cssEditor, editorConfig('css'));
+            this.state.editors.css = window.CodeMirror.fromTextArea(this.dom.cssEditor, editorConfig('css'));
         }
         if (this.dom.jsEditor) {
-            this.state.editors.js = CodeMirror.fromTextArea(this.dom.jsEditor, editorConfig('javascript'));
+            this.state.editors.js = window.CodeMirror.fromTextArea(this.dom.jsEditor, editorConfig('javascript'));
         }
         if (this.dom.singleFileEditor) {
-            this.state.editors.singleFile = CodeMirror.fromTextArea(this.dom.singleFileEditor, editorConfig('htmlmixed'));
+            this.state.editors.singleFile = window.CodeMirror.fromTextArea(this.dom.singleFileEditor, editorConfig('htmlmixed'));
         }
 
         this.setDefaultContent();
@@ -516,55 +516,10 @@ const CodePreviewer = {
         const fileId = `file-${this.state.nextFileId++}`;
         const fileName = `newfile.html`;
         
-        const panelHTML = `
-            <div class="editor-panel" data-file-type="html" data-file-id="${fileId}" draggable="true">
-                <div class="panel-header">
-                    <div class="drag-handle" aria-label="Drag to reorder">⋮⋮</div>
-                    <input type="text" class="file-name-input" value="${fileName}" aria-label="File name">
-                    <select class="file-type-selector" aria-label="File type">
-                        <option value="html" selected>HTML</option>
-                        <option value="css">CSS</option>
-                        <option value="javascript">JavaScript</option>
-                        <option value="javascript-module">JavaScript Module</option>
-                    </select>
-                    <button class="remove-file-btn" aria-label="Remove file">&times;</button>
-                </div>
-                ${this.generateToolbarHTML('html')}
-                <label for="${fileId}" class="sr-only">Code Editor</label>
-                <div class="editor-wrapper">
-                    <textarea id="${fileId}"></textarea>
-                </div>
-            </div>
-        `;
-        
-        this.dom.editorGrid.insertAdjacentHTML('beforeend', panelHTML);
+        this.createFilePanel(fileId, fileName, 'html', '', false);
         
         const newTextarea = document.getElementById(fileId);
-        let newEditor;
-        
-        if (typeof CodeMirror !== 'undefined') {
-            newEditor = CodeMirror.fromTextArea(newTextarea, {
-                lineNumbers: true,
-                mode: 'htmlmixed',
-                theme: 'dracula',
-                autoCloseTags: true,
-                lineWrapping: true,
-            });
-        } else {
-            Object.assign(newTextarea.style, {
-                fontFamily: 'monospace', fontSize: '14px', lineHeight: '1.5',
-                resize: 'none', border: 'none', outline: 'none',
-                background: '#282a36', color: '#f8f8f2', padding: '1rem',
-                width: '100%', height: '400px'
-            });
-            
-            newEditor = {
-                setValue: (value) => newTextarea.value = value,
-                getValue: () => newTextarea.value,
-                refresh: () => {},
-                setOption: () => {},
-            };
-        }
+        const newEditor = this.createEditorForTextarea(newTextarea, 'html');
         
         this.state.files.push({
             id: fileId,
@@ -667,66 +622,16 @@ const CodePreviewer = {
     addNewFileWithContent(fileName, fileType, content, isBinary = false) {
         const fileId = `file-${this.state.nextFileId++}`;
         
-        const fileTypeOptions = this.generateFileTypeOptions(fileType);
-        
-        const panelHTML = `
-            <div class="editor-panel" data-file-type="${fileType}" data-file-id="${fileId}" draggable="true">
-                <div class="panel-header">
-                    <div class="drag-handle" aria-label="Drag to reorder">⋮⋮</div>
-                    <input type="text" class="file-name-input" value="${fileName}" aria-label="File name">
-                    <select class="file-type-selector" aria-label="File type">
-                        ${fileTypeOptions}
-                    </select>
-                    <button class="remove-file-btn" aria-label="Remove file">&times;</button>
-                </div>
-                ${this.generateToolbarHTML(fileType)}
-                <label for="${fileId}" class="sr-only">${this.getFileTypeLabel(fileType)}</label>
-                <div class="editor-wrapper">
-                    ${this.generateFileContentDisplay(fileId, fileType, content, isBinary)}
-                </div>
-            </div>
-        `;
-        
-        this.dom.editorGrid.insertAdjacentHTML('beforeend', panelHTML);
+        this.createFilePanel(fileId, fileName, fileType, content, isBinary);
         
         let newEditor;
         
         if (this.isEditableFileType(fileType)) {
             const newTextarea = document.getElementById(fileId);
+            newEditor = this.createEditorForTextarea(newTextarea, fileType, isBinary);
             
-            if (typeof CodeMirror !== 'undefined') {
-                const mode = this.getCodeMirrorMode(fileType);
-                
-                newEditor = CodeMirror.fromTextArea(newTextarea, {
-                    lineNumbers: true,
-                    mode: mode,
-                    theme: 'dracula',
-                    autoCloseTags: fileType === 'html',
-                    lineWrapping: true,
-                    readOnly: isBinary ? 'nocursor' : false
-                });
-                
-                if (!isBinary) {
-                    newEditor.setValue(content);
-                }
-            } else {
-                Object.assign(newTextarea.style, {
-                    fontFamily: 'monospace', fontSize: '14px', lineHeight: '1.5',
-                    resize: 'none', border: 'none', outline: 'none',
-                    background: '#282a36', color: '#f8f8f2', padding: '1rem',
-                    width: '100%', height: '400px'
-                });
-                
-                newEditor = {
-                    setValue: (value) => newTextarea.value = value,
-                    getValue: () => newTextarea.value,
-                    refresh: () => {},
-                    setOption: () => {},
-                };
-                
-                if (!isBinary) {
-                    newEditor.setValue(content);
-                }
+            if (!isBinary && content) {
+                newEditor.setValue(content);
             }
         } else {
             newEditor = {
@@ -775,6 +680,61 @@ const CodePreviewer = {
         return fileTypes.map(type => 
             `<option value="${type.value}" ${selectedType === type.value ? 'selected' : ''}>${type.label}</option>`
         ).join('');
+    },
+
+    createFilePanel(fileId, fileName, fileType, content, isBinary) {
+        const fileTypeOptions = this.generateFileTypeOptions(fileType);
+        
+        const panelHTML = `
+            <div class="editor-panel" data-file-type="${fileType}" data-file-id="${fileId}" draggable="true">
+                <div class="panel-header">
+                    <div class="drag-handle" aria-label="Drag to reorder">⋮⋮</div>
+                    <input type="text" class="file-name-input" value="${fileName}" aria-label="File name">
+                    <select class="file-type-selector" aria-label="File type">
+                        ${fileTypeOptions}
+                    </select>
+                    <button class="remove-file-btn" aria-label="Remove file">&times;</button>
+                </div>
+                ${this.generateToolbarHTML(fileType)}
+                <label for="${fileId}" class="sr-only">${this.getFileTypeLabel(fileType)}</label>
+                <div class="editor-wrapper">
+                    ${this.generateFileContentDisplay(fileId, fileType, content, isBinary)}
+                </div>
+            </div>
+        `;
+        
+        this.dom.editorGrid.insertAdjacentHTML('beforeend', panelHTML);
+    },
+
+    createEditorForTextarea(textarea, fileType, isBinary = false) {
+        if (typeof window.CodeMirror !== 'undefined' && textarea) {
+            const mode = this.getCodeMirrorMode(fileType);
+            
+            return window.CodeMirror.fromTextArea(textarea, {
+                lineNumbers: true,
+                mode: mode,
+                theme: 'dracula',
+                autoCloseTags: fileType === 'html',
+                lineWrapping: true,
+                readOnly: isBinary ? 'nocursor' : false
+            });
+        } else if (textarea) {
+            Object.assign(textarea.style, {
+                fontFamily: 'monospace', fontSize: '14px', lineHeight: '1.5',
+                resize: 'none', border: 'none', outline: 'none',
+                background: '#282a36', color: '#f8f8f2', padding: '1rem',
+                width: '100%', height: '400px'
+            });
+            
+            return {
+                setValue: (value) => textarea.value = value,
+                getValue: () => textarea.value,
+                refresh: () => {},
+                setOption: () => {},
+            };
+        }
+        
+        return null;
     },
 
     generateToolbarHTML(fileType) {
@@ -859,7 +819,7 @@ const CodePreviewer = {
                         panel.dataset.fileType = suggestedType;
                         fileInfo.type = suggestedType;
                         
-                        if (typeof CodeMirror !== 'undefined' && fileInfo.editor.setOption) {
+                        if (typeof window.CodeMirror !== 'undefined' && fileInfo.editor.setOption) {
                             const mode = suggestedType === 'html' ? 'htmlmixed' : 
                                        suggestedType === 'css' ? 'css' : 'javascript';
                             fileInfo.editor.setOption('mode', mode);
@@ -877,10 +837,23 @@ const CodePreviewer = {
                 
                 const fileInfo = this.state.files.find(f => f.id === fileId);
                 if (fileInfo) {
+                    const oldType = fileInfo.type;
                     fileInfo.type = newType;
-                    if (typeof CodeMirror !== 'undefined' && fileInfo.editor.setOption) {
-                        const mode = newType === 'html' ? 'htmlmixed' : 
-                                   newType === 'css' ? 'css' : 'javascript';
+                    
+                    const oldIsEditable = this.isEditableFileType(oldType);
+                    const newIsEditable = this.isEditableFileType(newType);
+                    
+                    if (oldIsEditable !== newIsEditable) {
+                        const editorWrapper = panel.querySelector('.editor-wrapper');
+                        if (editorWrapper) {
+                            const currentContent = fileInfo.editor ? fileInfo.editor.getValue() : '';
+                            const newContent = this.generateFileContentDisplay(fileId, newType, currentContent, false);
+                            editorWrapper.innerHTML = newContent;
+                            
+                            this.createEditorForFileType(fileInfo, fileId, newType, currentContent);
+                        }
+                    } else if (newIsEditable && typeof window.CodeMirror !== 'undefined' && fileInfo.editor.setOption) {
+                        const mode = this.getCodeMirrorMode(newType);
                         fileInfo.editor.setOption('mode', mode);
                         fileInfo.editor.setOption('autoCloseTags', newType === 'html');
                     }
@@ -897,6 +870,26 @@ const CodePreviewer = {
         }
 
         this.bindToolbarEvents(panel);
+    },
+
+    createEditorForFileType(fileInfo, fileId, fileType, content) {
+        if (this.isEditableFileType(fileType)) {
+            const newTextarea = document.getElementById(fileId);
+            fileInfo.editor = this.createEditorForTextarea(newTextarea, fileType);
+            
+            if (content) {
+                fileInfo.editor.setValue(content);
+            }
+        } else {
+            fileInfo.editor = {
+                setValue: () => {},
+                getValue: () => content || '',
+                refresh: () => {},
+                setOption: () => {},
+            };
+            
+            fileInfo.content = content || '';
+        }
     },
 
     removeFile(fileId) {
@@ -1345,7 +1338,7 @@ const CodePreviewer = {
     },
 
     showNotification(message, type = 'info') {
-        this.notificationSystem.show(message, type);
+        this.showNotification(message, type);
     },
 
     generateSingleFilePreview() {
@@ -2299,6 +2292,10 @@ const CodePreviewer = {
         }
     },
 
+    showNotification(message, type = 'info') {
+        this.showNotification(message, type);
+    },
+
     notificationSystem: {
         show(message, type = 'info') {
             let notification = document.getElementById('notification');
@@ -2692,6 +2689,206 @@ const CodePreviewer = {
                 '        }\n' +
                 '        \n' +
                 '        return originalFetch.apply(this, arguments);\n' +
+                '    };\n' +
+                '    \n' +
+                '    // Override XMLHttpRequest to handle virtual file system (for Phaser.js and other libraries)\n' +
+                '    const OriginalXMLHttpRequest = window.XMLHttpRequest;\n' +
+                '    window.XMLHttpRequest = function() {\n' +
+                '        const xhr = new OriginalXMLHttpRequest();\n' +
+                '        const originalOpen = xhr.open;\n' +
+                '        const originalSend = xhr.send;\n' +
+                '        \n' +
+                '        let isVirtualRequest = false;\n' +
+                '        let virtualFileData = null;\n' +
+                '        \n' +
+                '        xhr.open = function(method, url, async, user, password) {\n' +
+                '            try {\n' +
+                '                if (method.toUpperCase() === "GET") {\n' +
+                '                    const currentFilePath = getCurrentFilePath();\n' +
+                '                    let targetPath = url.replace(/^\\.\\//, "");\n' +
+                '                    const fileData = findFileInSystem(targetPath, currentFilePath);\n' +
+                '                    \n' +
+                '                    if (fileData) {\n' +
+                '                        // Handle virtual file system request\n' +
+                '                        isVirtualRequest = true;\n' +
+                '                        virtualFileData = fileData;\n' +
+                '                        // Do not call original open for virtual requests\n' +
+                '                        return;\n' +
+                '                    }\n' +
+                '                }\n' +
+                '                \n' +
+                '                // Handle normal requests\n' +
+                '                isVirtualRequest = false;\n' +
+                '                virtualFileData = null;\n' +
+                '                return originalOpen.call(this, method, url, async, user, password);\n' +
+                '            } catch (e) {\n' +
+                '                // Fallback to normal request on any error\n' +
+                '                isVirtualRequest = false;\n' +
+                '                virtualFileData = null;\n' +
+                '                return originalOpen.call(this, method, url, async, user, password);\n' +
+                '            }\n' +
+                '        };\n' +
+                '        \n' +
+                '        xhr.send = function(data) {\n' +
+                '            if (isVirtualRequest && virtualFileData) {\n' +
+                '                try {\n' +
+                '                    // Simulate successful response for virtual files\n' +
+                '                    setTimeout(() => {\n' +
+                '                        try {\n' +
+                '                            // Set response properties\n' +
+                '                            Object.defineProperty(xhr, "readyState", { value: 4, configurable: true });\n' +
+                '                            Object.defineProperty(xhr, "status", { value: 200, configurable: true });\n' +
+                '                            Object.defineProperty(xhr, "statusText", { value: "OK", configurable: true });\n' +
+                '                            \n' +
+                '                            // Set response content\n' +
+                '                            if (virtualFileData.isBinary && virtualFileData.content.startsWith("data:")) {\n' +
+                '                                // For binary files (images, audio, etc.)\n' +
+                '                                if (xhr.responseType === "arraybuffer") {\n' +
+                '                                    // Convert data URL to ArrayBuffer\n' +
+                '                                    const [header, base64] = virtualFileData.content.split(",");\n' +
+                '                                    const byteCharacters = atob(base64);\n' +
+                '                                    const byteNumbers = new Array(byteCharacters.length);\n' +
+                '                                    for (let i = 0; i < byteCharacters.length; i++) {\n' +
+                '                                        byteNumbers[i] = byteCharacters.charCodeAt(i);\n' +
+                '                                    }\n' +
+                '                                    Object.defineProperty(xhr, "response", { value: new Uint8Array(byteNumbers).buffer, configurable: true });\n' +
+                '                                } else {\n' +
+                '                                    // Return data URL for other response types\n' +
+                '                                    Object.defineProperty(xhr, "response", { value: virtualFileData.content, configurable: true });\n' +
+                '                                    Object.defineProperty(xhr, "responseText", { value: virtualFileData.content, configurable: true });\n' +
+                '                                }\n' +
+                '                            } else {\n' +
+                '                                // For text files\n' +
+                '                                Object.defineProperty(xhr, "responseText", { value: virtualFileData.content, configurable: true });\n' +
+                '                                Object.defineProperty(xhr, "response", { value: virtualFileData.content, configurable: true });\n' +
+                '                            }\n' +
+                '                            \n' +
+                '                            // Set headers\n' +
+                '                            xhr.getResponseHeader = function(name) {\n' +
+                '                                const lowerName = name.toLowerCase();\n' +
+                '                                if (lowerName === "content-type") {\n' +
+                '                                    const typeMap = {\n' +
+                '                                        "image": "image/png",\n' +
+                '                                        "audio": "audio/mpeg",\n' +
+                '                                        "video": "video/mp4",\n' +
+                '                                        "json": "application/json",\n' +
+                '                                        "css": "text/css",\n' +
+                '                                        "javascript": "text/javascript",\n' +
+                '                                        "html": "text/html"\n' +
+                '                                    };\n' +
+                '                                    return typeMap[virtualFileData.type] || "text/plain";\n' +
+                '                                }\n' +
+                '                                return null;\n' +
+                '                            };\n' +
+                '                            \n' +
+                '                            xhr.getAllResponseHeaders = function() {\n' +
+                '                                const contentType = xhr.getResponseHeader("content-type");\n' +
+                '                                return `content-type: ${contentType}\\r\\n`;\n' +
+                '                            };\n' +
+                '                            \n' +
+                '                            // Trigger events\n' +
+                '                            if (xhr.onreadystatechange) {\n' +
+                '                                xhr.onreadystatechange();\n' +
+                '                            }\n' +
+                '                            if (xhr.onload) {\n' +
+                '                                xhr.onload();\n' +
+                '                            }\n' +
+                '                        } catch (e) {\n' +
+                '                            // Handle error in response simulation\n' +
+                '                            if (xhr.onerror) {\n' +
+                '                                xhr.onerror();\n' +
+                '                            }\n' +
+                '                        }\n' +
+                '                    }, 1);\n' +
+                '                } catch (e) {\n' +
+                '                    // Handle error in virtual request\n' +
+                '                    if (xhr.onerror) {\n' +
+                '                        xhr.onerror();\n' +
+                '                    }\n' +
+                '                }\n' +
+                '                return;\n' +
+                '            }\n' +
+                '            \n' +
+                '            // Handle normal requests\n' +
+                '            return originalSend.call(this, data);\n' +
+                '        };\n' +
+                '        \n' +
+                '        return xhr;\n' +
+                '    };\n' +
+                '    \n' +
+                '    // Override Image constructor to handle virtual file system\n' +
+                '    const OriginalImage = window.Image;\n' +
+                '    window.Image = function() {\n' +
+                '        const img = new OriginalImage();\n' +
+                '        \n' +
+                '        let _originalSrc = "";\n' +
+                '        let _resolvedSrc = "";\n' +
+                '        \n' +
+                '        Object.defineProperty(img, "src", {\n' +
+                '            get: function() {\n' +
+                '                return _resolvedSrc || _originalSrc;\n' +
+                '            },\n' +
+                '            set: function(value) {\n' +
+                '                _originalSrc = value;\n' +
+                '                \n' +
+                '                const currentFilePath = getCurrentFilePath();\n' +
+                '                let targetPath = value.replace(/^\\.\\//, "");\n' +
+                '                const fileData = findFileInSystem(targetPath, currentFilePath);\n' +
+                '                \n' +
+                '                if (fileData && (fileData.type === "image" || fileData.type === "svg")) {\n' +
+                '                    const dataUrl = fileData.isBinary ? fileData.content : \n' +
+                '                                   `data:image/svg+xml;charset=utf-8,${encodeURIComponent(fileData.content)}`;\n' +
+                '                    _resolvedSrc = dataUrl;\n' +
+                '                    img.setAttribute("src", dataUrl);\n' +
+                '                } else {\n' +
+                '                    _resolvedSrc = value;\n' +
+                '                    img.setAttribute("src", value);\n' +
+                '                }\n' +
+                '            },\n' +
+                '            enumerable: true,\n' +
+                '            configurable: true\n' +
+                '        });\n' +
+                '        \n' +
+                '        return img;\n' +
+                '    };\n' +
+                '    \n' +
+                '    // Override Audio constructor to handle virtual file system\n' +
+                '    const OriginalAudio = window.Audio;\n' +
+                '    window.Audio = function(src) {\n' +
+                '        const audio = new OriginalAudio();\n' +
+                '        \n' +
+                '        let _originalSrc = "";\n' +
+                '        let _resolvedSrc = "";\n' +
+                '        \n' +
+                '        Object.defineProperty(audio, "src", {\n' +
+                '            get: function() {\n' +
+                '                return _resolvedSrc || _originalSrc;\n' +
+                '            },\n' +
+                '            set: function(value) {\n' +
+                '                _originalSrc = value;\n' +
+                '                \n' +
+                '                const currentFilePath = getCurrentFilePath();\n' +
+                '                let targetPath = value.replace(/^\\.\\//, "");\n' +
+                '                const fileData = findFileInSystem(targetPath, currentFilePath);\n' +
+                '                \n' +
+                '                if (fileData && fileData.type === "audio") {\n' +
+                '                    _resolvedSrc = fileData.content;\n' +
+                '                    audio.setAttribute("src", fileData.content);\n' +
+                '                } else {\n' +
+                '                    _resolvedSrc = value;\n' +
+                '                    audio.setAttribute("src", value);\n' +
+                '                }\n' +
+                '            },\n' +
+                '            enumerable: true,\n' +
+                '            configurable: true\n' +
+                '        });\n' +
+                '        \n' +
+                '        // Handle constructor with src parameter\n' +
+                '        if (src !== undefined) {\n' +
+                '            audio.src = src;\n' +
+                '        }\n' +
+                '        \n' +
+                '        return audio;\n' +
                 '    };\n' +
                 '    \n' +
                 '    const postLog = (level, args) => {\n' +

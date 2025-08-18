@@ -1,0 +1,6 @@
+<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
+  <rect width="100%" height="100%" fill="#27ae60"/>
+  <circle cx="100" cy="100" r="30" fill="#2ecc71"/>
+  <circle cx="300" cy="150" r="40" fill="#2ecc71"/>
+  <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="white" font-family="Arial" font-size="20">Garden</text>
+</svg>
