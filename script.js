@@ -2701,92 +2701,118 @@ const CodePreviewer = {
                 '        const originalOpen = xhr.open;\n' +
                 '        const originalSend = xhr.send;\n' +
                 '        \n' +
-                '        let requestUrl = "";\n' +
-                '        let requestMethod = "";\n' +
+                '        let isVirtualRequest = false;\n' +
+                '        let virtualFileData = null;\n' +
                 '        \n' +
                 '        xhr.open = function(method, url, async, user, password) {\n' +
-                '            requestMethod = method.toUpperCase();\n' +
-                '            requestUrl = url;\n' +
-                '            \n' +
-                '            const currentFilePath = getCurrentFilePath();\n' +
-                '            let targetPath = url.replace(/^\\.\\//, "");\n' +
-                '            const fileData = findFileInSystem(targetPath, currentFilePath);\n' +
-                '            \n' +
-                '            if (fileData && requestMethod === "GET") {\n' +
-                '                // Intercept the request for virtual file system\n' +
-                '                this._virtualFileData = fileData;\n' +
-                '                this._isVirtualRequest = true;\n' +
-                '                // Call original open with a dummy URL to maintain compatibility\n' +
-                '                return originalOpen.call(this, method, "data:text/plain,virtual", async, user, password);\n' +
-                '            } else {\n' +
-                '                this._isVirtualRequest = false;\n' +
+                '            try {\n' +
+                '                if (method.toUpperCase() === "GET") {\n' +
+                '                    const currentFilePath = getCurrentFilePath();\n' +
+                '                    let targetPath = url.replace(/^\\.\\//, "");\n' +
+                '                    const fileData = findFileInSystem(targetPath, currentFilePath);\n' +
+                '                    \n' +
+                '                    if (fileData) {\n' +
+                '                        // Handle virtual file system request\n' +
+                '                        isVirtualRequest = true;\n' +
+                '                        virtualFileData = fileData;\n' +
+                '                        // Don\\'t call original open for virtual requests\n' +
+                '                        return;\n' +
+                '                    }\n' +
+                '                }\n' +
+                '                \n' +
+                '                // Handle normal requests\n' +
+                '                isVirtualRequest = false;\n' +
+                '                virtualFileData = null;\n' +
+                '                return originalOpen.call(this, method, url, async, user, password);\n' +
+                '            } catch (e) {\n' +
+                '                // Fallback to normal request on any error\n' +
+                '                isVirtualRequest = false;\n' +
+                '                virtualFileData = null;\n' +
                 '                return originalOpen.call(this, method, url, async, user, password);\n' +
                 '            }\n' +
                 '        };\n' +
                 '        \n' +
                 '        xhr.send = function(data) {\n' +
-                '            if (this._isVirtualRequest && this._virtualFileData) {\n' +
-                '                const fileData = this._virtualFileData;\n' +
-                '                \n' +
-                '                // Simulate successful response\n' +
-                '                setTimeout(() => {\n' +
-                '                    Object.defineProperty(this, "readyState", { value: 4, writable: false });\n' +
-                '                    Object.defineProperty(this, "status", { value: 200, writable: false });\n' +
-                '                    Object.defineProperty(this, "statusText", { value: "OK", writable: false });\n' +
-                '                    \n' +
-                '                    if (fileData.isBinary && fileData.content.startsWith("data:")) {\n' +
-                '                        // For binary files, provide the data URL directly\n' +
-                '                        Object.defineProperty(this, "responseText", { value: fileData.content, writable: false });\n' +
-                '                        Object.defineProperty(this, "response", { value: fileData.content, writable: false });\n' +
-                '                        \n' +
-                '                        // For binary data, also provide as ArrayBuffer if needed\n' +
-                '                        if (this.responseType === "arraybuffer") {\n' +
-                '                            const [header, base64] = fileData.content.split(",");\n' +
-                '                            const byteCharacters = atob(base64);\n' +
-                '                            const byteNumbers = new Array(byteCharacters.length);\n' +
-                '                            for (let i = 0; i < byteCharacters.length; i++) {\n' +
-                '                                byteNumbers[i] = byteCharacters.charCodeAt(i);\n' +
+                '            if (isVirtualRequest && virtualFileData) {\n' +
+                '                try {\n' +
+                '                    // Simulate successful response for virtual files\n' +
+                '                    setTimeout(() => {\n' +
+                '                        try {\n' +
+                '                            // Set response properties\n' +
+                '                            xhr.readyState = 4;\n' +
+                '                            xhr.status = 200;\n' +
+                '                            xhr.statusText = "OK";\n' +
+                '                            \n' +
+                '                            // Set response content\n' +
+                '                            if (virtualFileData.isBinary && virtualFileData.content.startsWith("data:")) {\n' +
+                '                                // For binary files (images, audio, etc.)\n' +
+                '                                if (xhr.responseType === "arraybuffer") {\n' +
+                '                                    // Convert data URL to ArrayBuffer\n' +
+                '                                    const [header, base64] = virtualFileData.content.split(",");\n' +
+                '                                    const byteCharacters = atob(base64);\n' +
+                '                                    const byteNumbers = new Array(byteCharacters.length);\n' +
+                '                                    for (let i = 0; i < byteCharacters.length; i++) {\n' +
+                '                                        byteNumbers[i] = byteCharacters.charCodeAt(i);\n' +
+                '                                    }\n' +
+                '                                    xhr.response = new Uint8Array(byteNumbers).buffer;\n' +
+                '                                } else {\n' +
+                '                                    // Return data URL for other response types\n' +
+                '                                    xhr.response = virtualFileData.content;\n' +
+                '                                    xhr.responseText = virtualFileData.content;\n' +
+                '                                }\n' +
+                '                            } else {\n' +
+                '                                // For text files\n' +
+                '                                xhr.responseText = virtualFileData.content;\n' +
+                '                                xhr.response = virtualFileData.content;\n' +
                 '                            }\n' +
-                '                            const arrayBuffer = new Uint8Array(byteNumbers).buffer;\n' +
-                '                            Object.defineProperty(this, "response", { value: arrayBuffer, writable: false });\n' +
+                '                            \n' +
+                '                            // Set headers\n' +
+                '                            xhr.getResponseHeader = function(name) {\n' +
+                '                                const lowerName = name.toLowerCase();\n' +
+                '                                if (lowerName === "content-type") {\n' +
+                '                                    const typeMap = {\n' +
+                '                                        "image": "image/png",\n' +
+                '                                        "audio": "audio/mpeg",\n' +
+                '                                        "video": "video/mp4",\n' +
+                '                                        "json": "application/json",\n' +
+                '                                        "css": "text/css",\n' +
+                '                                        "javascript": "text/javascript",\n' +
+                '                                        "html": "text/html"\n' +
+                '                                    };\n' +
+                '                                    return typeMap[virtualFileData.type] || "text/plain";\n' +
+                '                                }\n' +
+                '                                return null;\n' +
+                '                            };\n' +
+                '                            \n' +
+                '                            xhr.getAllResponseHeaders = function() {\n' +
+                '                                const contentType = xhr.getResponseHeader("content-type");\n' +
+                '                                return `content-type: ${contentType}\\r\\n`;\n' +
+                '                            };\n' +
+                '                            \n' +
+                '                            // Trigger events\n' +
+                '                            if (xhr.onreadystatechange) {\n' +
+                '                                xhr.onreadystatechange();\n' +
+                '                            }\n' +
+                '                            if (xhr.onload) {\n' +
+                '                                xhr.onload();\n' +
+                '                            }\n' +
+                '                        } catch (e) {\n' +
+                '                            // Handle error in response simulation\n' +
+                '                            if (xhr.onerror) {\n' +
+                '                                xhr.onerror();\n' +
+                '                            }\n' +
                 '                        }\n' +
-                '                    } else {\n' +
-                '                        // For text files\n' +
-                '                        Object.defineProperty(this, "responseText", { value: fileData.content, writable: false });\n' +
-                '                        Object.defineProperty(this, "response", { value: fileData.content, writable: false });\n' +
+                '                    }, 1);\n' +
+                '                } catch (e) {\n' +
+                '                    // Handle error in virtual request\n' +
+                '                    if (xhr.onerror) {\n' +
+                '                        xhr.onerror();\n' +
                 '                    }\n' +
-                '                    \n' +
-                '                    // Set appropriate headers\n' +
-                '                    const getResponseHeader = (name) => {\n' +
-                '                        const lowerName = name.toLowerCase();\n' +
-                '                        if (lowerName === "content-type") {\n' +
-                '                            if (fileData.type === "image") return "image/png";\n' +
-                '                            if (fileData.type === "audio") return "audio/mpeg";\n' +
-                '                            if (fileData.type === "video") return "video/mp4";\n' +
-                '                            if (fileData.type === "json") return "application/json";\n' +
-                '                            if (fileData.type === "css") return "text/css";\n' +
-                '                            if (fileData.type === "javascript") return "text/javascript";\n' +
-                '                            if (fileData.type === "html") return "text/html";\n' +
-                '                            return "text/plain";\n' +
-                '                        }\n' +
-                '                        return null;\n' +
-                '                    };\n' +
-                '                    \n' +
-                '                    this.getResponseHeader = getResponseHeader;\n' +
-                '                    this.getAllResponseHeaders = () => `content-type: ${getResponseHeader("content-type")}\\r\\n`;\n' +
-                '                    \n' +
-                '                    // Trigger events\n' +
-                '                    if (this.onreadystatechange) {\n' +
-                '                        this.onreadystatechange();\n' +
-                '                    }\n' +
-                '                    if (this.onload) {\n' +
-                '                        this.onload();\n' +
-                '                    }\n' +
-                '                }, 0);\n' +
-                '                \n' +
+                '                }\n' +
                 '                return;\n' +
                 '            }\n' +
                 '            \n' +
+                '            // Handle normal requests\n' +
                 '            return originalSend.call(this, data);\n' +
                 '        };\n' +
                 '        \n' +
