@@ -1,0 +1,27 @@
+<svg width="256" height="64" xmlns="http://www.w3.org/2000/svg">
+  <!-- 4 frames of Jack sprite: 64x64 each -->
+  <!-- Frame 1 -->
+  <g transform="translate(0,0)">
+    <rect x="0" y="0" width="64" height="64" fill="#f39c12"/>
+    <circle cx="32" cy="20" r="8" fill="#fff"/>
+    <rect x="28" y="35" width="8" height="20" fill="#e74c3c"/>
+  </g>
+  <!-- Frame 2 -->
+  <g transform="translate(64,0)">
+    <rect x="0" y="0" width="64" height="64" fill="#f39c12"/>
+    <circle cx="32" cy="20" r="8" fill="#fff"/>
+    <rect x="26" y="35" width="12" height="20" fill="#e74c3c"/>
+  </g>
+  <!-- Frame 3 -->
+  <g transform="translate(128,0)">
+    <rect x="0" y="0" width="64" height="64" fill="#f39c12"/>
+    <circle cx="32" cy="20" r="8" fill="#fff"/>
+    <rect x="28" y="35" width="8" height="20" fill="#e74c3c"/>
+  </g>
+  <!-- Frame 4 -->
+  <g transform="translate(192,0)">
+    <rect x="0" y="0" width="64" height="64" fill="#f39c12"/>
+    <circle cx="32" cy="20" r="8" fill="#fff"/>
+    <rect x="30" y="35" width="4" height="20" fill="#e74c3c"/>
+  </g>
+</svg>
