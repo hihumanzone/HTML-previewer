@@ -35,7 +35,6 @@
             preload() {
                 const { width, height } = this.cameras.main;
                 
-                // Create loading UI.
                 const progressBox = this.add.graphics();
                 progressBox.fillStyle(0x222222, 0.8);
                 progressBox.fillRect(width / 2 - 160, height / 2 - 25, 320, 50);
@@ -60,31 +59,24 @@
                     loadingText.destroy();
                 });
                 
-                console.log("Starting asset loading...");
-                
-                // Load images.
                 this.load.image('mainMenu', 'assets/main_menu.png');
                 this.load.image('mainBanner', 'assets/main_banner.png');
                 this.load.image('playButton', 'assets/play_button.png');
                 this.load.image('myRoom', 'assets/my_room.png');
                 this.load.image('garden', 'assets/garden.png');
                 
-                // Jack sprite: a spritesheet with 4 frames.
                 this.load.spritesheet('jack', 'assets/jack.png', { frameWidth: 64, frameHeight: 64 });
                 
-                // Load audio tracks.
                 this.load.audio('menuMusic', ['assets/music/menu.mp3']);
                 this.load.audio('roomMusic', ['assets/music/room.mp3']);
                 this.load.audio('gardenMusic', ['assets/music/garden.mp3']);
                 
-                // Load sound effects.
                 this.load.audio('button', ['assets/sfx/button.mp3']);
                 this.load.audio('door', ['assets/sfx/door.mp3']);
                 this.load.audio('walking', ['assets/sfx/walking.mp3']);
             }
             
             create() {
-                console.log("Assets loaded, transitioning to main scene...");
                 this.scene.start('MainMenuScene');
             }
         }
@@ -95,33 +87,16 @@
             }
             
             create() {
-                console.log("Main menu scene started");
-                
                 const { width, height } = this.cameras.main;
                 
-                // Test loading assets
                 if (this.textures.exists('mainMenu')) {
                     this.add.image(width / 2, height / 2, 'mainMenu');
-                    console.log("✅ Main menu image loaded successfully!");
-                } else {
-                    console.error("❌ Main menu image failed to load");
                 }
                 
                 if (this.textures.exists('jack')) {
                     const jack = this.add.sprite(100, 100, 'jack');
-                    console.log("✅ Jack spritesheet loaded successfully!");
-                } else {
-                    console.error("❌ Jack spritesheet failed to load");
                 }
                 
-                // Test audio
-                if (this.sound.cache && this.sound.cache.exists('menuMusic')) {
-                    console.log("✅ Menu music loaded successfully!");
-                } else {
-                    console.error("❌ Menu music failed to load");
-                }
-                
-                // Add some text
                 this.add.text(width / 2, height - 50, 'Asset Loading Test Complete', {
                     fontSize: '16px',
                     fill: '#ffffff'
@@ -139,11 +114,6 @@
         };
         
         const game = new Phaser.Game(config);
-        
-        // Monitor for errors
-        window.addEventListener('error', (e) => {
-            console.error('Script error:', e.message, 'at', e.filename, ':', e.lineno);
-        });
     </script>
 </body>
 </html>

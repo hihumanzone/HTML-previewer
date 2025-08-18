@@ -32,7 +32,6 @@
             preload() {
                 const { width, height } = this.cameras.main;
                 
-                // Create loading UI
                 const progressBox = this.add.graphics();
                 progressBox.fillStyle(0x222222, 0.8);
                 progressBox.fillRect(width / 2 - 160, height / 2 - 25, 320, 50);
@@ -46,14 +45,12 @@
                 }).setOrigin(0.5);
                 
                 this.load.on('progress', (value) => {
-                    console.log('Loading progress:', Math.round(value * 100) + '%');
                     progressBar.clear();
                     progressBar.fillStyle(0xffffff, 1);
                     progressBar.fillRect(width / 2 - 150, height / 2 - 15, 300 * value, 30);
                 });
                 
                 this.load.on('complete', () => {
-                    console.log('All assets loaded successfully!');
                     progressBar.destroy();
                     progressBox.destroy();
                     loadingText.destroy();
@@ -66,30 +63,24 @@
                 this.load.on('filecomplete', (key, type, data) => {
                     console.log('File loaded:', key, type);
                 });
-                
-                // Load test images
                 this.load.image('mainMenu', 'assets/main_menu.png');
                 this.load.image('mainBanner', 'assets/main_banner.png');
                 this.load.image('playButton', 'assets/play_button.png');
                 this.load.image('myRoom', 'assets/my_room.png');
                 this.load.image('garden', 'assets/garden.png');
                 
-                // Load spritesheet
                 this.load.spritesheet('jack', 'assets/jack.png', { frameWidth: 64, frameHeight: 64 });
                 
-                // Load audio tracks
                 this.load.audio('menuMusic', ['assets/music/menu.mp3']);
                 this.load.audio('roomMusic', ['assets/music/room.mp3']);
                 this.load.audio('gardenMusic', ['assets/music/garden.mp3']);
                 
-                // Load sound effects
                 this.load.audio('button', ['assets/sfx/button.mp3']);
                 this.load.audio('door', ['assets/sfx/door.mp3']);
                 this.load.audio('walking', ['assets/sfx/walking.mp3']);
             }
             
             create() {
-                console.log('PreloaderScene created, switching to MainMenuScene');
                 this.scene.start('MainMenuScene');
             }
         }
@@ -102,24 +93,19 @@
             create() {
                 const { width, height } = this.cameras.main;
                 
-                // Add background
                 this.add.rectangle(width / 2, height / 2, width, height, 0x1a1a2e);
                 
-                // Add loaded images
                 this.add.image(width / 2, 100, 'mainBanner').setScale(0.5);
                 this.add.image(width / 2, height / 2, 'mainMenu').setScale(0.7);
                 
-                // Add play button
                 const playBtn = this.add.image(width / 2, height / 2 + 100, 'playButton')
                     .setScale(0.6)
                     .setInteractive()
                     .on('pointerdown', () => {
-                        console.log('Play button clicked!');
                         this.sound.play('button');
                         this.scene.start('GameScene');
                     });
                 
-                // Add jack sprite animation
                 const jack = this.add.sprite(100, height / 2, 'jack', 0).setScale(2);
                 this.anims.create({
                     key: 'jack_idle',
@@ -129,10 +115,7 @@
                 });
                 jack.play('jack_idle');
                 
-                // Play background music
                 this.sound.play('menuMusic', { loop: true, volume: 0.5 });
-                
-                console.log('MainMenuScene created successfully with all assets!');
             }
         }
         
@@ -152,11 +135,8 @@
                     fill: '#ffffff'
                 }).setOrigin(0.5);
                 
-                // Play room music
                 this.sound.stopAll();
                 this.sound.play('roomMusic', { loop: true, volume: 0.5 });
-                
-                console.log('GameScene loaded - all assets working!');
             }
         }
         
@@ -177,14 +157,7 @@
             }
         };
         
-        // Start the game
-        console.log('Starting Phaser game...');
         const game = new Phaser.Game(config);
-        
-        // Log when game is ready
-        game.events.on('ready', () => {
-            console.log('Phaser game initialized successfully!');
-        });
     </script>
 </body>
 </html>

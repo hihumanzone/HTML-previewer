@@ -253,7 +253,7 @@ const CodePreviewer = {
     },
 
     initEditors() {
-        if (typeof CodeMirror === 'undefined') {
+        if (typeof window.CodeMirror === 'undefined') {
             console.warn('CodeMirror not available, using fallback textarea editors');
             this.initFallbackEditors();
             return;
@@ -268,16 +268,16 @@ const CodePreviewer = {
         });
 
         if (this.dom.htmlEditor) {
-            this.state.editors.html = CodeMirror.fromTextArea(this.dom.htmlEditor, editorConfig('htmlmixed'));
+            this.state.editors.html = window.CodeMirror.fromTextArea(this.dom.htmlEditor, editorConfig('htmlmixed'));
         }
         if (this.dom.cssEditor) {
-            this.state.editors.css = CodeMirror.fromTextArea(this.dom.cssEditor, editorConfig('css'));
+            this.state.editors.css = window.CodeMirror.fromTextArea(this.dom.cssEditor, editorConfig('css'));
         }
         if (this.dom.jsEditor) {
-            this.state.editors.js = CodeMirror.fromTextArea(this.dom.jsEditor, editorConfig('javascript'));
+            this.state.editors.js = window.CodeMirror.fromTextArea(this.dom.jsEditor, editorConfig('javascript'));
         }
         if (this.dom.singleFileEditor) {
-            this.state.editors.singleFile = CodeMirror.fromTextArea(this.dom.singleFileEditor, editorConfig('htmlmixed'));
+            this.state.editors.singleFile = window.CodeMirror.fromTextArea(this.dom.singleFileEditor, editorConfig('htmlmixed'));
         }
 
         this.setDefaultContent();
@@ -516,54 +516,10 @@ const CodePreviewer = {
         const fileId = `file-${this.state.nextFileId++}`;
         const fileName = `newfile.html`;
         
-        const fileTypeOptions = this.generateFileTypeOptions('html');
-        
-        const panelHTML = `
-            <div class="editor-panel" data-file-type="html" data-file-id="${fileId}" draggable="true">
-                <div class="panel-header">
-                    <div class="drag-handle" aria-label="Drag to reorder">⋮⋮</div>
-                    <input type="text" class="file-name-input" value="${fileName}" aria-label="File name">
-                    <select class="file-type-selector" aria-label="File type">
-                        ${fileTypeOptions}
-                    </select>
-                    <button class="remove-file-btn" aria-label="Remove file">&times;</button>
-                </div>
-                ${this.generateToolbarHTML('html')}
-                <label for="${fileId}" class="sr-only">Code Editor</label>
-                <div class="editor-wrapper">
-                    <textarea id="${fileId}"></textarea>
-                </div>
-            </div>
-        `;
-        
-        this.dom.editorGrid.insertAdjacentHTML('beforeend', panelHTML);
+        this.createFilePanel(fileId, fileName, 'html', '', false);
         
         const newTextarea = document.getElementById(fileId);
-        let newEditor;
-        
-        if (typeof CodeMirror !== 'undefined') {
-            newEditor = CodeMirror.fromTextArea(newTextarea, {
-                lineNumbers: true,
-                mode: 'htmlmixed',
-                theme: 'dracula',
-                autoCloseTags: true,
-                lineWrapping: true,
-            });
-        } else {
-            Object.assign(newTextarea.style, {
-                fontFamily: 'monospace', fontSize: '14px', lineHeight: '1.5',
-                resize: 'none', border: 'none', outline: 'none',
-                background: '#282a36', color: '#f8f8f2', padding: '1rem',
-                width: '100%', height: '400px'
-            });
-            
-            newEditor = {
-                setValue: (value) => newTextarea.value = value,
-                getValue: () => newTextarea.value,
-                refresh: () => {},
-                setOption: () => {},
-            };
-        }
+        const newEditor = this.createEditorForTextarea(newTextarea, 'html');
         
         this.state.files.push({
             id: fileId,
@@ -666,66 +622,16 @@ const CodePreviewer = {
     addNewFileWithContent(fileName, fileType, content, isBinary = false) {
         const fileId = `file-${this.state.nextFileId++}`;
         
-        const fileTypeOptions = this.generateFileTypeOptions(fileType);
-        
-        const panelHTML = `
-            <div class="editor-panel" data-file-type="${fileType}" data-file-id="${fileId}" draggable="true">
-                <div class="panel-header">
-                    <div class="drag-handle" aria-label="Drag to reorder">⋮⋮</div>
-                    <input type="text" class="file-name-input" value="${fileName}" aria-label="File name">
-                    <select class="file-type-selector" aria-label="File type">
-                        ${fileTypeOptions}
-                    </select>
-                    <button class="remove-file-btn" aria-label="Remove file">&times;</button>
-                </div>
-                ${this.generateToolbarHTML(fileType)}
-                <label for="${fileId}" class="sr-only">${this.getFileTypeLabel(fileType)}</label>
-                <div class="editor-wrapper">
-                    ${this.generateFileContentDisplay(fileId, fileType, content, isBinary)}
-                </div>
-            </div>
-        `;
-        
-        this.dom.editorGrid.insertAdjacentHTML('beforeend', panelHTML);
+        this.createFilePanel(fileId, fileName, fileType, content, isBinary);
         
         let newEditor;
         
         if (this.isEditableFileType(fileType)) {
             const newTextarea = document.getElementById(fileId);
+            newEditor = this.createEditorForTextarea(newTextarea, fileType, isBinary);
             
-            if (typeof CodeMirror !== 'undefined') {
-                const mode = this.getCodeMirrorMode(fileType);
-                
-                newEditor = CodeMirror.fromTextArea(newTextarea, {
-                    lineNumbers: true,
-                    mode: mode,
-                    theme: 'dracula',
-                    autoCloseTags: fileType === 'html',
-                    lineWrapping: true,
-                    readOnly: isBinary ? 'nocursor' : false
-                });
-                
-                if (!isBinary) {
-                    newEditor.setValue(content);
-                }
-            } else {
-                Object.assign(newTextarea.style, {
-                    fontFamily: 'monospace', fontSize: '14px', lineHeight: '1.5',
-                    resize: 'none', border: 'none', outline: 'none',
-                    background: '#282a36', color: '#f8f8f2', padding: '1rem',
-                    width: '100%', height: '400px'
-                });
-                
-                newEditor = {
-                    setValue: (value) => newTextarea.value = value,
-                    getValue: () => newTextarea.value,
-                    refresh: () => {},
-                    setOption: () => {},
-                };
-                
-                if (!isBinary) {
-                    newEditor.setValue(content);
-                }
+            if (!isBinary && content) {
+                newEditor.setValue(content);
             }
         } else {
             newEditor = {
@@ -774,6 +680,61 @@ const CodePreviewer = {
         return fileTypes.map(type => 
             `<option value="${type.value}" ${selectedType === type.value ? 'selected' : ''}>${type.label}</option>`
         ).join('');
+    },
+
+    createFilePanel(fileId, fileName, fileType, content, isBinary) {
+        const fileTypeOptions = this.generateFileTypeOptions(fileType);
+        
+        const panelHTML = `
+            <div class="editor-panel" data-file-type="${fileType}" data-file-id="${fileId}" draggable="true">
+                <div class="panel-header">
+                    <div class="drag-handle" aria-label="Drag to reorder">⋮⋮</div>
+                    <input type="text" class="file-name-input" value="${fileName}" aria-label="File name">
+                    <select class="file-type-selector" aria-label="File type">
+                        ${fileTypeOptions}
+                    </select>
+                    <button class="remove-file-btn" aria-label="Remove file">&times;</button>
+                </div>
+                ${this.generateToolbarHTML(fileType)}
+                <label for="${fileId}" class="sr-only">${this.getFileTypeLabel(fileType)}</label>
+                <div class="editor-wrapper">
+                    ${this.generateFileContentDisplay(fileId, fileType, content, isBinary)}
+                </div>
+            </div>
+        `;
+        
+        this.dom.editorGrid.insertAdjacentHTML('beforeend', panelHTML);
+    },
+
+    createEditorForTextarea(textarea, fileType, isBinary = false) {
+        if (typeof window.CodeMirror !== 'undefined' && textarea) {
+            const mode = this.getCodeMirrorMode(fileType);
+            
+            return window.CodeMirror.fromTextArea(textarea, {
+                lineNumbers: true,
+                mode: mode,
+                theme: 'dracula',
+                autoCloseTags: fileType === 'html',
+                lineWrapping: true,
+                readOnly: isBinary ? 'nocursor' : false
+            });
+        } else if (textarea) {
+            Object.assign(textarea.style, {
+                fontFamily: 'monospace', fontSize: '14px', lineHeight: '1.5',
+                resize: 'none', border: 'none', outline: 'none',
+                background: '#282a36', color: '#f8f8f2', padding: '1rem',
+                width: '100%', height: '400px'
+            });
+            
+            return {
+                setValue: (value) => textarea.value = value,
+                getValue: () => textarea.value,
+                refresh: () => {},
+                setOption: () => {},
+            };
+        }
+        
+        return null;
     },
 
     generateToolbarHTML(fileType) {
@@ -858,7 +819,7 @@ const CodePreviewer = {
                         panel.dataset.fileType = suggestedType;
                         fileInfo.type = suggestedType;
                         
-                        if (typeof CodeMirror !== 'undefined' && fileInfo.editor.setOption) {
+                        if (typeof window.CodeMirror !== 'undefined' && fileInfo.editor.setOption) {
                             const mode = suggestedType === 'html' ? 'htmlmixed' : 
                                        suggestedType === 'css' ? 'css' : 'javascript';
                             fileInfo.editor.setOption('mode', mode);
@@ -879,23 +840,19 @@ const CodePreviewer = {
                     const oldType = fileInfo.type;
                     fileInfo.type = newType;
                     
-                    // Handle transition between editable and non-editable file types
                     const oldIsEditable = this.isEditableFileType(oldType);
                     const newIsEditable = this.isEditableFileType(newType);
                     
                     if (oldIsEditable !== newIsEditable) {
-                        // Need to recreate the editor wrapper content
                         const editorWrapper = panel.querySelector('.editor-wrapper');
                         if (editorWrapper) {
                             const currentContent = fileInfo.editor ? fileInfo.editor.getValue() : '';
                             const newContent = this.generateFileContentDisplay(fileId, newType, currentContent, false);
                             editorWrapper.innerHTML = newContent;
                             
-                            // Create new editor for the file
                             this.createEditorForFileType(fileInfo, fileId, newType, currentContent);
                         }
-                    } else if (newIsEditable && typeof CodeMirror !== 'undefined' && fileInfo.editor.setOption) {
-                        // Update existing editor mode
+                    } else if (newIsEditable && typeof window.CodeMirror !== 'undefined' && fileInfo.editor.setOption) {
                         const mode = this.getCodeMirrorMode(newType);
                         fileInfo.editor.setOption('mode', mode);
                         fileInfo.editor.setOption('autoCloseTags', newType === 'html');
@@ -918,42 +875,12 @@ const CodePreviewer = {
     createEditorForFileType(fileInfo, fileId, fileType, content) {
         if (this.isEditableFileType(fileType)) {
             const newTextarea = document.getElementById(fileId);
+            fileInfo.editor = this.createEditorForTextarea(newTextarea, fileType);
             
-            if (typeof CodeMirror !== 'undefined' && newTextarea) {
-                const mode = this.getCodeMirrorMode(fileType);
-                
-                fileInfo.editor = CodeMirror.fromTextArea(newTextarea, {
-                    lineNumbers: true,
-                    mode: mode,
-                    theme: 'dracula',
-                    autoCloseTags: fileType === 'html',
-                    lineWrapping: true,
-                });
-                
-                if (content) {
-                    fileInfo.editor.setValue(content);
-                }
-            } else if (newTextarea) {
-                Object.assign(newTextarea.style, {
-                    fontFamily: 'monospace', fontSize: '14px', lineHeight: '1.5',
-                    resize: 'none', border: 'none', outline: 'none',
-                    background: '#282a36', color: '#f8f8f2', padding: '1rem',
-                    width: '100%', height: '400px'
-                });
-                
-                fileInfo.editor = {
-                    setValue: (value) => newTextarea.value = value,
-                    getValue: () => newTextarea.value,
-                    refresh: () => {},
-                    setOption: () => {},
-                };
-                
-                if (content) {
-                    fileInfo.editor.setValue(content);
-                }
+            if (content) {
+                fileInfo.editor.setValue(content);
             }
         } else {
-            // For non-editable files (binary), create a mock editor
             fileInfo.editor = {
                 setValue: () => {},
                 getValue: () => content || '',
@@ -961,7 +888,6 @@ const CodePreviewer = {
                 setOption: () => {},
             };
             
-            // Store the content separately for binary files
             fileInfo.content = content || '';
         }
     },
@@ -1412,7 +1338,7 @@ const CodePreviewer = {
     },
 
     showNotification(message, type = 'info') {
-        this.notificationSystem.show(message, type);
+        this.showNotification(message, type);
     },
 
     generateSingleFilePreview() {
@@ -2364,6 +2290,10 @@ const CodePreviewer = {
             };
             return typeof containers[type] === 'function' ? containers[type](content, fileName) : (containers[type] || containers.default);
         }
+    },
+
+    showNotification(message, type = 'info') {
+        this.showNotification(message, type);
     },
 
     notificationSystem: {
