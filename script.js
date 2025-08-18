@@ -1350,7 +1350,7 @@ const CodePreviewer = {
 
     generateSingleFilePreview() {
         const singleFileContent = this.state.editors.singleFile ? this.state.editors.singleFile.getValue() : '';
-        const captureScript = this.console.getCaptureScript();
+        const captureScript = this.console.getCaptureScript(null, 'index.html');
         
         if (singleFileContent.includes('</head>')) {
             return singleFileContent.replace('</head>', captureScript + '\n</head>');
@@ -1409,17 +1409,17 @@ const CodePreviewer = {
         };
     },
 
-    processHTMLScripts(htmlContent, jsFiles, moduleFiles) {
+    processHTMLScripts(htmlContent, jsFiles, moduleFiles, currentFilePath = 'index.html') {
         htmlContent = htmlContent.replace(/<script(?:\s+type\s*=\s*['"](?:text\/javascript|application\/javascript)['"])?[^>]*>([\s\S]*?)<\/script>/gi, (match, scriptContent) => {
             if (this.isModuleFile(scriptContent)) {
                 moduleFiles.push({
                     content: scriptContent,
-                    filename: 'inline-module.mjs'
+                    filename: currentFilePath.replace(/\.(html?)$/, '-inline-module.mjs')
                 });
             } else {
                 jsFiles.push({
                     content: scriptContent,
-                    filename: 'inline-script.js'
+                    filename: currentFilePath.replace(/\.(html?)$/, '-inline-script.js')
                 });
             }
             return '';
@@ -1446,8 +1446,9 @@ const CodePreviewer = {
                     css += '\n' + styles;
                 }
                 
+                const filename = this.getFileNameFromPanel(file.id) || 'index.html';
                 let htmlContent = this.extractHTMLContent(contentWithoutStyles);
-                htmlContent = this.processHTMLScripts(htmlContent, jsFiles, moduleFiles);
+                htmlContent = this.processHTMLScripts(htmlContent, jsFiles, moduleFiles, filename);
                 html += '\n' + htmlContent;
             } else if (file.type === 'css') {
                 css += '\n' + content;
@@ -1651,11 +1652,11 @@ const CodePreviewer = {
         const mainHtmlPath = this.getFileNameFromPanel(mainHtmlFile.id) || 'index.html';
         let processedHtml = this.replaceAssetReferences(mainHtmlFile.editor.getValue(), fileSystem, mainHtmlPath);
         
-        return this.injectConsoleScript(processedHtml);
+        return this.injectConsoleScript(processedHtml, fileSystem, mainHtmlPath);
     },
 
-    injectConsoleScript(htmlContent) {
-        const captureScript = this.console.getCaptureScript();
+    injectConsoleScript(htmlContent, fileSystem = null, mainHtmlPath = 'index.html') {
+        const captureScript = this.console.getCaptureScript(fileSystem, mainHtmlPath);
         
         if (htmlContent.includes('</head>')) {
             return htmlContent.replace('</head>', captureScript + '\n</head>');
@@ -1666,7 +1667,7 @@ const CodePreviewer = {
         }
     },
 
-    processModuleFiles(moduleFiles) {
+    processModuleFiles(moduleFiles, currentFilePath = 'index.html') {
         if (moduleFiles.length === 0) return '';
 
         let combinedModuleContent = '';
@@ -1674,6 +1675,8 @@ const CodePreviewer = {
         
         moduleFiles.forEach((file, index) => {
             let processedContent = file.content;
+            
+            const filePathContext = `window.__currentExecutionContext = "${file.filename}";\n`;
             
             processedContent = processedContent.replace(/import\s*\{[^}]+\}\s*from\s*['"][^'"]+['"];?\s*\n?/g, '');
             processedContent = processedContent.replace(/import\s+\*\s+as\s+\w+\s+from\s*['"][^'"]+['"];?\s*\n?/g, '');
@@ -1699,7 +1702,7 @@ const CodePreviewer = {
                 });
             }
             
-            combinedModuleContent += '\n' + processedContent + '\n';
+            combinedModuleContent += '\n' + filePathContext + processedContent + '\n';
         });
         
         if (globalFunctions.length > 0) {
@@ -1716,11 +1719,13 @@ const CodePreviewer = {
         return '';
     },
 
-    processJavaScriptFiles(jsFiles) {
+    processJavaScriptFiles(jsFiles, currentFilePath = 'index.html') {
         if (jsFiles.length === 0) return '';
 
         const regularJS = jsFiles.map(file => {
-            return 'try {\n' +
+            const filePathContext = `window.__currentExecutionContext = "${file.filename}";\n`;
+            return filePathContext +
+                   'try {\n' +
                    file.content + '\n' +
                    '} catch (err) {\n' +
                    '    console.error(\'Error in ' + file.filename + ':\', err);\n' +
@@ -1786,8 +1791,8 @@ const CodePreviewer = {
         const mainHtmlPath = mainHtmlFile ? (this.getFileNameFromPanel(mainHtmlFile.id) || 'index.html') : 'index.html';
         const htmlWithAssets = this.replaceAssetReferences(processedHtml, fileSystem, mainHtmlPath);
         
-        const moduleScript = this.processModuleFiles(moduleFiles);
-        const jsScript = this.processJavaScriptFiles(jsFiles);
+        const moduleScript = this.processModuleFiles(moduleFiles, mainHtmlPath);
+        const jsScript = this.processJavaScriptFiles(jsFiles, mainHtmlPath);
 
         return '<!DOCTYPE html>\n' +
             '<html lang="en">\n' +
@@ -1795,7 +1800,7 @@ const CodePreviewer = {
             '    <meta charset="UTF-8">\n' +
             '    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
             '    <title>Live Preview</title>\n' +
-            '    ' + this.console.getCaptureScript() + '\n' +
+            '    ' + this.console.getCaptureScript(fileSystem, mainHtmlPath) + '\n' +
             '    ' + workerScript + '\n' +
             '    <style>' + css + '</style>\n' +
             '</head>\n' +
@@ -2534,10 +2539,161 @@ const CodePreviewer = {
                 this.log(event.data);
             }
         },
-        getCaptureScript() {
+        getCaptureScript(fileSystem = null, mainHtmlPath = 'index.html') {
             const MESSAGE_TYPE = CodePreviewer.constants.CONSOLE_MESSAGE_TYPE;
+            
+            let fileSystemScript = '';
+            if (fileSystem && fileSystem instanceof Map) {
+                const fileObj = {};
+                fileSystem.forEach((fileData, filename) => {
+                    fileObj[filename] = {
+                        content: fileData.content,
+                        type: fileData.type,
+                        isBinary: fileData.isBinary || false
+                    };
+                });
+                const jsonString = JSON.stringify(fileObj);
+                const base64Data = btoa(unescape(encodeURIComponent(jsonString)));
+                fileSystemScript = `
+                    const virtualFileSystemData = "${base64Data}";
+                    const virtualFileSystem = JSON.parse(decodeURIComponent(escape(atob(virtualFileSystemData))));
+                    const mainHtmlPath = "${mainHtmlPath}";
+                `;
+            } else {
+                fileSystemScript = `
+                    const virtualFileSystem = {};
+                    const mainHtmlPath = "index.html";
+                `;
+            }
+            
             return '<script>\n' +
                 '(function() {\n' +
+                fileSystemScript + '\n' +
+                '    \n' +
+                '    function resolvePath(basePath, relativePath) {\n' +
+                '        if (relativePath.startsWith("/")) {\n' +
+                '            return relativePath.substring(1);\n' +
+                '        }\n' +
+                '        \n' +
+                '        const baseDir = basePath.includes("/") ? basePath.substring(0, basePath.lastIndexOf("/")) : "";\n' +
+                '        const baseParts = baseDir ? baseDir.split("/") : [];\n' +
+                '        const relativeParts = relativePath.split("/");\n' +
+                '        const resultParts = [...baseParts];\n' +
+                '        \n' +
+                '        for (const part of relativeParts) {\n' +
+                '            if (part === "..") {\n' +
+                '                if (resultParts.length > 0) {\n' +
+                '                    resultParts.pop();\n' +
+                '                }\n' +
+                '            } else if (part !== "." && part !== "") {\n' +
+                '                resultParts.push(part);\n' +
+                '            }\n' +
+                '        }\n' +
+                '        \n' +
+                '        return resultParts.join("/");\n' +
+                '    }\n' +
+                '    \n' +
+                '    function findFileInSystem(targetFilename, currentFilePath = "") {\n' +
+                '        if (currentFilePath) {\n' +
+                '            targetFilename = resolvePath(currentFilePath, targetFilename);\n' +
+                '        }\n' +
+                '        \n' +
+                '        const exactMatch = virtualFileSystem[targetFilename];\n' +
+                '        if (exactMatch) {\n' +
+                '            return exactMatch;\n' +
+                '        }\n' +
+                '        \n' +
+                '        const targetLower = targetFilename.toLowerCase();\n' +
+                '        for (const [filename, file] of Object.entries(virtualFileSystem)) {\n' +
+                '            if (filename.toLowerCase() === targetLower) {\n' +
+                '                return file;\n' +
+                '            }\n' +
+                '        }\n' +
+                '        \n' +
+                '        return null;\n' +
+                '    }\n' +
+                '    \n' +
+                '    function getCurrentFilePath() {\n' +
+                '        try {\n' +
+                '            if (window.__currentExecutionContext) {\n' +
+                '                return window.__currentExecutionContext;\n' +
+                '            }\n' +
+                '            return mainHtmlPath;\n' +
+                '        } catch (e) {\n' +
+                '            return mainHtmlPath;\n' +
+                '        }\n' +
+                '    }\n' +
+                '    \n' +
+                '    const originalFetch = window.fetch;\n' +
+                '    window.fetch = function(input, init) {\n' +
+                '        let url = input;\n' +
+                '        if (typeof input === "object" && input.url) {\n' +
+                '            url = input.url;\n' +
+                '        }\n' +
+                '        \n' +
+                '        const currentFilePath = getCurrentFilePath();\n' +
+                '        let targetPath = url.replace(/^\\.\\//, "");\n' +
+                '        const fileData = findFileInSystem(targetPath, currentFilePath);\n' +
+                '        \n' +
+                '        if (fileData) {\n' +
+                '            const response = {\n' +
+                '                ok: true,\n' +
+                '                status: 200,\n' +
+                '                statusText: "OK",\n' +
+                '                headers: new Headers({\n' +
+                '                    "Content-Type": fileData.type === "json" ? "application/json" : \n' +
+                '                                   fileData.type === "html" ? "text/html" :\n' +
+                '                                   fileData.type === "css" ? "text/css" :\n' +
+                '                                   fileData.type === "javascript" ? "text/javascript" :\n' +
+                '                                   fileData.type === "xml" ? "application/xml" :\n' +
+                '                                   "text/plain"\n' +
+                '                }),\n' +
+                '                url: url,\n' +
+                '                text: () => Promise.resolve(fileData.content),\n' +
+                '                json: () => {\n' +
+                '                    try {\n' +
+                '                        return Promise.resolve(JSON.parse(fileData.content));\n' +
+                '                    } catch (e) {\n' +
+                '                        return Promise.reject(new Error("Invalid JSON"));\n' +
+                '                    }\n' +
+                '                },\n' +
+                '                blob: () => {\n' +
+                '                    if (fileData.isBinary && fileData.content.startsWith("data:")) {\n' +
+                '                        const [header, base64] = fileData.content.split(",");\n' +
+                '                        const mimeType = header.match(/data:([^;]+)/)[1];\n' +
+                '                        const byteCharacters = atob(base64);\n' +
+                '                        const byteNumbers = new Array(byteCharacters.length);\n' +
+                '                        for (let i = 0; i < byteCharacters.length; i++) {\n' +
+                '                            byteNumbers[i] = byteCharacters.charCodeAt(i);\n' +
+                '                        }\n' +
+                '                        const byteArray = new Uint8Array(byteNumbers);\n' +
+                '                        return Promise.resolve(new Blob([byteArray], { type: mimeType }));\n' +
+                '                    } else {\n' +
+                '                        return Promise.resolve(new Blob([fileData.content], { type: "text/plain" }));\n' +
+                '                    }\n' +
+                '                },\n' +
+                '                arrayBuffer: () => {\n' +
+                '                    if (fileData.isBinary && fileData.content.startsWith("data:")) {\n' +
+                '                        const [header, base64] = fileData.content.split(",");\n' +
+                '                        const byteCharacters = atob(base64);\n' +
+                '                        const byteNumbers = new Array(byteCharacters.length);\n' +
+                '                        for (let i = 0; i < byteCharacters.length; i++) {\n' +
+                '                            byteNumbers[i] = byteCharacters.charCodeAt(i);\n' +
+                '                        }\n' +
+                '                        return Promise.resolve(new Uint8Array(byteNumbers).buffer);\n' +
+                '                    } else {\n' +
+                '                        const encoder = new TextEncoder();\n' +
+                '                        return Promise.resolve(encoder.encode(fileData.content).buffer);\n' +
+                '                    }\n' +
+                '                }\n' +
+                '            };\n' +
+                '            \n' +
+                '            return Promise.resolve(response);\n' +
+                '        }\n' +
+                '        \n' +
+                '        return originalFetch.apply(this, arguments);\n' +
+                '    };\n' +
+                '    \n' +
                 '    const postLog = (level, args) => {\n' +
                 '        const formattedArgs = args.map(arg => {\n' +
                 '            if (arg instanceof Error) return { message: arg.message, stack: arg.stack };\n' +
