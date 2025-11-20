@@ -1,4 +1,30 @@
+/**
+ * HTML Live Code Previewer
+ * 
+ * Main application object containing all functionality for the HTML/CSS/JS previewer.
+ * 
+ * STRUCTURE:
+ * - state: Application state (editors, files, mode, drag state)
+ * - dom: Cached DOM elements
+ * - constants: Configuration constants (IDs, file types, MIME types)
+ * - fileTypeUtils: File type detection and handling utilities
+ * - init(): Application initialization
+ * - Editor Management: initEditors(), createEditorForTextarea(), etc.
+ * - File Management: addNewFile(), importFile(), exportFile(), etc.
+ * - Preview Management: renderPreview(), toggleModal(), etc.
+ * - UI Management: bindEvents(), switchMode(), etc.
+ * - htmlGenerators: HTML generation utilities
+ * - notificationSystem: Toast notifications
+ * - assetReplacers: Asset path replacement for multi-file projects
+ * - console: Console capture and logging
+ * 
+ * NOTE: Modular versions of utilities are available in the js/ directory.
+ * See REFACTORING.md for migration path to modular architecture.
+ */
 const CodePreviewer = {
+    // ============================================================================
+    // APPLICATION STATE
+    // ============================================================================
     state: {
         mode: 'single',
         editors: {
@@ -18,8 +44,14 @@ const CodePreviewer = {
         },
     },
 
+    // ============================================================================
+    // DOM ELEMENTS CACHE
+    // ============================================================================
     dom: {},
 
+    // ============================================================================
+    // CONSTANTS AND CONFIGURATION
+    // ============================================================================
     constants: {
         EDITOR_IDS: {
             HTML: 'html-editor',
@@ -133,6 +165,9 @@ const CodePreviewer = {
         }
     },
 
+    // ============================================================================
+    // FILE TYPE UTILITIES
+    // ============================================================================
     fileTypeUtils: {
         getExtension(filename) {
             return filename ? filename.split('.').pop().toLowerCase() : '';
@@ -202,6 +237,10 @@ const CodePreviewer = {
         }
     },
 
+    // ============================================================================
+    // APPLICATION INITIALIZATION AND LIFECYCLE
+    // ============================================================================
+    
     init() {
         this.cacheDOMElements();
         this.initEditors();
@@ -2210,6 +2249,9 @@ const CodePreviewer = {
         return this.fileTypeUtils.getTypeFromExtension(extension);
     },
 
+    // ============================================================================
+    // HTML GENERATION UTILITIES
+    // ============================================================================
     htmlGenerators: {
         toolbarButton(icon, text, className, ariaLabel, title) {
             return `<button class="toolbar-btn ${className}" aria-label="${ariaLabel}" title="${title}">
@@ -2296,6 +2338,9 @@ const CodePreviewer = {
         this.showNotification(message, type);
     },
 
+    // ============================================================================
+    // NOTIFICATION SYSTEM
+    // ============================================================================
     notificationSystem: {
         show(message, type = 'info') {
             let notification = document.getElementById('notification');
@@ -2336,6 +2381,9 @@ const CodePreviewer = {
         }
     },
 
+    // ============================================================================
+    // ASSET REPLACEMENT UTILITIES
+    // ============================================================================
     assetReplacers: {
         replaceCSS(htmlContent, fileSystem, currentFilePath) {
             return htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.css)["']([^>]*?)>/gi, (match, before, filename, after) => {
@@ -2505,6 +2553,9 @@ const CodePreviewer = {
         return htmlFiles[0] || null;
     },
 
+    // ============================================================================
+    // CONSOLE CAPTURE AND LOGGING
+    // ============================================================================
     console: {
         init(outputEl, clearBtn, previewFrame) {
             this.outputEl = outputEl;
