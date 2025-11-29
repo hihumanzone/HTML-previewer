@@ -5,6 +5,16 @@
  * for the multi-file preview system.
  * 
  * @module file-system-utils
+ * 
+ * @note This standalone module mirrors the embedded `fileSystemUtils` object in script.js.
+ * The embedded version is the authoritative implementation used by the application.
+ * This module is provided for:
+ * - Future ES6 module migration
+ * - Independent testing
+ * - Documentation reference
+ * 
+ * When the embedded version differs (e.g., MIME type handling), the embedded version
+ * delegates to the application's constants for consistency.
  */
 
 /**
@@ -115,6 +125,10 @@ export function isMatchingType(fileType, allowedTypes) {
  * @example
  * getFileDataUrl({ content: '<svg>...</svg>', type: 'svg', isBinary: false })
  * // Returns: 'data:image/svg+xml;charset=utf-8,...'
+ * 
+ * @note When used with the full application, prefer using the embedded fileSystemUtils
+ * in script.js which delegates to constants.js for MIME types. This standalone version
+ * includes a fallback MIME type mapping for independent module usage.
  */
 export function getFileDataUrl(fileData, defaultMimeType = 'text/plain') {
     // Binary files already have data URLs
@@ -127,8 +141,9 @@ export function getFileDataUrl(fileData, defaultMimeType = 'text/plain') {
         return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(fileData.content)}`;
     }
     
-    // MIME type mapping for common file types
-    const mimeTypes = {
+    // Fallback MIME type mapping for standalone usage
+    // When used with the full app, the embedded version delegates to constants.js
+    const FALLBACK_MIME_TYPES = {
         'html': 'text/html',
         'css': 'text/css',
         'javascript': 'text/javascript',
@@ -139,7 +154,7 @@ export function getFileDataUrl(fileData, defaultMimeType = 'text/plain') {
         'markdown': 'text/markdown'
     };
     
-    const mimeType = mimeTypes[fileData.type] || defaultMimeType;
+    const mimeType = FALLBACK_MIME_TYPES[fileData.type] || defaultMimeType;
     return `data:${mimeType};charset=utf-8,${encodeURIComponent(fileData.content)}`;
 }
 
