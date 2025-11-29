@@ -2560,6 +2560,10 @@ const CodePreviewer = {
         logCounts: { log: 0, warn: 0, error: 0, info: 0 },
         filters: { log: true, warn: true, error: true, info: true },
         
+        // Configuration constants
+        OBJECT_COLLAPSE_THRESHOLD: 100,
+        COPY_FEEDBACK_DURATION: 1000,
+        
         init(outputEl, clearBtn, previewFrame) {
             this.outputEl = outputEl;
             this.previewFrame = previewFrame;
@@ -2651,7 +2655,7 @@ const CodePreviewer = {
             if (typeof arg === 'object' && arg !== null) {
                 try {
                     const json = JSON.stringify(arg, null, 2);
-                    const isLarge = json.length > 100 || json.includes('\n');
+                    const isLarge = json.length > this.OBJECT_COLLAPSE_THRESHOLD || json.includes('\n');
                     if (isLarge) {
                         return `<details class="console-object"><summary>${Array.isArray(arg) ? `Array(${arg.length})` : 'Object'}</summary><pre>${this.escapeHtml(json)}</pre></details>`;
                     }
@@ -2724,7 +2728,10 @@ const CodePreviewer = {
                 }).join(' ');
                 navigator.clipboard.writeText(text).then(() => {
                     copyBtn.textContent = '✅';
-                    setTimeout(() => copyBtn.textContent = '📋', 1000);
+                    setTimeout(() => copyBtn.textContent = '📋', this.COPY_FEEDBACK_DURATION);
+                }).catch(() => {
+                    copyBtn.textContent = '❌';
+                    setTimeout(() => copyBtn.textContent = '📋', this.COPY_FEEDBACK_DURATION);
                 });
             });
             
