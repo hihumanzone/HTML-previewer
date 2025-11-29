@@ -2560,7 +2560,11 @@ const CodePreviewer = {
         logCounts: { log: 0, warn: 0, error: 0, info: 0 },
         filters: { log: true, warn: true, error: true, info: true },
         
-        // Configuration constants
+        /**
+         * Configuration constants for console behavior
+         * @property {number} OBJECT_COLLAPSE_THRESHOLD - Character count threshold for collapsing JSON objects into expandable details
+         * @property {number} COPY_FEEDBACK_DURATION - Duration in milliseconds to show copy success/failure feedback
+         */
         OBJECT_COLLAPSE_THRESHOLD: 100,
         COPY_FEEDBACK_DURATION: 1000,
         
@@ -2710,13 +2714,13 @@ const CodePreviewer = {
             const messageContent = logData.message.map(arg => this.formatValue(arg)).join(' ');
             
             el.innerHTML = `
-                <span class="log-icon">${this.getIcon(level)}</span>
+                <span class="log-icon" aria-hidden="true">${this.getIcon(level)}</span>
                 <span class="log-timestamp">${this.getTimestamp()}</span>
                 <span class="log-content">${messageContent}</span>
-                <button class="log-copy-btn" title="Copy message">📋</button>
+                <button class="log-copy-btn" title="Copy message" aria-label="Copy message to clipboard">📋</button>
             `;
             
-            // Add copy functionality
+            // Add copy functionality with accessibility support
             const copyBtn = el.querySelector('.log-copy-btn');
             copyBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -2728,10 +2732,18 @@ const CodePreviewer = {
                 }).join(' ');
                 navigator.clipboard.writeText(text).then(() => {
                     copyBtn.textContent = '✅';
-                    setTimeout(() => copyBtn.textContent = '📋', this.COPY_FEEDBACK_DURATION);
+                    copyBtn.setAttribute('aria-label', 'Copied to clipboard');
+                    setTimeout(() => {
+                        copyBtn.textContent = '📋';
+                        copyBtn.setAttribute('aria-label', 'Copy message to clipboard');
+                    }, this.COPY_FEEDBACK_DURATION);
                 }).catch(() => {
                     copyBtn.textContent = '❌';
-                    setTimeout(() => copyBtn.textContent = '📋', this.COPY_FEEDBACK_DURATION);
+                    copyBtn.setAttribute('aria-label', 'Failed to copy');
+                    setTimeout(() => {
+                        copyBtn.textContent = '📋';
+                        copyBtn.setAttribute('aria-label', 'Copy message to clipboard');
+                    }, this.COPY_FEEDBACK_DURATION);
                 });
             });
             
