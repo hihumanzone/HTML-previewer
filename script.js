@@ -2557,30 +2557,181 @@ const CodePreviewer = {
     // CONSOLE CAPTURE AND LOGGING
     // ============================================================================
     console: {
+        logCounts: { log: 0, warn: 0, error: 0, info: 0 },
+        filters: { log: true, warn: true, error: true, info: true },
+        
         init(outputEl, clearBtn, previewFrame) {
             this.outputEl = outputEl;
             this.previewFrame = previewFrame;
             clearBtn.addEventListener('click', () => this.clear());
             window.addEventListener('message', (e) => this.handleMessage(e));
+            this.initFilterButtons();
         },
+        
+        initFilterButtons() {
+            const consoleHeader = this.outputEl.parentElement.querySelector('.console-header');
+            if (!consoleHeader) return;
+            
+            // Create filter container
+            const filterContainer = document.createElement('div');
+            filterContainer.className = 'console-filters';
+            filterContainer.innerHTML = `
+                <button class="console-filter-btn active" data-filter="log" title="Show logs">
+                    <span class="filter-icon">📝</span>
+                    <span class="filter-count" data-count="log">0</span>
+                </button>
+                <button class="console-filter-btn active" data-filter="info" title="Show info">
+                    <span class="filter-icon">ℹ️</span>
+                    <span class="filter-count" data-count="info">0</span>
+                </button>
+                <button class="console-filter-btn active" data-filter="warn" title="Show warnings">
+                    <span class="filter-icon">⚠️</span>
+                    <span class="filter-count" data-count="warn">0</span>
+                </button>
+                <button class="console-filter-btn active" data-filter="error" title="Show errors">
+                    <span class="filter-icon">❌</span>
+                    <span class="filter-count" data-count="error">0</span>
+                </button>
+            `;
+            
+            // Insert before clear button
+            const clearButton = consoleHeader.querySelector('.clear-btn');
+            if (clearButton) {
+                consoleHeader.insertBefore(filterContainer, clearButton);
+            } else {
+                consoleHeader.appendChild(filterContainer);
+            }
+            
+            // Add filter click handlers
+            filterContainer.querySelectorAll('.console-filter-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const filterType = btn.dataset.filter;
+                    this.filters[filterType] = !this.filters[filterType];
+                    btn.classList.toggle('active', this.filters[filterType]);
+                    this.applyFilters();
+                });
+            });
+        },
+        
+        applyFilters() {
+            const messages = this.outputEl.querySelectorAll('.log-message');
+            messages.forEach(msg => {
+                const types = ['log', 'info', 'warn', 'error'];
+                for (const type of types) {
+                    if (msg.classList.contains(`log-type-${type}`)) {
+                        msg.style.display = this.filters[type] ? '' : 'none';
+                        break;
+                    }
+                }
+            });
+        },
+        
+        updateFilterCounts() {
+            Object.keys(this.logCounts).forEach(type => {
+                const countEl = document.querySelector(`.filter-count[data-count="${type}"]`);
+                if (countEl) {
+                    countEl.textContent = this.logCounts[type];
+                    countEl.classList.toggle('has-count', this.logCounts[type] > 0);
+                }
+            });
+        },
+        
         clear() {
             this.outputEl.innerHTML = '';
+            this.logCounts = { log: 0, warn: 0, error: 0, info: 0 };
+            this.updateFilterCounts();
         },
-        log(logData) {
-            const el = document.createElement('div');
-            el.className = `log-message log-type-${logData.level}`;
-            
-            const messageText = logData.message.map(arg => {
-                if (typeof arg === 'object' && arg !== null) {
-                    try { return JSON.stringify(arg, null, 2); } catch (e) { return 'Unserializable Object'; }
+        
+        formatValue(arg) {
+            if (arg === null) return '<span class="console-null">null</span>';
+            if (arg === undefined) return '<span class="console-undefined">undefined</span>';
+            if (typeof arg === 'boolean') return `<span class="console-boolean">${arg}</span>`;
+            if (typeof arg === 'number') return `<span class="console-number">${arg}</span>`;
+            if (typeof arg === 'string') return this.escapeHtml(arg);
+            if (typeof arg === 'object' && arg !== null) {
+                try {
+                    const json = JSON.stringify(arg, null, 2);
+                    const isLarge = json.length > 100 || json.includes('\n');
+                    if (isLarge) {
+                        return `<details class="console-object"><summary>${Array.isArray(arg) ? `Array(${arg.length})` : 'Object'}</summary><pre>${this.escapeHtml(json)}</pre></details>`;
+                    }
+                    return `<span class="console-object-inline">${this.escapeHtml(json)}</span>`;
+                } catch (e) {
+                    return '<span class="console-error">[Unserializable Object]</span>';
                 }
-                return String(arg);
-            }).join(' ');
-
-            el.textContent = `> ${messageText}`;
+            }
+            return String(arg);
+        },
+        
+        escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        },
+        
+        getIcon(level) {
+            const icons = {
+                log: '📝',
+                info: 'ℹ️',
+                warn: '⚠️',
+                error: '❌'
+            };
+            return icons[level] || '📝';
+        },
+        
+        getTimestamp() {
+            const now = new Date();
+            return now.toLocaleTimeString('en-US', { 
+                hour12: false, 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit',
+                fractionalSecondDigits: 3
+            });
+        },
+        
+        log(logData) {
+            const level = logData.level || 'log';
+            this.logCounts[level] = (this.logCounts[level] || 0) + 1;
+            this.updateFilterCounts();
+            
+            const el = document.createElement('div');
+            el.className = `log-message log-type-${level}`;
+            
+            // Apply current filter
+            if (!this.filters[level]) {
+                el.style.display = 'none';
+            }
+            
+            const messageContent = logData.message.map(arg => this.formatValue(arg)).join(' ');
+            
+            el.innerHTML = `
+                <span class="log-icon">${this.getIcon(level)}</span>
+                <span class="log-timestamp">${this.getTimestamp()}</span>
+                <span class="log-content">${messageContent}</span>
+                <button class="log-copy-btn" title="Copy message">📋</button>
+            `;
+            
+            // Add copy functionality
+            const copyBtn = el.querySelector('.log-copy-btn');
+            copyBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const text = logData.message.map(arg => {
+                    if (typeof arg === 'object') {
+                        try { return JSON.stringify(arg, null, 2); } catch (e) { return String(arg); }
+                    }
+                    return String(arg);
+                }).join(' ');
+                navigator.clipboard.writeText(text).then(() => {
+                    copyBtn.textContent = '✅';
+                    setTimeout(() => copyBtn.textContent = '📋', 1000);
+                });
+            });
+            
             this.outputEl.appendChild(el);
             this.outputEl.scrollTop = this.outputEl.scrollHeight;
         },
+        
         handleMessage(event) {
             const { CONSOLE_MESSAGE_TYPE } = CodePreviewer.constants;
             if (event.source === this.previewFrame.contentWindow && event.data.type === CONSOLE_MESSAGE_TYPE) {
@@ -2950,7 +3101,7 @@ const CodePreviewer = {
                 '        window.parent.postMessage({ type: \'' + MESSAGE_TYPE + '\', level, message: formattedArgs }, \'*\');\n' +
                 '    };\n' +
                 '    const originalConsole = { ...window.console };\n' +
-                '    [\'log\', \'warn\', \'error\'].forEach(level => {\n' +
+                '    [\'log\', \'info\', \'warn\', \'error\'].forEach(level => {\n' +
                 '        window.console[level] = (...args) => {\n' +
                 '            postLog(level, Array.from(args));\n' +
                 '            originalConsole[level](...args);\n' +

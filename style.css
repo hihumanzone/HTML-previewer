@@ -477,8 +477,160 @@ body {
 }
 #console-output .log-message:last-child { border-bottom: none; }
 #console-output .log-type-log { color: var(--primary-color); }
+#console-output .log-type-info { color: var(--accent-color); }
 #console-output .log-type-error { color: var(--error-color); }
 #console-output .log-type-warn { color: var(--warn-color); }
+
+/* Enhanced Console Styles */
+.console-filters {
+    display: flex;
+    gap: 0.5rem;
+    margin-right: 1rem;
+}
+
+.console-filter-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--secondary-color);
+    cursor: pointer;
+    font-size: 0.75rem;
+    color: var(--primary-color);
+    opacity: 0.5;
+    transition: all 0.2s ease;
+}
+
+.console-filter-btn.active {
+    opacity: 1;
+    border-color: var(--accent-color);
+}
+
+.console-filter-btn:hover {
+    background: var(--border-color);
+}
+
+.filter-icon {
+    font-size: 0.9rem;
+}
+
+.filter-count {
+    background: var(--border-color);
+    padding: 0.1rem 0.4rem;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    min-width: 1.2rem;
+    text-align: center;
+}
+
+.filter-count.has-count {
+    background: var(--accent-color);
+    color: var(--bg-color);
+}
+
+#console-output .log-message {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.4rem 0.5rem;
+    white-space: pre-wrap;
+    word-break: break-all;
+    border-bottom: 1px solid var(--secondary-color);
+    font-size: 0.85rem;
+}
+
+#console-output .log-message:hover {
+    background: var(--secondary-color);
+}
+
+#console-output .log-message:last-child {
+    border-bottom: none;
+}
+
+.log-icon {
+    font-size: 0.9rem;
+    flex-shrink: 0;
+}
+
+.log-timestamp {
+    color: var(--border-color);
+    font-size: 0.75rem;
+    flex-shrink: 0;
+    font-family: monospace;
+}
+
+.log-content {
+    flex: 1;
+    overflow-wrap: break-word;
+}
+
+.log-copy-btn {
+    padding: 0.2rem 0.4rem;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 0.8rem;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    flex-shrink: 0;
+}
+
+#console-output .log-message:hover .log-copy-btn {
+    opacity: 1;
+}
+
+.log-copy-btn:hover {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+/* Console value types */
+.console-null,
+.console-undefined {
+    color: var(--border-color);
+    font-style: italic;
+}
+
+.console-boolean {
+    color: #f5c2e7;
+}
+
+.console-number {
+    color: #94e2d5;
+}
+
+.console-object-inline {
+    color: var(--accent-color);
+}
+
+.console-object {
+    margin: 0;
+}
+
+.console-object summary {
+    cursor: pointer;
+    color: var(--accent-color);
+    user-select: none;
+}
+
+.console-object summary:hover {
+    text-decoration: underline;
+}
+
+.console-object pre {
+    margin: 0.5rem 0 0 1rem;
+    padding: 0.5rem;
+    background: var(--secondary-color);
+    border-radius: 4px;
+    overflow-x: auto;
+    font-size: 0.8rem;
+}
+
+.console-error {
+    color: var(--error-color);
+}
 
 .close-btn {
     font-size: 1.75rem; 
