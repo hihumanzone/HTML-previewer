@@ -8,6 +8,7 @@
  * - dom: Cached DOM elements
  * - constants: Configuration constants (IDs, file types, MIME types)
  * - fileTypeUtils: File type detection and handling utilities
+ * - fileSystemUtils: Virtual file system operations, path resolution, file lookup
  * - init(): Application initialization
  * - Editor Management: initEditors(), createEditorForTextarea(), etc.
  * - File Management: addNewFile(), importFile(), exportFile(), etc.
@@ -234,6 +235,168 @@ const CodePreviewer = {
             if (CodePreviewer.isModuleFile(content, filename)) return 'javascript-module';
             
             return this.getTypeFromExtension(filename);
+        }
+    },
+
+    // ============================================================================
+    // FILE SYSTEM UTILITIES
+    // Handles virtual file system operations, path resolution, and file lookup
+    // ============================================================================
+    fileSystemUtils: {
+        /**
+         * Resolves a relative path against a base path
+         * @param {string} basePath - The base file path
+         * @param {string} relativePath - The relative path to resolve
+         * @returns {string} The resolved absolute path
+         */
+        resolvePath(basePath, relativePath) {
+            // Absolute paths start fresh
+            if (relativePath.startsWith('/')) {
+                return relativePath.substring(1);
+            }
+            
+            // Get directory portion of base path
+            const baseDir = basePath.includes('/') 
+                ? basePath.substring(0, basePath.lastIndexOf('/')) 
+                : '';
+            
+            const baseParts = baseDir ? baseDir.split('/') : [];
+            const relativeParts = relativePath.split('/');
+            const resultParts = [...baseParts];
+            
+            for (const part of relativeParts) {
+                if (part === '..') {
+                    if (resultParts.length > 0) {
+                        resultParts.pop();
+                    }
+                } else if (part !== '.' && part !== '') {
+                    resultParts.push(part);
+                }
+            }
+            
+            return resultParts.join('/');
+        },
+
+        /**
+         * Finds a file in the virtual file system
+         * @param {Map} fileSystem - The virtual file system map
+         * @param {string} targetFilename - The filename to find
+         * @param {string} currentFilePath - The current file context for relative paths
+         * @returns {Object|null} The file data or null if not found
+         */
+        findFile(fileSystem, targetFilename, currentFilePath = '') {
+            // Resolve relative path if we have context
+            if (currentFilePath) {
+                targetFilename = this.resolvePath(currentFilePath, targetFilename);
+            }
+            
+            // Try exact match first
+            const exactMatch = fileSystem.get(targetFilename);
+            if (exactMatch) {
+                return exactMatch;
+            }
+            
+            // Try case-insensitive match
+            const targetLower = targetFilename.toLowerCase();
+            for (const [filename, file] of fileSystem) {
+                if (filename.toLowerCase() === targetLower) {
+                    return file;
+                }
+            }
+            
+            return null;
+        },
+
+        /**
+         * Checks if a file type matches any of the allowed types
+         * @param {string} fileType - The file type to check
+         * @param {string[]} allowedTypes - Array of allowed type strings
+         * @returns {boolean} True if the file type matches
+         */
+        isMatchingType(fileType, allowedTypes) {
+            return allowedTypes.includes(fileType);
+        },
+
+        /**
+         * Gets a data URL for a file (handles both binary and text files)
+         * @param {Object} fileData - The file data object
+         * @param {string} defaultMimeType - Default MIME type for non-binary files
+         * @returns {string} The data URL or content
+         */
+        getFileDataUrl(fileData, defaultMimeType = 'text/plain') {
+            if (fileData.isBinary) {
+                return fileData.content;
+            }
+            
+            // Handle SVG specially
+            if (fileData.type === 'svg') {
+                return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(fileData.content)}`;
+            }
+            
+            // For other text files, create a proper data URL
+            const mimeType = CodePreviewer.fileTypeUtils.getMimeTypeFromFileType(fileData.type) || defaultMimeType;
+            return `data:${mimeType};charset=utf-8,${encodeURIComponent(fileData.content)}`;
+        },
+
+        /**
+         * Generates JavaScript code for path resolution (used in injected scripts)
+         * @returns {string} JavaScript code for the resolvePath function
+         */
+        generateResolvePathCode() {
+            return `
+    function resolvePath(basePath, relativePath) {
+        if (relativePath.startsWith("/")) {
+            return relativePath.substring(1);
+        }
+        const baseDir = basePath.includes("/") ? basePath.substring(0, basePath.lastIndexOf("/")) : "";
+        const baseParts = baseDir ? baseDir.split("/") : [];
+        const relativeParts = relativePath.split("/");
+        const resultParts = [...baseParts];
+        for (const part of relativeParts) {
+            if (part === "..") {
+                if (resultParts.length > 0) resultParts.pop();
+            } else if (part !== "." && part !== "") {
+                resultParts.push(part);
+            }
+        }
+        return resultParts.join("/");
+    }`;
+        },
+
+        /**
+         * Generates JavaScript code for file lookup (used in injected scripts)
+         * @returns {string} JavaScript code for the findFileInSystem function
+         */
+        generateFindFileCode() {
+            return `
+    function findFileInSystem(targetFilename, currentFilePath = "") {
+        if (currentFilePath) {
+            targetFilename = resolvePath(currentFilePath, targetFilename);
+        }
+        const exactMatch = virtualFileSystem[targetFilename];
+        if (exactMatch) return exactMatch;
+        const targetLower = targetFilename.toLowerCase();
+        for (const [filename, file] of Object.entries(virtualFileSystem)) {
+            if (filename.toLowerCase() === targetLower) return file;
+        }
+        return null;
+    }`;
+        },
+
+        /**
+         * Generates JavaScript code for getting current file path (used in injected scripts)
+         * @returns {string} JavaScript code for the getCurrentFilePath function
+         */
+        generateGetCurrentFilePathCode() {
+            return `
+    function getCurrentFilePath() {
+        try {
+            if (window.__currentExecutionContext) return window.__currentExecutionContext;
+            return mainHtmlPath;
+        } catch (e) {
+            return mainHtmlPath;
+        }
+    }`;
         }
     },
 
@@ -1543,49 +1706,20 @@ const CodePreviewer = {
         return this.fileTypeUtils.getMimeTypeFromFileType(fileType);
     },
 
+    /**
+     * Resolves a relative path - delegates to fileSystemUtils
+     * @deprecated Use fileSystemUtils.resolvePath() directly
+     */
     resolvePath(basePath, relativePath) {
-        if (relativePath.startsWith('/')) {
-            return relativePath.substring(1);
-        }
-        
-        const baseDir = basePath.includes('/') ? basePath.substring(0, basePath.lastIndexOf('/')) : '';
-        
-        const baseParts = baseDir ? baseDir.split('/') : [];
-        const relativeParts = relativePath.split('/');
-        
-        const resultParts = [...baseParts];
-        
-        for (const part of relativeParts) {
-            if (part === '..') {
-                if (resultParts.length > 0) {
-                    resultParts.pop();
-                }
-            } else if (part !== '.' && part !== '') {
-                resultParts.push(part);
-            }
-        }
-        
-        return resultParts.join('/');
+        return this.fileSystemUtils.resolvePath(basePath, relativePath);
     },
 
+    /**
+     * Finds a file in the virtual file system - delegates to fileSystemUtils
+     * @deprecated Use fileSystemUtils.findFile() directly
+     */
     findFileInSystem(fileSystem, targetFilename, currentFilePath = '') {
-        if (currentFilePath) {
-            targetFilename = this.resolvePath(currentFilePath, targetFilename);
-        }
-        
-        const exactMatch = fileSystem.get(targetFilename);
-        if (exactMatch) {
-            return exactMatch;
-        }
-        
-        const targetLower = targetFilename.toLowerCase();
-        for (const [filename, file] of fileSystem) {
-            if (filename.toLowerCase() === targetLower) {
-                return file;
-            }
-        }
-        
-        return null;
+        return this.fileSystemUtils.findFile(fileSystem, targetFilename, currentFilePath);
     },
 
     extractWorkerFileNames(htmlContent) {
@@ -2383,88 +2517,106 @@ const CodePreviewer = {
 
     // ============================================================================
     // ASSET REPLACEMENT UTILITIES
+    // Consolidated utilities for replacing file references in HTML/CSS with
+    // virtual file system content
     // ============================================================================
     assetReplacers: {
-        replaceCSS(htmlContent, fileSystem, currentFilePath) {
-            return htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.css)["']([^>]*?)>/gi, (match, before, filename, after) => {
-                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
-                if (file && file.type === 'css') {
-                    return `<style>${file.content}</style>`;
+        /**
+         * Configuration for different asset replacement patterns
+         * Each entry defines: regex pattern, allowed file types, and replacement strategy
+         */
+        REPLACEMENT_CONFIGS: {
+            css: {
+                pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.css)["']([^>]*?)>/gi,
+                types: ['css'],
+                replace: (file) => `<style>${file.content}</style>`
+            },
+            images: {
+                pattern: /<img([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
+                types: ['image', 'svg'],
+                replace: (file, match) => {
+                    const src = CodePreviewer.fileSystemUtils.getFileDataUrl(file, 'image/png');
+                    return match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${src}"`);
+                }
+            },
+            video: {
+                pattern: /<video([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
+                types: ['video'],
+                replace: (file, match) => match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${file.content}"`)
+            },
+            source: {
+                pattern: /<source([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
+                types: ['video', 'audio'],
+                replace: (file, match) => match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${file.content}"`)
+            },
+            audio: {
+                pattern: /<audio([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
+                types: ['audio'],
+                replace: (file, match) => match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${file.content}"`)
+            },
+            favicon: {
+                pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.ico)["']([^>]*?)>/gi,
+                types: ['image'],
+                replace: (file, match) => match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${file.content}"`)
+            },
+            font: {
+                pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.(?:woff|woff2|ttf|otf|eot))["']([^>]*?)>/gi,
+                types: ['font'],
+                replace: (file, match, before, filename, after) => `<link${before}href="${file.content}"${after}>`
+            }
+        },
+
+        /**
+         * Generic replacement handler using configuration
+         * @param {string} htmlContent - The HTML content to process
+         * @param {Map} fileSystem - The virtual file system
+         * @param {string} currentFilePath - Current file path for relative resolution
+         * @param {Object} config - Replacement configuration object
+         * @returns {string} Processed HTML content
+         */
+        applyReplacement(htmlContent, fileSystem, currentFilePath, config) {
+            return htmlContent.replace(config.pattern, (match, before, filename, after) => {
+                const file = CodePreviewer.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
+                if (file && CodePreviewer.fileSystemUtils.isMatchingType(file.type, config.types)) {
+                    return config.replace(file, match, before, filename, after);
                 }
                 return match;
             });
+        },
+
+        replaceCSS(htmlContent, fileSystem, currentFilePath) {
+            return this.applyReplacement(htmlContent, fileSystem, currentFilePath, this.REPLACEMENT_CONFIGS.css);
         },
 
         replaceImages(htmlContent, fileSystem, currentFilePath) {
-            return htmlContent.replace(/<img([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
-                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
-                if (file && (file.type === 'image' || file.type === 'svg')) {
-                    const src = file.isBinary ? file.content : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(file.content)}`;
-                    const newSrc = `src="${src}"`;
-                    return match.replace(/src\s*=\s*["'][^"']*["']/i, newSrc);
-                }
-                return match;
-            });
+            return this.applyReplacement(htmlContent, fileSystem, currentFilePath, this.REPLACEMENT_CONFIGS.images);
         },
 
         replaceVideoSources(htmlContent, fileSystem, currentFilePath) {
-            return htmlContent.replace(/<video([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
-                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
-                if (file && file.type === 'video') {
-                    const newSrc = `src="${file.content}"`;
-                    return match.replace(/src\s*=\s*["'][^"']*["']/i, newSrc);
-                }
-                return match;
-            });
+            return this.applyReplacement(htmlContent, fileSystem, currentFilePath, this.REPLACEMENT_CONFIGS.video);
         },
 
         replaceSourceElements(htmlContent, fileSystem, currentFilePath) {
-            return htmlContent.replace(/<source([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
-                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
-                if (file && (file.type === 'video' || file.type === 'audio')) {
-                    const newSrc = `src="${file.content}"`;
-                    return match.replace(/src\s*=\s*["'][^"']*["']/i, newSrc);
-                }
-                return match;
-            });
+            return this.applyReplacement(htmlContent, fileSystem, currentFilePath, this.REPLACEMENT_CONFIGS.source);
         },
 
         replaceAudioSources(htmlContent, fileSystem, currentFilePath) {
-            return htmlContent.replace(/<audio([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
-                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
-                if (file && file.type === 'audio') {
-                    const newSrc = `src="${file.content}"`;
-                    return match.replace(/src\s*=\s*["'][^"']*["']/i, newSrc);
-                }
-                return match;
-            });
+            return this.applyReplacement(htmlContent, fileSystem, currentFilePath, this.REPLACEMENT_CONFIGS.audio);
         },
 
         replaceFavicons(htmlContent, fileSystem, currentFilePath) {
-            return htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.ico)["']([^>]*?)>/gi, (match, before, filename, after) => {
-                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
-                if (file && file.type === 'image') {
-                    const newHref = `href="${file.content}"`;
-                    return match.replace(/href\s*=\s*["'][^"']*["']/i, newHref);
-                }
-                return match;
-            });
+            return this.applyReplacement(htmlContent, fileSystem, currentFilePath, this.REPLACEMENT_CONFIGS.favicon);
         },
 
         replaceDownloadLinks(htmlContent, fileSystem, currentFilePath) {
             return htmlContent.replace(/<a([^>]*?)href\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
                 if (match.includes('download') || !filename.includes('://')) {
-                    const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
+                    const file = CodePreviewer.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
                     if (file) {
-                        let href;
-                        if (file.isBinary) {
-                            href = file.content;
-                        } else {
-                            const mimeType = CodePreviewer.getMimeTypeFromFileType(file.type);
-                            href = `data:${mimeType};charset=utf-8,${encodeURIComponent(file.content)}`;
-                        }
-                        const newHref = `href="${href}"`;
-                        return match.replace(/href\s*=\s*["'][^"']*["']/i, newHref);
+                        const href = file.isBinary 
+                            ? file.content 
+                            : CodePreviewer.fileSystemUtils.getFileDataUrl(file);
+                        return match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${href}"`);
                     }
                 }
                 return match;
@@ -2472,13 +2624,7 @@ const CodePreviewer = {
         },
 
         replaceFontLinks(htmlContent, fileSystem, currentFilePath) {
-            return htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.(?:woff|woff2|ttf|otf|eot))["']([^>]*?)>/gi, (match, before, filename, after) => {
-                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
-                if (file && file.type === 'font') {
-                    return `<link${before}href="${file.content}"${after}>`;
-                }
-                return match;
-            });
+            return this.applyReplacement(htmlContent, fileSystem, currentFilePath, this.REPLACEMENT_CONFIGS.font);
         },
 
         replaceStyleTags(htmlContent, fileSystem, currentFilePath) {
@@ -2494,7 +2640,7 @@ const CodePreviewer = {
                     return '';
                 }
                 
-                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
+                const file = CodePreviewer.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
                 if (file && (file.type === 'javascript' || file.type === 'javascript-module')) {
                     const scriptType = file.type === 'javascript-module' ? ' type="module"' : '';
                     return `<script${scriptType}>${file.content}</script>`;
@@ -2760,6 +2906,7 @@ const CodePreviewer = {
         getCaptureScript(fileSystem = null, mainHtmlPath = 'index.html') {
             const MESSAGE_TYPE = CodePreviewer.constants.CONSOLE_MESSAGE_TYPE;
             
+            // Generate file system initialization script
             let fileSystemScript = '';
             if (fileSystem && fileSystem instanceof Map) {
                 const fileObj = {};
@@ -2784,63 +2931,17 @@ const CodePreviewer = {
                 `;
             }
             
+            // Use the centralized code generators from fileSystemUtils
+            const resolvePathCode = CodePreviewer.fileSystemUtils.generateResolvePathCode();
+            const findFileCode = CodePreviewer.fileSystemUtils.generateFindFileCode();
+            const getCurrentFilePathCode = CodePreviewer.fileSystemUtils.generateGetCurrentFilePathCode();
+            
             return '<script>\n' +
                 '(function() {\n' +
                 fileSystemScript + '\n' +
-                '    \n' +
-                '    function resolvePath(basePath, relativePath) {\n' +
-                '        if (relativePath.startsWith("/")) {\n' +
-                '            return relativePath.substring(1);\n' +
-                '        }\n' +
-                '        \n' +
-                '        const baseDir = basePath.includes("/") ? basePath.substring(0, basePath.lastIndexOf("/")) : "";\n' +
-                '        const baseParts = baseDir ? baseDir.split("/") : [];\n' +
-                '        const relativeParts = relativePath.split("/");\n' +
-                '        const resultParts = [...baseParts];\n' +
-                '        \n' +
-                '        for (const part of relativeParts) {\n' +
-                '            if (part === "..") {\n' +
-                '                if (resultParts.length > 0) {\n' +
-                '                    resultParts.pop();\n' +
-                '                }\n' +
-                '            } else if (part !== "." && part !== "") {\n' +
-                '                resultParts.push(part);\n' +
-                '            }\n' +
-                '        }\n' +
-                '        \n' +
-                '        return resultParts.join("/");\n' +
-                '    }\n' +
-                '    \n' +
-                '    function findFileInSystem(targetFilename, currentFilePath = "") {\n' +
-                '        if (currentFilePath) {\n' +
-                '            targetFilename = resolvePath(currentFilePath, targetFilename);\n' +
-                '        }\n' +
-                '        \n' +
-                '        const exactMatch = virtualFileSystem[targetFilename];\n' +
-                '        if (exactMatch) {\n' +
-                '            return exactMatch;\n' +
-                '        }\n' +
-                '        \n' +
-                '        const targetLower = targetFilename.toLowerCase();\n' +
-                '        for (const [filename, file] of Object.entries(virtualFileSystem)) {\n' +
-                '            if (filename.toLowerCase() === targetLower) {\n' +
-                '                return file;\n' +
-                '            }\n' +
-                '        }\n' +
-                '        \n' +
-                '        return null;\n' +
-                '    }\n' +
-                '    \n' +
-                '    function getCurrentFilePath() {\n' +
-                '        try {\n' +
-                '            if (window.__currentExecutionContext) {\n' +
-                '                return window.__currentExecutionContext;\n' +
-                '            }\n' +
-                '            return mainHtmlPath;\n' +
-                '        } catch (e) {\n' +
-                '            return mainHtmlPath;\n' +
-                '        }\n' +
-                '    }\n' +
+                '    ' + resolvePathCode + '\n' +
+                '    ' + findFileCode + '\n' +
+                '    ' + getCurrentFilePathCode + '\n' +
                 '    \n' +
                 '    const originalFetch = window.fetch;\n' +
                 '    window.fetch = function(input, init) {\n' +
