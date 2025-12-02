@@ -971,3 +971,220 @@ body {
         max-width: 100%;
     }
 }
+
+/* ==========================================================================
+   FILE TREE STYLES
+   ========================================================================== */
+
+.multi-file-layout {
+    display: flex;
+    gap: 1rem;
+    flex: 1;
+}
+
+.file-tree-container {
+    width: 250px;
+    min-width: 200px;
+    max-width: 300px;
+    background-color: var(--secondary-color);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.5rem;
+    overflow-y: auto;
+    max-height: calc(100vh - 300px);
+}
+
+.file-tree-container:empty::before {
+    content: 'No folders yet. Add a folder or import a ZIP.';
+    color: var(--border-color);
+    font-size: 0.8rem;
+    font-style: italic;
+    display: block;
+    text-align: center;
+    padding: 1rem;
+}
+
+.tree-folder {
+    margin-bottom: 0.25rem;
+}
+
+.tree-folder-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.tree-folder-header:hover {
+    background-color: var(--border-color);
+}
+
+.tree-folder.expanded > .tree-folder-header {
+    background-color: rgba(137, 180, 250, 0.1);
+}
+
+.folder-icon {
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.folder-name {
+    flex: 1;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--accent-color);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.folder-actions {
+    display: none;
+    gap: 0.25rem;
+}
+
+.tree-folder-header:hover .folder-actions {
+    display: flex;
+}
+
+.folder-actions button {
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    padding: 0.15rem 0.3rem;
+    font-size: 0.7rem;
+    cursor: pointer;
+    color: var(--primary-color);
+    transition: all 0.2s ease;
+}
+
+.folder-actions button:hover {
+    background: var(--accent-color);
+    color: var(--bg-color);
+}
+
+.tree-folder-contents {
+    padding-left: 1rem;
+    border-left: 1px solid var(--border-color);
+    margin-left: 0.5rem;
+}
+
+.tree-file {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.tree-file:hover {
+    background-color: var(--border-color);
+}
+
+.file-icon {
+    font-size: 0.9rem;
+    flex-shrink: 0;
+}
+
+.tree-file .file-name {
+    flex: 1;
+    font-size: 0.8rem;
+    color: var(--primary-color);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-actions {
+    display: none;
+    gap: 0.25rem;
+}
+
+.tree-file:hover .file-actions {
+    display: flex;
+}
+
+.file-actions button {
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    padding: 0.15rem 0.3rem;
+    font-size: 0.7rem;
+    cursor: pointer;
+    color: var(--primary-color);
+    transition: all 0.2s ease;
+}
+
+.file-actions button:hover {
+    background: var(--accent-color);
+    color: var(--bg-color);
+}
+
+/* File selected highlight animation */
+.file-selected {
+    animation: file-highlight 2s ease;
+}
+
+@keyframes file-highlight {
+    0%, 50% {
+        box-shadow: 0 0 10px var(--accent-color);
+        border-color: var(--accent-color);
+    }
+    100% {
+        box-shadow: none;
+        border-color: var(--border-color);
+    }
+}
+
+/* View toggle button */
+.view-toggle-btn {
+    background-color: var(--accent-color);
+    color: var(--bg-color);
+    border: none;
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.view-toggle-btn:hover {
+    background-color: var(--primary-color);
+}
+
+/* Add folder button */
+.add-folder-btn {
+    background-color: var(--secondary-color);
+    color: var(--accent-color);
+    border: 1px solid var(--accent-color);
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.add-folder-btn:hover {
+    background-color: var(--accent-color);
+    color: var(--bg-color);
+}
+
+/* Responsive adjustments for file tree */
+@media (max-width: 900px) {
+    .multi-file-layout {
+        flex-direction: column;
+    }
+    
+    .file-tree-container {
+        width: 100%;
+        max-width: none;
+        max-height: 200px;
+    }
+}

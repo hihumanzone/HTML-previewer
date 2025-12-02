@@ -35,7 +35,10 @@ const CodePreviewer = {
             singleFile: null,
         },
         files: [],
+        folders: [],
         nextFileId: 4,
+        nextFolderId: 1,
+        expandedFolders: new Set(),
         codeModalEditor: null,
         mainHtmlFile: '',
         dragState: {
@@ -43,6 +46,7 @@ const CodePreviewer = {
             draggedFileId: null,
             dropIndicator: null,
         },
+        viewMode: 'grid', // 'grid' or 'tree'
     },
 
     // ============================================================================
@@ -68,6 +72,8 @@ const CodePreviewer = {
             SINGLE_MODE_RADIO: 'single-mode-radio',
             MULTI_MODE_RADIO: 'multi-mode-radio',
             ADD_FILE_BTN: 'add-file-btn',
+            ADD_FOLDER_BTN: 'add-folder-btn',
+            VIEW_TOGGLE_BTN: 'view-toggle-btn',
             IMPORT_FILE_BTN: 'import-file-btn',
             IMPORT_ZIP_BTN: 'import-zip-btn',
             EXPORT_ZIP_BTN: 'export-zip-btn',
@@ -76,6 +82,7 @@ const CodePreviewer = {
         CONTAINER_IDS: {
             SINGLE_FILE: 'single-file-container',
             MULTI_FILE: 'multi-file-container',
+            FILE_TREE: 'file-tree-container',
         },
         MODAL_IDS: {
             OVERLAY: 'preview-modal',
@@ -429,6 +436,8 @@ const CodePreviewer = {
             singleModeOption: document.querySelector('label[for="single-mode-radio"]') || this.getSafeParentElement(CONTROL_IDS.SINGLE_MODE_RADIO),
             multiModeOption: document.querySelector('label[for="multi-mode-radio"]') || this.getSafeParentElement(CONTROL_IDS.MULTI_MODE_RADIO),
             addFileBtn: document.getElementById(CONTROL_IDS.ADD_FILE_BTN),
+            addFolderBtn: document.getElementById(CONTROL_IDS.ADD_FOLDER_BTN),
+            viewToggleBtn: document.getElementById(CONTROL_IDS.VIEW_TOGGLE_BTN),
             importFileBtn: document.getElementById(CONTROL_IDS.IMPORT_FILE_BTN),
             importZipBtn: document.getElementById(CONTROL_IDS.IMPORT_ZIP_BTN),
             exportZipBtn: document.getElementById(CONTROL_IDS.EXPORT_ZIP_BTN),
@@ -436,6 +445,7 @@ const CodePreviewer = {
             mainHtmlSelector: document.getElementById('main-html-selector'),
             singleFileContainer: document.getElementById(CONTAINER_IDS.SINGLE_FILE),
             multiFileContainer: document.getElementById(CONTAINER_IDS.MULTI_FILE),
+            fileTreeContainer: document.getElementById(CONTAINER_IDS.FILE_TREE),
             modalOverlay: document.getElementById(MODAL_IDS.OVERLAY),
             previewFrame: document.getElementById(MODAL_IDS.FRAME),
             closeModalBtn: document.querySelector('.modal-header .close-btn'),
@@ -619,6 +629,12 @@ const CodePreviewer = {
         });
         
         this.dom.addFileBtn.addEventListener('click', () => this.addNewFile());
+        if (this.dom.addFolderBtn) {
+            this.dom.addFolderBtn.addEventListener('click', () => this.addNewFolder());
+        }
+        if (this.dom.viewToggleBtn) {
+            this.dom.viewToggleBtn.addEventListener('click', () => this.toggleViewMode());
+        }
         this.dom.importFileBtn.addEventListener('click', () => this.importFile());
         this.dom.importZipBtn.addEventListener('click', () => this.importZip());
         this.dom.exportZipBtn.addEventListener('click', () => this.exportZip());
@@ -644,6 +660,7 @@ const CodePreviewer = {
         } else {
             this.dom.singleFileContainer.style.display = 'none';
             this.dom.multiFileContainer.style.display = 'flex';
+            this.renderFileTree();
         }
 
         setTimeout(() => {
@@ -655,6 +672,26 @@ const CodePreviewer = {
                 });
             }
         }, 100);
+    },
+
+    /**
+     * Toggle between grid and tree view modes
+     */
+    toggleViewMode() {
+        this.state.viewMode = this.state.viewMode === 'grid' ? 'tree' : 'grid';
+        this.renderFileTree();
+        this.updateViewToggleButton();
+    },
+
+    /**
+     * Update the view toggle button text/icon
+     */
+    updateViewToggleButton() {
+        if (this.dom.viewToggleBtn) {
+            const icon = this.state.viewMode === 'grid' ? '🗂️' : '📑';
+            const text = this.state.viewMode === 'grid' ? 'Tree View' : 'Grid View';
+            this.dom.viewToggleBtn.innerHTML = `${icon} ${text}`;
+        }
     },
 
     isModuleFile(content, filename) {
@@ -714,6 +751,344 @@ const CodePreviewer = {
         return filenames;
     },
 
+    /**
+     * Get the folder path from a full file path
+     * @param {string} path - Full file path like "src/components/Button.js"
+     * @returns {string} Folder path like "src/components" or "" for root
+     */
+    getFolderFromPath(path) {
+        if (!path || !path.includes('/')) return '';
+        return path.substring(0, path.lastIndexOf('/'));
+    },
+
+    /**
+     * Get the filename from a full file path
+     * @param {string} path - Full file path like "src/components/Button.js"
+     * @returns {string} Just the filename like "Button.js"
+     */
+    getFilenameFromPath(path) {
+        if (!path) return 'unnamed';
+        if (!path.includes('/')) return path;
+        return path.substring(path.lastIndexOf('/') + 1);
+    },
+
+    /**
+     * Build a folder tree structure from files
+     * @returns {Object} Nested folder structure
+     */
+    buildFolderTree() {
+        const tree = { name: '', children: {}, files: [] };
+        
+        // Add all folders from state
+        this.state.folders.forEach(folder => {
+            const parts = folder.path.split('/').filter(p => p);
+            let current = tree;
+            parts.forEach(part => {
+                if (!current.children[part]) {
+                    current.children[part] = { name: part, children: {}, files: [], expanded: this.state.expandedFolders.has(folder.path) };
+                }
+                current = current.children[part];
+            });
+        });
+        
+        // Add files to their respective folders
+        this.state.files.forEach(file => {
+            const filename = this.getFileNameFromPanel(file.id) || file.fileName || 'unnamed';
+            const folderPath = this.getFolderFromPath(filename);
+            const justFilename = this.getFilenameFromPath(filename);
+            
+            if (folderPath) {
+                const parts = folderPath.split('/').filter(p => p);
+                let current = tree;
+                parts.forEach(part => {
+                    if (!current.children[part]) {
+                        current.children[part] = { name: part, children: {}, files: [], expanded: this.state.expandedFolders.has(folderPath) };
+                    }
+                    current = current.children[part];
+                });
+                current.files.push({ ...file, displayName: justFilename });
+            } else {
+                tree.files.push({ ...file, displayName: justFilename });
+            }
+        });
+        
+        return tree;
+    },
+
+    /**
+     * Add a new folder
+     */
+    addNewFolder() {
+        const folderName = prompt('Enter folder name:');
+        if (!folderName || folderName.trim() === '') return;
+        
+        const sanitizedName = folderName.trim().replace(/[<>:"|?*]/g, '');
+        
+        // Check if folder already exists
+        const existingFolder = this.state.folders.find(f => f.path === sanitizedName);
+        if (existingFolder) {
+            this.showNotification(`Folder "${sanitizedName}" already exists.`, 'error');
+            return;
+        }
+        
+        const folderId = `folder-${this.state.nextFolderId++}`;
+        this.state.folders.push({
+            id: folderId,
+            path: sanitizedName
+        });
+        
+        this.state.expandedFolders.add(sanitizedName);
+        this.renderFileTree();
+        this.showNotification(`Folder "${sanitizedName}" created.`, 'success');
+    },
+
+    /**
+     * Add a new file within a specific folder
+     * @param {string} folderPath - The folder path to add the file in
+     */
+    addFileToFolder(folderPath) {
+        const fileId = `file-${this.state.nextFileId++}`;
+        const fileName = folderPath ? `${folderPath}/newfile.html` : 'newfile.html';
+        
+        this.createFilePanel(fileId, fileName, 'html', '', false);
+        
+        const newTextarea = document.getElementById(fileId);
+        const newEditor = this.createEditorForTextarea(newTextarea, 'html');
+        
+        this.state.files.push({
+            id: fileId,
+            editor: newEditor,
+            type: 'html',
+            fileName: fileName
+        });
+        
+        this.bindFilePanelEvents(document.querySelector(`[data-file-id="${fileId}"]`));
+        this.bindDragAndDropEvents(document.querySelector(`[data-file-id="${fileId}"]`));
+        
+        this.updateRemoveButtonsVisibility();
+        this.updateMainHtmlSelector();
+        this.renderFileTree();
+    },
+
+    /**
+     * Toggle folder expansion
+     * @param {string} folderPath - The folder path to toggle
+     */
+    toggleFolder(folderPath) {
+        if (this.state.expandedFolders.has(folderPath)) {
+            this.state.expandedFolders.delete(folderPath);
+        } else {
+            this.state.expandedFolders.add(folderPath);
+        }
+        this.renderFileTree();
+    },
+
+    /**
+     * Render the file tree sidebar
+     */
+    renderFileTree() {
+        if (!this.dom.fileTreeContainer) return;
+        
+        const tree = this.buildFolderTree();
+        const html = this.renderFolderContents(tree, '');
+        this.dom.fileTreeContainer.innerHTML = html;
+        
+        // Bind click events for folders and files
+        this.bindFileTreeEvents();
+    },
+
+    /**
+     * Recursively render folder contents
+     * @param {Object} node - Current tree node
+     * @param {string} currentPath - Current path being rendered
+     * @returns {string} HTML string
+     */
+    renderFolderContents(node, currentPath) {
+        let html = '';
+        
+        // Render subfolders first
+        const sortedFolders = Object.keys(node.children).sort();
+        sortedFolders.forEach(folderName => {
+            const folder = node.children[folderName];
+            const folderPath = currentPath ? `${currentPath}/${folderName}` : folderName;
+            const isExpanded = this.state.expandedFolders.has(folderPath);
+            
+            html += `
+                <div class="tree-folder ${isExpanded ? 'expanded' : ''}" data-folder-path="${folderPath}">
+                    <div class="tree-folder-header">
+                        <span class="folder-icon">${isExpanded ? '📂' : '📁'}</span>
+                        <span class="folder-name">${folderName}</span>
+                        <div class="folder-actions">
+                            <button class="add-file-to-folder-btn" title="Add file to folder">+</button>
+                            <button class="add-subfolder-btn" title="Add subfolder">📁+</button>
+                            <button class="delete-folder-btn" title="Delete folder">🗑️</button>
+                        </div>
+                    </div>
+                    <div class="tree-folder-contents" style="display: ${isExpanded ? 'block' : 'none'}">
+                        ${this.renderFolderContents(folder, folderPath)}
+                    </div>
+                </div>
+            `;
+        });
+        
+        // Render files
+        node.files.forEach(file => {
+            const fileIcon = this.getFileIcon(file.type);
+            html += `
+                <div class="tree-file" data-file-id="${file.id}">
+                    <span class="file-icon">${fileIcon}</span>
+                    <span class="file-name">${file.displayName}</span>
+                    <div class="file-actions">
+                        <button class="select-file-btn" title="Select file">📝</button>
+                    </div>
+                </div>
+            `;
+        });
+        
+        return html;
+    },
+
+    /**
+     * Get the appropriate icon for a file type
+     * @param {string} fileType - The file type
+     * @returns {string} Emoji icon
+     */
+    getFileIcon(fileType) {
+        const icons = {
+            'html': '🌐',
+            'css': '🎨',
+            'javascript': '📜',
+            'javascript-module': '📦',
+            'json': '📋',
+            'xml': '📄',
+            'markdown': '📝',
+            'text': '📃',
+            'svg': '🖼️',
+            'image': '🖼️',
+            'audio': '🔊',
+            'video': '🎬',
+            'font': '🔤',
+            'pdf': '📕',
+            'binary': '📦'
+        };
+        return icons[fileType] || '📄';
+    },
+
+    /**
+     * Bind click events for file tree elements
+     */
+    bindFileTreeEvents() {
+        if (!this.dom.fileTreeContainer) return;
+        
+        // Folder header clicks (toggle expansion)
+        this.dom.fileTreeContainer.querySelectorAll('.tree-folder-header').forEach(header => {
+            header.addEventListener('click', (e) => {
+                if (e.target.closest('.folder-actions')) return;
+                const folderPath = header.closest('.tree-folder').dataset.folderPath;
+                this.toggleFolder(folderPath);
+            });
+        });
+        
+        // Add file to folder
+        this.dom.fileTreeContainer.querySelectorAll('.add-file-to-folder-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const folderPath = btn.closest('.tree-folder').dataset.folderPath;
+                this.addFileToFolder(folderPath);
+            });
+        });
+        
+        // Add subfolder
+        this.dom.fileTreeContainer.querySelectorAll('.add-subfolder-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const parentPath = btn.closest('.tree-folder').dataset.folderPath;
+                const folderName = prompt('Enter folder name:');
+                if (folderName && folderName.trim()) {
+                    const newPath = `${parentPath}/${folderName.trim().replace(/[<>:"|?*]/g, '')}`;
+                    const folderId = `folder-${this.state.nextFolderId++}`;
+                    this.state.folders.push({ id: folderId, path: newPath });
+                    this.state.expandedFolders.add(newPath);
+                    this.renderFileTree();
+                }
+            });
+        });
+        
+        // Delete folder
+        this.dom.fileTreeContainer.querySelectorAll('.delete-folder-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const folderPath = btn.closest('.tree-folder').dataset.folderPath;
+                if (confirm(`Delete folder "${folderPath}" and all its contents?`)) {
+                    this.deleteFolder(folderPath);
+                }
+            });
+        });
+        
+        // Select file
+        this.dom.fileTreeContainer.querySelectorAll('.tree-file').forEach(fileEl => {
+            fileEl.addEventListener('click', () => {
+                const fileId = fileEl.dataset.fileId;
+                this.selectFileInEditor(fileId);
+            });
+        });
+    },
+
+    /**
+     * Delete a folder and all its contents
+     * @param {string} folderPath - The folder path to delete
+     */
+    deleteFolder(folderPath) {
+        // Remove folder from state
+        this.state.folders = this.state.folders.filter(f => 
+            f.path !== folderPath && !f.path.startsWith(folderPath + '/')
+        );
+        
+        // Remove files in folder
+        const filesToRemove = this.state.files.filter(file => {
+            const filename = this.getFileNameFromPanel(file.id) || file.fileName;
+            return filename.startsWith(folderPath + '/');
+        });
+        
+        filesToRemove.forEach(file => {
+            const panel = document.querySelector(`[data-file-id="${file.id}"]`);
+            if (panel) panel.remove();
+        });
+        
+        this.state.files = this.state.files.filter(file => {
+            const filename = this.getFileNameFromPanel(file.id) || file.fileName;
+            return !filename.startsWith(folderPath + '/');
+        });
+        
+        this.state.expandedFolders.delete(folderPath);
+        this.renderFileTree();
+        this.updateRemoveButtonsVisibility();
+        this.updateMainHtmlSelector();
+    },
+
+    /**
+     * Select and scroll to a file in the editor
+     * @param {string} fileId - The file ID to select
+     */
+    selectFileInEditor(fileId) {
+        const panel = document.querySelector(`[data-file-id="${fileId}"]`);
+        if (panel) {
+            panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            panel.classList.add('file-selected');
+            setTimeout(() => panel.classList.remove('file-selected'), 2000);
+            
+            // Expand if collapsed
+            const wrapper = panel.querySelector('.editor-wrapper');
+            if (wrapper && wrapper.style.display === 'none') {
+                wrapper.style.display = 'block';
+                const file = this.state.files.find(f => f.id === fileId);
+                if (file && file.editor && file.editor.refresh) {
+                    setTimeout(() => file.editor.refresh(), 100);
+                }
+            }
+        }
+    },
+
     addNewFile() {
         const fileId = `file-${this.state.nextFileId++}`;
         const fileName = `newfile.html`;
@@ -735,6 +1110,7 @@ const CodePreviewer = {
         
         this.updateRemoveButtonsVisibility();
         this.updateMainHtmlSelector();
+        this.renderFileTree();
     },
 
     importFile() {
@@ -824,6 +1200,12 @@ const CodePreviewer = {
     addNewFileWithContent(fileName, fileType, content, isBinary = false) {
         const fileId = `file-${this.state.nextFileId++}`;
         
+        // Automatically create folder if file has path
+        const folderPath = this.getFolderFromPath(fileName);
+        if (folderPath) {
+            this.ensureFolderExists(folderPath);
+        }
+        
         this.createFilePanel(fileId, fileName, fileType, content, isBinary);
         
         let newEditor;
@@ -858,6 +1240,28 @@ const CodePreviewer = {
         
         this.updateRemoveButtonsVisibility();
         this.updateMainHtmlSelector();
+        this.renderFileTree();
+    },
+
+    /**
+     * Ensure a folder path exists, creating it if necessary
+     * @param {string} folderPath - The folder path to ensure exists
+     */
+    ensureFolderExists(folderPath) {
+        if (!folderPath) return;
+        
+        const parts = folderPath.split('/').filter(p => p);
+        let currentPath = '';
+        
+        parts.forEach(part => {
+            currentPath = currentPath ? `${currentPath}/${part}` : part;
+            const existingFolder = this.state.folders.find(f => f.path === currentPath);
+            if (!existingFolder) {
+                const folderId = `folder-${this.state.nextFolderId++}`;
+                this.state.folders.push({ id: folderId, path: currentPath });
+                this.state.expandedFolders.add(currentPath);
+            }
+        });
     },
 
     generateFileTypeOptions(selectedType) {
@@ -1131,6 +1535,8 @@ const CodePreviewer = {
         existingPanels.forEach(panel => {
             const fileId = panel.dataset.fileId;
             const fileType = panel.dataset.fileType;
+            const nameInput = panel.querySelector('.file-name-input');
+            const fileName = nameInput ? nameInput.value : null;
             
             if (fileId && !this.state.files.find(f => f.id === fileId)) {
                 let editor = null;
@@ -1147,7 +1553,8 @@ const CodePreviewer = {
                     this.state.files.push({
                         id: fileId,
                         editor: editor,
-                        type: fileType
+                        type: fileType,
+                        fileName: fileName
                     });
                 }
             }
@@ -1540,7 +1947,7 @@ const CodePreviewer = {
     },
 
     showNotification(message, type = 'info') {
-        this.showNotification(message, type);
+        this.notificationSystem.show(message, type);
     },
 
     generateSingleFilePreview() {
@@ -2466,10 +2873,6 @@ const CodePreviewer = {
             };
             return typeof containers[type] === 'function' ? containers[type](content, fileName) : (containers[type] || containers.default);
         }
-    },
-
-    showNotification(message, type = 'info') {
-        this.showNotification(message, type);
     },
 
     // ============================================================================
