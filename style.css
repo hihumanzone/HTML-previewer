@@ -1086,6 +1086,18 @@ body {
     background-color: var(--border-color);
 }
 
+/* Open file indicator */
+.tree-file.file-open {
+    background-color: rgba(137, 180, 250, 0.15);
+    border-left: 2px solid var(--accent-color);
+    padding-left: calc(0.5rem - 2px);
+}
+
+.tree-file.file-open .file-name {
+    color: var(--accent-color);
+    font-weight: 500;
+}
+
 .file-icon {
     font-size: 0.9rem;
     flex-shrink: 0;
@@ -1105,7 +1117,8 @@ body {
     gap: 0.25rem;
 }
 
-.tree-file:hover .file-actions {
+.tree-file:hover .file-actions,
+.tree-file.file-open .file-actions {
     display: flex;
 }
 
@@ -1123,6 +1136,12 @@ body {
 .file-actions button:hover {
     background: var(--accent-color);
     color: var(--bg-color);
+}
+
+/* Delete button styling */
+.file-actions .delete-file-btn:hover {
+    background: var(--error-color);
+    border-color: var(--error-color);
 }
 
 /* File selected highlight animation */

@@ -39,6 +39,7 @@ const CodePreviewer = {
         nextFileId: 4,
         nextFolderId: 1,
         expandedFolders: new Set(),
+        openPanels: new Set(), // Track which file panels are currently open/visible
         codeModalEditor: null,
         mainHtmlFile: '',
         dragState: {
@@ -862,6 +863,9 @@ const CodePreviewer = {
             fileName: fileName
         });
         
+        // Mark panel as open
+        this.state.openPanels.add(fileId);
+        
         this.bindFilePanelEvents(document.querySelector(`[data-file-id="${fileId}"]`));
         this.bindDragAndDropEvents(document.querySelector(`[data-file-id="${fileId}"]`));
         
@@ -934,12 +938,15 @@ const CodePreviewer = {
         // Render files
         node.files.forEach(file => {
             const fileIcon = this.getFileIcon(file.type);
+            const isOpen = this.state.openPanels.has(file.id);
+            const openClass = isOpen ? 'file-open' : '';
             html += `
-                <div class="tree-file" data-file-id="${file.id}">
+                <div class="tree-file ${openClass}" data-file-id="${file.id}">
                     <span class="file-icon">${fileIcon}</span>
                     <span class="file-name">${file.displayName}</span>
                     <div class="file-actions">
-                        <button class="select-file-btn" title="Select file">📝</button>
+                        <button class="open-file-btn" title="${isOpen ? 'Focus file' : 'Open file'}">${isOpen ? '👁️' : '📝'}</button>
+                        <button class="delete-file-btn" title="Delete file">🗑️</button>
                     </div>
                 </div>
             `;
@@ -1025,12 +1032,37 @@ const CodePreviewer = {
             });
         });
         
-        // Select file
+        // Open/focus file (clicking on file row or open button)
         this.dom.fileTreeContainer.querySelectorAll('.tree-file').forEach(fileEl => {
-            fileEl.addEventListener('click', () => {
-                const fileId = fileEl.dataset.fileId;
-                this.selectFileInEditor(fileId);
+            const fileId = fileEl.dataset.fileId;
+            
+            // Click on file row to open
+            fileEl.addEventListener('click', (e) => {
+                // Don't trigger if clicking on action buttons
+                if (e.target.closest('.file-actions')) return;
+                this.openPanel(fileId);
             });
+            
+            // Open file button
+            const openBtn = fileEl.querySelector('.open-file-btn');
+            if (openBtn) {
+                openBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.openPanel(fileId);
+                });
+            }
+            
+            // Delete file button
+            const deleteBtn = fileEl.querySelector('.delete-file-btn');
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const fileName = this.getFileNameFromPanel(fileId) || 'this file';
+                    if (confirm(`Delete "${fileName}"? This cannot be undone.`)) {
+                        this.deleteFile(fileId);
+                    }
+                });
+            }
         });
     },
 
@@ -1053,6 +1085,7 @@ const CodePreviewer = {
         filesToRemove.forEach(file => {
             const panel = document.querySelector(`[data-file-id="${file.id}"]`);
             if (panel) panel.remove();
+            this.state.openPanels.delete(file.id);
         });
         
         this.state.files = this.state.files.filter(file => {
@@ -1069,24 +1102,10 @@ const CodePreviewer = {
     /**
      * Select and scroll to a file in the editor
      * @param {string} fileId - The file ID to select
+     * @deprecated Use openPanel() instead
      */
     selectFileInEditor(fileId) {
-        const panel = document.querySelector(`[data-file-id="${fileId}"]`);
-        if (panel) {
-            panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            panel.classList.add('file-selected');
-            setTimeout(() => panel.classList.remove('file-selected'), 2000);
-            
-            // Expand if collapsed
-            const wrapper = panel.querySelector('.editor-wrapper');
-            if (wrapper && wrapper.style.display === 'none') {
-                wrapper.style.display = 'block';
-                const file = this.state.files.find(f => f.id === fileId);
-                if (file && file.editor && file.editor.refresh) {
-                    setTimeout(() => file.editor.refresh(), 100);
-                }
-            }
-        }
+        this.openPanel(fileId);
     },
 
     addNewFile() {
@@ -1104,6 +1123,9 @@ const CodePreviewer = {
             type: 'html',
             fileName: fileName
         });
+        
+        // Mark panel as open
+        this.state.openPanels.add(fileId);
         
         this.bindFilePanelEvents(document.querySelector(`[data-file-id="${fileId}"]`));
         this.bindDragAndDropEvents(document.querySelector(`[data-file-id="${fileId}"]`));
@@ -1235,6 +1257,9 @@ const CodePreviewer = {
             fileName: fileName
         });
         
+        // Mark panel as open
+        this.state.openPanels.add(fileId);
+        
         this.bindFilePanelEvents(document.querySelector(`[data-file-id="${fileId}"]`));
         this.bindDragAndDropEvents(document.querySelector(`[data-file-id="${fileId}"]`));
         
@@ -1299,7 +1324,7 @@ const CodePreviewer = {
                     <select class="file-type-selector" aria-label="File type">
                         ${fileTypeOptions}
                     </select>
-                    <button class="remove-file-btn" aria-label="Remove file">&times;</button>
+                    <button class="remove-file-btn" aria-label="Close panel" title="Close panel (file stays in sidebar)">&times;</button>
                 </div>
                 ${this.generateToolbarHTML(fileType)}
                 <label for="${fileId}" class="sr-only">${this.getFileTypeLabel(fileType)}</label>
@@ -1498,13 +1523,55 @@ const CodePreviewer = {
         }
     },
 
-    removeFile(fileId) {
+    /**
+     * Close a file panel (hide it) - does NOT delete the file
+     * @param {string} fileId - The file ID to close
+     */
+    closePanel(fileId) {
+        const panel = document.querySelector(`[data-file-id="${fileId}"]`);
+        if (panel) {
+            panel.style.display = 'none';
+            this.state.openPanels.delete(fileId);
+            this.renderFileTree();
+        }
+    },
+
+    /**
+     * Open a file panel (show it) or create it if it doesn't exist
+     * @param {string} fileId - The file ID to open
+     */
+    openPanel(fileId) {
+        const panel = document.querySelector(`[data-file-id="${fileId}"]`);
+        if (panel) {
+            panel.style.display = 'block';
+            this.state.openPanels.add(fileId);
+            
+            // Refresh editor if needed
+            const file = this.state.files.find(f => f.id === fileId);
+            if (file && file.editor && file.editor.refresh) {
+                setTimeout(() => file.editor.refresh(), 100);
+            }
+            
+            // Scroll to panel
+            panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            panel.classList.add('file-selected');
+            setTimeout(() => panel.classList.remove('file-selected'), 2000);
+        }
+        this.renderFileTree();
+    },
+
+    /**
+     * Delete a file completely (remove from state and DOM)
+     * @param {string} fileId - The file ID to delete
+     */
+    deleteFile(fileId) {
         const panel = document.querySelector(`[data-file-id="${fileId}"]`);
         if (panel) {
             panel.remove();
         }
         
         this.state.files = this.state.files.filter(f => f.id !== fileId);
+        this.state.openPanels.delete(fileId);
         
         if (fileId === 'default-html') {
             this.state.editors.html = null;
@@ -1516,6 +1583,15 @@ const CodePreviewer = {
         
         this.updateRemoveButtonsVisibility();
         this.updateMainHtmlSelector();
+        this.renderFileTree();
+    },
+
+    /**
+     * @deprecated Use closePanel() instead - this now calls closePanel for backwards compatibility
+     */
+    removeFile(fileId) {
+        // Changed to close panel instead of delete
+        this.closePanel(fileId);
     },
 
     updateRemoveButtonsVisibility() {
@@ -1556,6 +1632,8 @@ const CodePreviewer = {
                         type: fileType,
                         fileName: fileName
                     });
+                    // Mark panel as open
+                    this.state.openPanels.add(fileId);
                 }
             }
             
