@@ -945,8 +945,8 @@ const CodePreviewer = {
                     <span class="file-icon">${fileIcon}</span>
                     <span class="file-name">${file.displayName}</span>
                     <div class="file-actions">
-                        <button class="open-file-btn" title="${isOpen ? 'Focus file' : 'Open file'}">${isOpen ? '👁️' : '📝'}</button>
-                        <button class="delete-file-btn" title="Delete file">🗑️</button>
+                        <button class="open-file-btn" title="${isOpen ? 'Focus file' : 'Open file'}" aria-label="${isOpen ? 'Focus file' : 'Open file'}">${isOpen ? '👁️' : '📝'}</button>
+                        <button class="delete-file-btn" title="Delete file" aria-label="Delete file">🗑️</button>
                     </div>
                 </div>
             `;
