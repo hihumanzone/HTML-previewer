@@ -1528,7 +1528,8 @@ const CodePreviewer = {
      * @param {string} fileId - The file ID to close
      */
     closePanel(fileId) {
-        const panel = document.querySelector(`[data-file-id="${fileId}"]`);
+        // Use .editor-panel selector to avoid matching tree-file elements
+        const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
         if (panel) {
             panel.style.display = 'none';
             this.state.openPanels.delete(fileId);
@@ -1541,9 +1542,10 @@ const CodePreviewer = {
      * @param {string} fileId - The file ID to open
      */
     openPanel(fileId) {
-        const panel = document.querySelector(`[data-file-id="${fileId}"]`);
+        // Use .editor-panel selector to avoid matching tree-file elements
+        const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
         if (panel) {
-            panel.style.display = 'block';
+            panel.style.display = '';  // Reset to default (flex from CSS)
             this.state.openPanels.add(fileId);
             
             // Refresh editor if needed
@@ -1565,7 +1567,8 @@ const CodePreviewer = {
      * @param {string} fileId - The file ID to delete
      */
     deleteFile(fileId) {
-        const panel = document.querySelector(`[data-file-id="${fileId}"]`);
+        // Use .editor-panel selector to avoid matching tree-file elements
+        const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
         if (panel) {
             panel.remove();
         }
