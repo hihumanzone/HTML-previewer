@@ -733,7 +733,7 @@ const CodePreviewer = {
     },
 
     getFileNameFromPanel(fileId) {
-        const panel = document.querySelector(`[data-file-id="${fileId}"]`);
+        const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
         if (panel) {
             const nameInput = panel.querySelector('.file-name-input');
             return nameInput ? nameInput.value : null;
@@ -866,8 +866,8 @@ const CodePreviewer = {
         // Mark panel as open
         this.state.openPanels.add(fileId);
         
-        this.bindFilePanelEvents(document.querySelector(`[data-file-id="${fileId}"]`));
-        this.bindDragAndDropEvents(document.querySelector(`[data-file-id="${fileId}"]`));
+        this.bindFilePanelEvents(document.querySelector(`.editor-panel[data-file-id="${fileId}"]`));
+        this.bindDragAndDropEvents(document.querySelector(`.editor-panel[data-file-id="${fileId}"]`));
         
         this.updateRemoveButtonsVisibility();
         this.updateMainHtmlSelector();
@@ -1083,7 +1083,7 @@ const CodePreviewer = {
         });
         
         filesToRemove.forEach(file => {
-            const panel = document.querySelector(`[data-file-id="${file.id}"]`);
+            const panel = document.querySelector(`.editor-panel[data-file-id="${file.id}"]`);
             if (panel) panel.remove();
             this.state.openPanels.delete(file.id);
         });
@@ -1127,8 +1127,8 @@ const CodePreviewer = {
         // Mark panel as open
         this.state.openPanels.add(fileId);
         
-        this.bindFilePanelEvents(document.querySelector(`[data-file-id="${fileId}"]`));
-        this.bindDragAndDropEvents(document.querySelector(`[data-file-id="${fileId}"]`));
+        this.bindFilePanelEvents(document.querySelector(`.editor-panel[data-file-id="${fileId}"]`));
+        this.bindDragAndDropEvents(document.querySelector(`.editor-panel[data-file-id="${fileId}"]`));
         
         this.updateRemoveButtonsVisibility();
         this.updateMainHtmlSelector();
@@ -1260,8 +1260,8 @@ const CodePreviewer = {
         // Mark panel as open
         this.state.openPanels.add(fileId);
         
-        this.bindFilePanelEvents(document.querySelector(`[data-file-id="${fileId}"]`));
-        this.bindDragAndDropEvents(document.querySelector(`[data-file-id="${fileId}"]`));
+        this.bindFilePanelEvents(document.querySelector(`.editor-panel[data-file-id="${fileId}"]`));
+        this.bindDragAndDropEvents(document.querySelector(`.editor-panel[data-file-id="${fileId}"]`));
         
         this.updateRemoveButtonsVisibility();
         this.updateMainHtmlSelector();
