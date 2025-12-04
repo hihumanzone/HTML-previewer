@@ -73,6 +73,7 @@
                         <button id="import-zip-btn" class="import-zip-btn" aria-label="Import ZIP project">📦 Import ZIP</button>
                         <button id="export-zip-btn" class="export-zip-btn" aria-label="Export project as ZIP">📦 Export ZIP</button>
                         <button id="import-file-btn" class="import-file-btn" aria-label="Import file">📁 Import</button>
+                        <button id="add-folder-btn" class="add-folder-btn" aria-label="Add new folder">📁+ Folder</button>
                         <button id="add-file-btn" class="add-file-btn" aria-label="Add new file">+ Add File</button>
                     </div>
                 </div>
@@ -82,7 +83,9 @@
                         <option value="">Auto-detect</option>
                     </select>
                 </div>
-                <div class="editor-grid">
+                <div class="multi-file-layout">
+                    <div id="file-tree-container" class="file-tree-container"></div>
+                    <div class="editor-grid">
                     <div class="editor-panel" data-file-type="html" data-file-id="default-html" draggable="true">
                         <div class="panel-header">
                             <div class="drag-handle" aria-label="Drag to reorder">⋮⋮</div>
@@ -104,7 +107,7 @@
                                 <option value="pdf">PDF</option>
                                 <option value="binary">Binary</option>
                             </select>
-                            <button class="remove-file-btn" aria-label="Remove file">&times;</button>
+                            <button class="remove-file-btn" aria-label="Close panel" title="Close panel (file stays in sidebar)">&times;</button>
                         </div>
                         <div class="editor-toolbar">
                             <button class="toolbar-btn clear-btn" aria-label="Clear content" title="Clear">
@@ -152,7 +155,7 @@
                                 <option value="pdf">PDF</option>
                                 <option value="binary">Binary</option>
                             </select>
-                            <button class="remove-file-btn" aria-label="Remove file">&times;</button>
+                            <button class="remove-file-btn" aria-label="Close panel" title="Close panel (file stays in sidebar)">&times;</button>
                         </div>
                         <div class="editor-toolbar">
                             <button class="toolbar-btn clear-btn" aria-label="Clear content" title="Clear">
@@ -200,7 +203,7 @@
                                 <option value="pdf">PDF</option>
                                 <option value="binary">Binary</option>
                             </select>
-                            <button class="remove-file-btn" aria-label="Remove file">&times;</button>
+                            <button class="remove-file-btn" aria-label="Close panel" title="Close panel (file stays in sidebar)">&times;</button>
                         </div>
                         <div class="editor-toolbar">
                             <button class="toolbar-btn clear-btn" aria-label="Clear content" title="Clear">
@@ -226,6 +229,7 @@
                         <div class="editor-wrapper">
                             <textarea id="js-editor"></textarea>
                         </div>
+                    </div>
                     </div>
                 </div>
             </div>

@@ -1,4 +1,31 @@
+/**
+ * HTML Live Code Previewer
+ * 
+ * Main application object containing all functionality for the HTML/CSS/JS previewer.
+ * 
+ * STRUCTURE:
+ * - state: Application state (editors, files, mode, drag state)
+ * - dom: Cached DOM elements
+ * - constants: Configuration constants (IDs, file types, MIME types)
+ * - fileTypeUtils: File type detection and handling utilities
+ * - fileSystemUtils: Virtual file system operations, path resolution, file lookup
+ * - init(): Application initialization
+ * - Editor Management: initEditors(), createEditorForTextarea(), etc.
+ * - File Management: addNewFile(), importFile(), exportFile(), etc.
+ * - Preview Management: renderPreview(), toggleModal(), etc.
+ * - UI Management: bindEvents(), switchMode(), etc.
+ * - htmlGenerators: HTML generation utilities
+ * - notificationSystem: Toast notifications
+ * - assetReplacers: Asset path replacement for multi-file projects
+ * - console: Console capture and logging
+ * 
+ * NOTE: Modular versions of utilities are available in the js/ directory.
+ * See REFACTORING.md for migration path to modular architecture.
+ */
 const CodePreviewer = {
+    // ============================================================================
+    // APPLICATION STATE
+    // ============================================================================
     state: {
         mode: 'single',
         editors: {
@@ -8,7 +35,11 @@ const CodePreviewer = {
             singleFile: null,
         },
         files: [],
+        folders: [],
         nextFileId: 4,
+        nextFolderId: 1,
+        expandedFolders: new Set(),
+        openPanels: new Set(), // Track which file panels are currently open/visible
         codeModalEditor: null,
         mainHtmlFile: '',
         dragState: {
@@ -18,8 +49,14 @@ const CodePreviewer = {
         },
     },
 
+    // ============================================================================
+    // DOM ELEMENTS CACHE
+    // ============================================================================
     dom: {},
 
+    // ============================================================================
+    // CONSTANTS AND CONFIGURATION
+    // ============================================================================
     constants: {
         EDITOR_IDS: {
             HTML: 'html-editor',
@@ -35,6 +72,7 @@ const CodePreviewer = {
             SINGLE_MODE_RADIO: 'single-mode-radio',
             MULTI_MODE_RADIO: 'multi-mode-radio',
             ADD_FILE_BTN: 'add-file-btn',
+            ADD_FOLDER_BTN: 'add-folder-btn',
             IMPORT_FILE_BTN: 'import-file-btn',
             IMPORT_ZIP_BTN: 'import-zip-btn',
             EXPORT_ZIP_BTN: 'export-zip-btn',
@@ -43,6 +81,7 @@ const CodePreviewer = {
         CONTAINER_IDS: {
             SINGLE_FILE: 'single-file-container',
             MULTI_FILE: 'multi-file-container',
+            FILE_TREE: 'file-tree-container',
         },
         MODAL_IDS: {
             OVERLAY: 'preview-modal',
@@ -133,6 +172,9 @@ const CodePreviewer = {
         }
     },
 
+    // ============================================================================
+    // FILE TYPE UTILITIES
+    // ============================================================================
     fileTypeUtils: {
         getExtension(filename) {
             return filename ? filename.split('.').pop().toLowerCase() : '';
@@ -202,6 +244,172 @@ const CodePreviewer = {
         }
     },
 
+    // ============================================================================
+    // FILE SYSTEM UTILITIES
+    // Handles virtual file system operations, path resolution, and file lookup
+    // ============================================================================
+    fileSystemUtils: {
+        /**
+         * Resolves a relative path against a base path
+         * @param {string} basePath - The base file path
+         * @param {string} relativePath - The relative path to resolve
+         * @returns {string} The resolved absolute path
+         */
+        resolvePath(basePath, relativePath) {
+            // Absolute paths start fresh
+            if (relativePath.startsWith('/')) {
+                return relativePath.substring(1);
+            }
+            
+            // Get directory portion of base path
+            const baseDir = basePath.includes('/') 
+                ? basePath.substring(0, basePath.lastIndexOf('/')) 
+                : '';
+            
+            const baseParts = baseDir ? baseDir.split('/') : [];
+            const relativeParts = relativePath.split('/');
+            const resultParts = [...baseParts];
+            
+            for (const part of relativeParts) {
+                if (part === '..') {
+                    if (resultParts.length > 0) {
+                        resultParts.pop();
+                    }
+                } else if (part !== '.' && part !== '') {
+                    resultParts.push(part);
+                }
+            }
+            
+            return resultParts.join('/');
+        },
+
+        /**
+         * Finds a file in the virtual file system
+         * @param {Map} fileSystem - The virtual file system map
+         * @param {string} targetFilename - The filename to find
+         * @param {string} currentFilePath - The current file context for relative paths
+         * @returns {Object|null} The file data or null if not found
+         */
+        findFile(fileSystem, targetFilename, currentFilePath = '') {
+            // Resolve relative path if we have context
+            if (currentFilePath) {
+                targetFilename = this.resolvePath(currentFilePath, targetFilename);
+            }
+            
+            // Try exact match first
+            const exactMatch = fileSystem.get(targetFilename);
+            if (exactMatch) {
+                return exactMatch;
+            }
+            
+            // Try case-insensitive match
+            const targetLower = targetFilename.toLowerCase();
+            for (const [filename, file] of fileSystem) {
+                if (filename.toLowerCase() === targetLower) {
+                    return file;
+                }
+            }
+            
+            return null;
+        },
+
+        /**
+         * Checks if a file type matches any of the allowed types
+         * @param {string} fileType - The file type to check
+         * @param {string[]} allowedTypes - Array of allowed type strings
+         * @returns {boolean} True if the file type matches
+         */
+        isMatchingType(fileType, allowedTypes) {
+            return allowedTypes.includes(fileType);
+        },
+
+        /**
+         * Gets a data URL for a file (handles both binary and text files)
+         * @param {Object} fileData - The file data object
+         * @param {string} defaultMimeType - Default MIME type for non-binary files
+         * @returns {string} The data URL or content
+         */
+        getFileDataUrl(fileData, defaultMimeType = 'text/plain') {
+            if (fileData.isBinary) {
+                return fileData.content;
+            }
+            
+            // Handle SVG specially
+            if (fileData.type === 'svg') {
+                return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(fileData.content)}`;
+            }
+            
+            // For other text files, create a proper data URL
+            const mimeType = CodePreviewer.fileTypeUtils.getMimeTypeFromFileType(fileData.type) || defaultMimeType;
+            return `data:${mimeType};charset=utf-8,${encodeURIComponent(fileData.content)}`;
+        },
+
+        /**
+         * Generates JavaScript code for path resolution (used in injected scripts)
+         * @returns {string} JavaScript code for the resolvePath function
+         */
+        generateResolvePathCode() {
+            return `
+    function resolvePath(basePath, relativePath) {
+        if (relativePath.startsWith("/")) {
+            return relativePath.substring(1);
+        }
+        const baseDir = basePath.includes("/") ? basePath.substring(0, basePath.lastIndexOf("/")) : "";
+        const baseParts = baseDir ? baseDir.split("/") : [];
+        const relativeParts = relativePath.split("/");
+        const resultParts = [...baseParts];
+        for (const part of relativeParts) {
+            if (part === "..") {
+                if (resultParts.length > 0) resultParts.pop();
+            } else if (part !== "." && part !== "") {
+                resultParts.push(part);
+            }
+        }
+        return resultParts.join("/");
+    }`;
+        },
+
+        /**
+         * Generates JavaScript code for file lookup (used in injected scripts)
+         * @returns {string} JavaScript code for the findFileInSystem function
+         */
+        generateFindFileCode() {
+            return `
+    function findFileInSystem(targetFilename, currentFilePath = "") {
+        if (currentFilePath) {
+            targetFilename = resolvePath(currentFilePath, targetFilename);
+        }
+        const exactMatch = virtualFileSystem[targetFilename];
+        if (exactMatch) return exactMatch;
+        const targetLower = targetFilename.toLowerCase();
+        for (const [filename, file] of Object.entries(virtualFileSystem)) {
+            if (filename.toLowerCase() === targetLower) return file;
+        }
+        return null;
+    }`;
+        },
+
+        /**
+         * Generates JavaScript code for getting current file path (used in injected scripts)
+         * @returns {string} JavaScript code for the getCurrentFilePath function
+         */
+        generateGetCurrentFilePathCode() {
+            return `
+    function getCurrentFilePath() {
+        try {
+            if (window.__currentExecutionContext) return window.__currentExecutionContext;
+            return mainHtmlPath;
+        } catch (e) {
+            return mainHtmlPath;
+        }
+    }`;
+        }
+    },
+
+    // ============================================================================
+    // APPLICATION INITIALIZATION AND LIFECYCLE
+    // ============================================================================
+    
     init() {
         this.cacheDOMElements();
         this.initEditors();
@@ -227,6 +435,7 @@ const CodePreviewer = {
             singleModeOption: document.querySelector('label[for="single-mode-radio"]') || this.getSafeParentElement(CONTROL_IDS.SINGLE_MODE_RADIO),
             multiModeOption: document.querySelector('label[for="multi-mode-radio"]') || this.getSafeParentElement(CONTROL_IDS.MULTI_MODE_RADIO),
             addFileBtn: document.getElementById(CONTROL_IDS.ADD_FILE_BTN),
+            addFolderBtn: document.getElementById(CONTROL_IDS.ADD_FOLDER_BTN),
             importFileBtn: document.getElementById(CONTROL_IDS.IMPORT_FILE_BTN),
             importZipBtn: document.getElementById(CONTROL_IDS.IMPORT_ZIP_BTN),
             exportZipBtn: document.getElementById(CONTROL_IDS.EXPORT_ZIP_BTN),
@@ -234,6 +443,7 @@ const CodePreviewer = {
             mainHtmlSelector: document.getElementById('main-html-selector'),
             singleFileContainer: document.getElementById(CONTAINER_IDS.SINGLE_FILE),
             multiFileContainer: document.getElementById(CONTAINER_IDS.MULTI_FILE),
+            fileTreeContainer: document.getElementById(CONTAINER_IDS.FILE_TREE),
             modalOverlay: document.getElementById(MODAL_IDS.OVERLAY),
             previewFrame: document.getElementById(MODAL_IDS.FRAME),
             closeModalBtn: document.querySelector('.modal-header .close-btn'),
@@ -417,6 +627,9 @@ const CodePreviewer = {
         });
         
         this.dom.addFileBtn.addEventListener('click', () => this.addNewFile());
+        if (this.dom.addFolderBtn) {
+            this.dom.addFolderBtn.addEventListener('click', () => this.addNewFolder());
+        }
         this.dom.importFileBtn.addEventListener('click', () => this.importFile());
         this.dom.importZipBtn.addEventListener('click', () => this.importZip());
         this.dom.exportZipBtn.addEventListener('click', () => this.exportZip());
@@ -442,6 +655,7 @@ const CodePreviewer = {
         } else {
             this.dom.singleFileContainer.style.display = 'none';
             this.dom.multiFileContainer.style.display = 'flex';
+            this.renderFileTree();
         }
 
         setTimeout(() => {
@@ -493,7 +707,7 @@ const CodePreviewer = {
     },
 
     getFileNameFromPanel(fileId) {
-        const panel = document.querySelector(`[data-file-id="${fileId}"]`);
+        const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
         if (panel) {
             const nameInput = panel.querySelector('.file-name-input');
             return nameInput ? nameInput.value : null;
@@ -512,6 +726,362 @@ const CodePreviewer = {
         return filenames;
     },
 
+    /**
+     * Get the folder path from a full file path
+     * @param {string} path - Full file path like "src/components/Button.js"
+     * @returns {string} Folder path like "src/components" or "" for root
+     */
+    getFolderFromPath(path) {
+        if (!path || !path.includes('/')) return '';
+        return path.substring(0, path.lastIndexOf('/'));
+    },
+
+    /**
+     * Get the filename from a full file path
+     * @param {string} path - Full file path like "src/components/Button.js"
+     * @returns {string} Just the filename like "Button.js"
+     */
+    getFilenameFromPath(path) {
+        if (!path) return 'unnamed';
+        if (!path.includes('/')) return path;
+        return path.substring(path.lastIndexOf('/') + 1);
+    },
+
+    /**
+     * Build a folder tree structure from files
+     * @returns {Object} Nested folder structure
+     */
+    buildFolderTree() {
+        const tree = { name: '', children: {}, files: [] };
+        
+        // Add all folders from state
+        this.state.folders.forEach(folder => {
+            const parts = folder.path.split('/').filter(p => p);
+            let current = tree;
+            parts.forEach(part => {
+                if (!current.children[part]) {
+                    current.children[part] = { name: part, children: {}, files: [], expanded: this.state.expandedFolders.has(folder.path) };
+                }
+                current = current.children[part];
+            });
+        });
+        
+        // Add files to their respective folders
+        this.state.files.forEach(file => {
+            const filename = this.getFileNameFromPanel(file.id) || file.fileName || 'unnamed';
+            const folderPath = this.getFolderFromPath(filename);
+            const justFilename = this.getFilenameFromPath(filename);
+            
+            if (folderPath) {
+                const parts = folderPath.split('/').filter(p => p);
+                let current = tree;
+                parts.forEach(part => {
+                    if (!current.children[part]) {
+                        current.children[part] = { name: part, children: {}, files: [], expanded: this.state.expandedFolders.has(folderPath) };
+                    }
+                    current = current.children[part];
+                });
+                current.files.push({ ...file, displayName: justFilename });
+            } else {
+                tree.files.push({ ...file, displayName: justFilename });
+            }
+        });
+        
+        return tree;
+    },
+
+    /**
+     * Add a new folder
+     */
+    addNewFolder() {
+        const folderName = prompt('Enter folder name:');
+        if (!folderName || folderName.trim() === '') return;
+        
+        const sanitizedName = folderName.trim().replace(/[<>:"|?*]/g, '');
+        
+        // Check if folder already exists
+        const existingFolder = this.state.folders.find(f => f.path === sanitizedName);
+        if (existingFolder) {
+            this.showNotification(`Folder "${sanitizedName}" already exists.`, 'error');
+            return;
+        }
+        
+        const folderId = `folder-${this.state.nextFolderId++}`;
+        this.state.folders.push({
+            id: folderId,
+            path: sanitizedName
+        });
+        
+        this.state.expandedFolders.add(sanitizedName);
+        this.renderFileTree();
+        this.showNotification(`Folder "${sanitizedName}" created.`, 'success');
+    },
+
+    /**
+     * Add a new file within a specific folder
+     * @param {string} folderPath - The folder path to add the file in
+     */
+    addFileToFolder(folderPath) {
+        const fileId = `file-${this.state.nextFileId++}`;
+        const fileName = folderPath ? `${folderPath}/newfile.html` : 'newfile.html';
+        
+        this.createFilePanel(fileId, fileName, 'html', '', false);
+        
+        const newTextarea = document.getElementById(fileId);
+        const newEditor = this.createEditorForTextarea(newTextarea, 'html');
+        
+        this.state.files.push({
+            id: fileId,
+            editor: newEditor,
+            type: 'html',
+            fileName: fileName
+        });
+        
+        // Mark panel as open
+        this.state.openPanels.add(fileId);
+        
+        this.bindFilePanelEvents(document.querySelector(`.editor-panel[data-file-id="${fileId}"]`));
+        this.bindDragAndDropEvents(document.querySelector(`.editor-panel[data-file-id="${fileId}"]`));
+        
+        this.updateRemoveButtonsVisibility();
+        this.updateMainHtmlSelector();
+        this.renderFileTree();
+    },
+
+    /**
+     * Toggle folder expansion
+     * @param {string} folderPath - The folder path to toggle
+     */
+    toggleFolder(folderPath) {
+        if (this.state.expandedFolders.has(folderPath)) {
+            this.state.expandedFolders.delete(folderPath);
+        } else {
+            this.state.expandedFolders.add(folderPath);
+        }
+        this.renderFileTree();
+    },
+
+    /**
+     * Render the file tree sidebar
+     */
+    renderFileTree() {
+        if (!this.dom.fileTreeContainer) return;
+        
+        const tree = this.buildFolderTree();
+        const html = this.renderFolderContents(tree, '');
+        this.dom.fileTreeContainer.innerHTML = html;
+        
+        // Bind click events for folders and files
+        this.bindFileTreeEvents();
+    },
+
+    /**
+     * Recursively render folder contents
+     * @param {Object} node - Current tree node
+     * @param {string} currentPath - Current path being rendered
+     * @returns {string} HTML string
+     */
+    renderFolderContents(node, currentPath) {
+        let html = '';
+        
+        // Render subfolders first
+        const sortedFolders = Object.keys(node.children).sort();
+        sortedFolders.forEach(folderName => {
+            const folder = node.children[folderName];
+            const folderPath = currentPath ? `${currentPath}/${folderName}` : folderName;
+            const isExpanded = this.state.expandedFolders.has(folderPath);
+            
+            html += `
+                <div class="tree-folder ${isExpanded ? 'expanded' : ''}" data-folder-path="${folderPath}">
+                    <div class="tree-folder-header">
+                        <span class="folder-icon">${isExpanded ? '📂' : '📁'}</span>
+                        <span class="folder-name">${folderName}</span>
+                        <div class="folder-actions">
+                            <button class="add-file-to-folder-btn" title="Add file to folder">+</button>
+                            <button class="add-subfolder-btn" title="Add subfolder">📁+</button>
+                            <button class="delete-folder-btn" title="Delete folder">🗑️</button>
+                        </div>
+                    </div>
+                    <div class="tree-folder-contents" style="display: ${isExpanded ? 'block' : 'none'}">
+                        ${this.renderFolderContents(folder, folderPath)}
+                    </div>
+                </div>
+            `;
+        });
+        
+        // Render files
+        node.files.forEach(file => {
+            const fileIcon = this.getFileIcon(file.type);
+            const isOpen = this.state.openPanels.has(file.id);
+            const openClass = isOpen ? 'file-open' : '';
+            html += `
+                <div class="tree-file ${openClass}" data-file-id="${file.id}">
+                    <span class="file-icon">${fileIcon}</span>
+                    <span class="file-name">${file.displayName}</span>
+                    <div class="file-actions">
+                        <button class="open-file-btn" title="${isOpen ? 'Focus file' : 'Open file'}" aria-label="${isOpen ? 'Focus file' : 'Open file'}">${isOpen ? '👁️' : '📝'}</button>
+                        <button class="delete-file-btn" title="Delete file" aria-label="Delete file">🗑️</button>
+                    </div>
+                </div>
+            `;
+        });
+        
+        return html;
+    },
+
+    /**
+     * Get the appropriate icon for a file type
+     * @param {string} fileType - The file type
+     * @returns {string} Emoji icon
+     */
+    getFileIcon(fileType) {
+        const icons = {
+            'html': '🌐',
+            'css': '🎨',
+            'javascript': '📜',
+            'javascript-module': '📦',
+            'json': '📋',
+            'xml': '📄',
+            'markdown': '📝',
+            'text': '📃',
+            'svg': '🖼️',
+            'image': '🖼️',
+            'audio': '🔊',
+            'video': '🎬',
+            'font': '🔤',
+            'pdf': '📕',
+            'binary': '📦'
+        };
+        return icons[fileType] || '📄';
+    },
+
+    /**
+     * Bind click events for file tree elements
+     */
+    bindFileTreeEvents() {
+        if (!this.dom.fileTreeContainer) return;
+        
+        // Folder header clicks (toggle expansion)
+        this.dom.fileTreeContainer.querySelectorAll('.tree-folder-header').forEach(header => {
+            header.addEventListener('click', (e) => {
+                if (e.target.closest('.folder-actions')) return;
+                const folderPath = header.closest('.tree-folder').dataset.folderPath;
+                this.toggleFolder(folderPath);
+            });
+        });
+        
+        // Add file to folder
+        this.dom.fileTreeContainer.querySelectorAll('.add-file-to-folder-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const folderPath = btn.closest('.tree-folder').dataset.folderPath;
+                this.addFileToFolder(folderPath);
+            });
+        });
+        
+        // Add subfolder
+        this.dom.fileTreeContainer.querySelectorAll('.add-subfolder-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const parentPath = btn.closest('.tree-folder').dataset.folderPath;
+                const folderName = prompt('Enter folder name:');
+                if (folderName && folderName.trim()) {
+                    const newPath = `${parentPath}/${folderName.trim().replace(/[<>:"|?*]/g, '')}`;
+                    const folderId = `folder-${this.state.nextFolderId++}`;
+                    this.state.folders.push({ id: folderId, path: newPath });
+                    this.state.expandedFolders.add(newPath);
+                    this.renderFileTree();
+                }
+            });
+        });
+        
+        // Delete folder
+        this.dom.fileTreeContainer.querySelectorAll('.delete-folder-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const folderPath = btn.closest('.tree-folder').dataset.folderPath;
+                if (confirm(`Delete folder "${folderPath}" and all its contents?`)) {
+                    this.deleteFolder(folderPath);
+                }
+            });
+        });
+        
+        // Open/focus file (clicking on file row or open button)
+        this.dom.fileTreeContainer.querySelectorAll('.tree-file').forEach(fileEl => {
+            const fileId = fileEl.dataset.fileId;
+            
+            // Click on file row to open
+            fileEl.addEventListener('click', (e) => {
+                // Don't trigger if clicking on action buttons
+                if (e.target.closest('.file-actions')) return;
+                this.openPanel(fileId);
+            });
+            
+            // Open file button
+            const openBtn = fileEl.querySelector('.open-file-btn');
+            if (openBtn) {
+                openBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.openPanel(fileId);
+                });
+            }
+            
+            // Delete file button
+            const deleteBtn = fileEl.querySelector('.delete-file-btn');
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const fileName = this.getFileNameFromPanel(fileId) || 'this file';
+                    if (confirm(`Delete "${fileName}"? This cannot be undone.`)) {
+                        this.deleteFile(fileId);
+                    }
+                });
+            }
+        });
+    },
+
+    /**
+     * Delete a folder and all its contents
+     * @param {string} folderPath - The folder path to delete
+     */
+    deleteFolder(folderPath) {
+        // Remove folder from state
+        this.state.folders = this.state.folders.filter(f => 
+            f.path !== folderPath && !f.path.startsWith(folderPath + '/')
+        );
+        
+        // Remove files in folder
+        const filesToRemove = this.state.files.filter(file => {
+            const filename = this.getFileNameFromPanel(file.id) || file.fileName;
+            return filename.startsWith(folderPath + '/');
+        });
+        
+        filesToRemove.forEach(file => {
+            const panel = document.querySelector(`.editor-panel[data-file-id="${file.id}"]`);
+            if (panel) panel.remove();
+            this.state.openPanels.delete(file.id);
+        });
+        
+        this.state.files = this.state.files.filter(file => {
+            const filename = this.getFileNameFromPanel(file.id) || file.fileName;
+            return !filename.startsWith(folderPath + '/');
+        });
+        
+        this.state.expandedFolders.delete(folderPath);
+        this.renderFileTree();
+        this.updateRemoveButtonsVisibility();
+        this.updateMainHtmlSelector();
+    },
+
+    /**
+     * Select and scroll to a file in the editor
+     * @param {string} fileId - The file ID to select
+     * @deprecated Use openPanel() instead
+     */
+    selectFileInEditor(fileId) {
+        this.openPanel(fileId);
+    },
+
     addNewFile() {
         const fileId = `file-${this.state.nextFileId++}`;
         const fileName = `newfile.html`;
@@ -528,11 +1098,15 @@ const CodePreviewer = {
             fileName: fileName
         });
         
-        this.bindFilePanelEvents(document.querySelector(`[data-file-id="${fileId}"]`));
-        this.bindDragAndDropEvents(document.querySelector(`[data-file-id="${fileId}"]`));
+        // Mark panel as open
+        this.state.openPanels.add(fileId);
+        
+        this.bindFilePanelEvents(document.querySelector(`.editor-panel[data-file-id="${fileId}"]`));
+        this.bindDragAndDropEvents(document.querySelector(`.editor-panel[data-file-id="${fileId}"]`));
         
         this.updateRemoveButtonsVisibility();
         this.updateMainHtmlSelector();
+        this.renderFileTree();
     },
 
     importFile() {
@@ -622,6 +1196,12 @@ const CodePreviewer = {
     addNewFileWithContent(fileName, fileType, content, isBinary = false) {
         const fileId = `file-${this.state.nextFileId++}`;
         
+        // Automatically create folder if file has path
+        const folderPath = this.getFolderFromPath(fileName);
+        if (folderPath) {
+            this.ensureFolderExists(folderPath);
+        }
+        
         this.createFilePanel(fileId, fileName, fileType, content, isBinary);
         
         let newEditor;
@@ -651,11 +1231,36 @@ const CodePreviewer = {
             fileName: fileName
         });
         
-        this.bindFilePanelEvents(document.querySelector(`[data-file-id="${fileId}"]`));
-        this.bindDragAndDropEvents(document.querySelector(`[data-file-id="${fileId}"]`));
+        // Mark panel as open
+        this.state.openPanels.add(fileId);
+        
+        this.bindFilePanelEvents(document.querySelector(`.editor-panel[data-file-id="${fileId}"]`));
+        this.bindDragAndDropEvents(document.querySelector(`.editor-panel[data-file-id="${fileId}"]`));
         
         this.updateRemoveButtonsVisibility();
         this.updateMainHtmlSelector();
+        this.renderFileTree();
+    },
+
+    /**
+     * Ensure a folder path exists, creating it if necessary
+     * @param {string} folderPath - The folder path to ensure exists
+     */
+    ensureFolderExists(folderPath) {
+        if (!folderPath) return;
+        
+        const parts = folderPath.split('/').filter(p => p);
+        let currentPath = '';
+        
+        parts.forEach(part => {
+            currentPath = currentPath ? `${currentPath}/${part}` : part;
+            const existingFolder = this.state.folders.find(f => f.path === currentPath);
+            if (!existingFolder) {
+                const folderId = `folder-${this.state.nextFolderId++}`;
+                this.state.folders.push({ id: folderId, path: currentPath });
+                this.state.expandedFolders.add(currentPath);
+            }
+        });
     },
 
     generateFileTypeOptions(selectedType) {
@@ -693,7 +1298,7 @@ const CodePreviewer = {
                     <select class="file-type-selector" aria-label="File type">
                         ${fileTypeOptions}
                     </select>
-                    <button class="remove-file-btn" aria-label="Remove file">&times;</button>
+                    <button class="remove-file-btn" aria-label="Close panel" title="Close panel (file stays in sidebar)">&times;</button>
                 </div>
                 ${this.generateToolbarHTML(fileType)}
                 <label for="${fileId}" class="sr-only">${this.getFileTypeLabel(fileType)}</label>
@@ -892,13 +1497,58 @@ const CodePreviewer = {
         }
     },
 
-    removeFile(fileId) {
-        const panel = document.querySelector(`[data-file-id="${fileId}"]`);
+    /**
+     * Close a file panel (hide it) - does NOT delete the file
+     * @param {string} fileId - The file ID to close
+     */
+    closePanel(fileId) {
+        // Use .editor-panel selector to avoid matching tree-file elements
+        const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+        if (panel) {
+            panel.style.display = 'none';
+            this.state.openPanels.delete(fileId);
+            this.renderFileTree();
+        }
+    },
+
+    /**
+     * Open a file panel (show it) or create it if it doesn't exist
+     * @param {string} fileId - The file ID to open
+     */
+    openPanel(fileId) {
+        // Use .editor-panel selector to avoid matching tree-file elements
+        const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+        if (panel) {
+            panel.style.display = '';  // Reset to default (flex from CSS)
+            this.state.openPanels.add(fileId);
+            
+            // Refresh editor if needed
+            const file = this.state.files.find(f => f.id === fileId);
+            if (file && file.editor && file.editor.refresh) {
+                setTimeout(() => file.editor.refresh(), 100);
+            }
+            
+            // Scroll to panel
+            panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            panel.classList.add('file-selected');
+            setTimeout(() => panel.classList.remove('file-selected'), 2000);
+        }
+        this.renderFileTree();
+    },
+
+    /**
+     * Delete a file completely (remove from state and DOM)
+     * @param {string} fileId - The file ID to delete
+     */
+    deleteFile(fileId) {
+        // Use .editor-panel selector to avoid matching tree-file elements
+        const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
         if (panel) {
             panel.remove();
         }
         
         this.state.files = this.state.files.filter(f => f.id !== fileId);
+        this.state.openPanels.delete(fileId);
         
         if (fileId === 'default-html') {
             this.state.editors.html = null;
@@ -910,6 +1560,15 @@ const CodePreviewer = {
         
         this.updateRemoveButtonsVisibility();
         this.updateMainHtmlSelector();
+        this.renderFileTree();
+    },
+
+    /**
+     * @deprecated Use closePanel() instead - this now calls closePanel for backwards compatibility
+     */
+    removeFile(fileId) {
+        // Changed to close panel instead of delete
+        this.closePanel(fileId);
     },
 
     updateRemoveButtonsVisibility() {
@@ -929,6 +1588,8 @@ const CodePreviewer = {
         existingPanels.forEach(panel => {
             const fileId = panel.dataset.fileId;
             const fileType = panel.dataset.fileType;
+            const nameInput = panel.querySelector('.file-name-input');
+            const fileName = nameInput ? nameInput.value : null;
             
             if (fileId && !this.state.files.find(f => f.id === fileId)) {
                 let editor = null;
@@ -945,8 +1606,11 @@ const CodePreviewer = {
                     this.state.files.push({
                         id: fileId,
                         editor: editor,
-                        type: fileType
+                        type: fileType,
+                        fileName: fileName
                     });
+                    // Mark panel as open
+                    this.state.openPanels.add(fileId);
                 }
             }
             
@@ -1338,7 +2002,7 @@ const CodePreviewer = {
     },
 
     showNotification(message, type = 'info') {
-        this.showNotification(message, type);
+        this.notificationSystem.show(message, type);
     },
 
     generateSingleFilePreview() {
@@ -1504,49 +2168,20 @@ const CodePreviewer = {
         return this.fileTypeUtils.getMimeTypeFromFileType(fileType);
     },
 
+    /**
+     * Resolves a relative path - delegates to fileSystemUtils
+     * @deprecated Use fileSystemUtils.resolvePath() directly
+     */
     resolvePath(basePath, relativePath) {
-        if (relativePath.startsWith('/')) {
-            return relativePath.substring(1);
-        }
-        
-        const baseDir = basePath.includes('/') ? basePath.substring(0, basePath.lastIndexOf('/')) : '';
-        
-        const baseParts = baseDir ? baseDir.split('/') : [];
-        const relativeParts = relativePath.split('/');
-        
-        const resultParts = [...baseParts];
-        
-        for (const part of relativeParts) {
-            if (part === '..') {
-                if (resultParts.length > 0) {
-                    resultParts.pop();
-                }
-            } else if (part !== '.' && part !== '') {
-                resultParts.push(part);
-            }
-        }
-        
-        return resultParts.join('/');
+        return this.fileSystemUtils.resolvePath(basePath, relativePath);
     },
 
+    /**
+     * Finds a file in the virtual file system - delegates to fileSystemUtils
+     * @deprecated Use fileSystemUtils.findFile() directly
+     */
     findFileInSystem(fileSystem, targetFilename, currentFilePath = '') {
-        if (currentFilePath) {
-            targetFilename = this.resolvePath(currentFilePath, targetFilename);
-        }
-        
-        const exactMatch = fileSystem.get(targetFilename);
-        if (exactMatch) {
-            return exactMatch;
-        }
-        
-        const targetLower = targetFilename.toLowerCase();
-        for (const [filename, file] of fileSystem) {
-            if (filename.toLowerCase() === targetLower) {
-                return file;
-            }
-        }
-        
-        return null;
+        return this.fileSystemUtils.findFile(fileSystem, targetFilename, currentFilePath);
     },
 
     extractWorkerFileNames(htmlContent) {
@@ -2210,6 +2845,9 @@ const CodePreviewer = {
         return this.fileTypeUtils.getTypeFromExtension(extension);
     },
 
+    // ============================================================================
+    // HTML GENERATION UTILITIES
+    // ============================================================================
     htmlGenerators: {
         toolbarButton(icon, text, className, ariaLabel, title) {
             return `<button class="toolbar-btn ${className}" aria-label="${ariaLabel}" title="${title}">
@@ -2292,10 +2930,9 @@ const CodePreviewer = {
         }
     },
 
-    showNotification(message, type = 'info') {
-        this.showNotification(message, type);
-    },
-
+    // ============================================================================
+    // NOTIFICATION SYSTEM
+    // ============================================================================
     notificationSystem: {
         show(message, type = 'info') {
             let notification = document.getElementById('notification');
@@ -2336,87 +2973,108 @@ const CodePreviewer = {
         }
     },
 
+    // ============================================================================
+    // ASSET REPLACEMENT UTILITIES
+    // Consolidated utilities for replacing file references in HTML/CSS with
+    // virtual file system content
+    // ============================================================================
     assetReplacers: {
-        replaceCSS(htmlContent, fileSystem, currentFilePath) {
-            return htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.css)["']([^>]*?)>/gi, (match, before, filename, after) => {
-                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
-                if (file && file.type === 'css') {
-                    return `<style>${file.content}</style>`;
+        /**
+         * Configuration for different asset replacement patterns
+         * Each entry defines: regex pattern, allowed file types, and replacement strategy
+         */
+        REPLACEMENT_CONFIGS: {
+            css: {
+                pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.css)["']([^>]*?)>/gi,
+                types: ['css'],
+                replace: (file) => `<style>${file.content}</style>`
+            },
+            images: {
+                pattern: /<img([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
+                types: ['image', 'svg'],
+                replace: (file, match) => {
+                    const src = CodePreviewer.fileSystemUtils.getFileDataUrl(file, 'image/png');
+                    return match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${src}"`);
+                }
+            },
+            video: {
+                pattern: /<video([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
+                types: ['video'],
+                replace: (file, match) => match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${file.content}"`)
+            },
+            source: {
+                pattern: /<source([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
+                types: ['video', 'audio'],
+                replace: (file, match) => match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${file.content}"`)
+            },
+            audio: {
+                pattern: /<audio([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
+                types: ['audio'],
+                replace: (file, match) => match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${file.content}"`)
+            },
+            favicon: {
+                pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.ico)["']([^>]*?)>/gi,
+                types: ['image'],
+                replace: (file, match) => match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${file.content}"`)
+            },
+            font: {
+                pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.(?:woff|woff2|ttf|otf|eot))["']([^>]*?)>/gi,
+                types: ['font'],
+                replace: (file, match, before, filename, after) => `<link${before}href="${file.content}"${after}>`
+            }
+        },
+
+        /**
+         * Generic replacement handler using configuration
+         * @param {string} htmlContent - The HTML content to process
+         * @param {Map} fileSystem - The virtual file system
+         * @param {string} currentFilePath - Current file path for relative resolution
+         * @param {Object} config - Replacement configuration object
+         * @returns {string} Processed HTML content
+         */
+        applyReplacement(htmlContent, fileSystem, currentFilePath, config) {
+            return htmlContent.replace(config.pattern, (match, before, filename, after) => {
+                const file = CodePreviewer.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
+                if (file && CodePreviewer.fileSystemUtils.isMatchingType(file.type, config.types)) {
+                    return config.replace(file, match, before, filename, after);
                 }
                 return match;
             });
+        },
+
+        replaceCSS(htmlContent, fileSystem, currentFilePath) {
+            return this.applyReplacement(htmlContent, fileSystem, currentFilePath, this.REPLACEMENT_CONFIGS.css);
         },
 
         replaceImages(htmlContent, fileSystem, currentFilePath) {
-            return htmlContent.replace(/<img([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
-                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
-                if (file && (file.type === 'image' || file.type === 'svg')) {
-                    const src = file.isBinary ? file.content : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(file.content)}`;
-                    const newSrc = `src="${src}"`;
-                    return match.replace(/src\s*=\s*["'][^"']*["']/i, newSrc);
-                }
-                return match;
-            });
+            return this.applyReplacement(htmlContent, fileSystem, currentFilePath, this.REPLACEMENT_CONFIGS.images);
         },
 
         replaceVideoSources(htmlContent, fileSystem, currentFilePath) {
-            return htmlContent.replace(/<video([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
-                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
-                if (file && file.type === 'video') {
-                    const newSrc = `src="${file.content}"`;
-                    return match.replace(/src\s*=\s*["'][^"']*["']/i, newSrc);
-                }
-                return match;
-            });
+            return this.applyReplacement(htmlContent, fileSystem, currentFilePath, this.REPLACEMENT_CONFIGS.video);
         },
 
         replaceSourceElements(htmlContent, fileSystem, currentFilePath) {
-            return htmlContent.replace(/<source([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
-                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
-                if (file && (file.type === 'video' || file.type === 'audio')) {
-                    const newSrc = `src="${file.content}"`;
-                    return match.replace(/src\s*=\s*["'][^"']*["']/i, newSrc);
-                }
-                return match;
-            });
+            return this.applyReplacement(htmlContent, fileSystem, currentFilePath, this.REPLACEMENT_CONFIGS.source);
         },
 
         replaceAudioSources(htmlContent, fileSystem, currentFilePath) {
-            return htmlContent.replace(/<audio([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
-                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
-                if (file && file.type === 'audio') {
-                    const newSrc = `src="${file.content}"`;
-                    return match.replace(/src\s*=\s*["'][^"']*["']/i, newSrc);
-                }
-                return match;
-            });
+            return this.applyReplacement(htmlContent, fileSystem, currentFilePath, this.REPLACEMENT_CONFIGS.audio);
         },
 
         replaceFavicons(htmlContent, fileSystem, currentFilePath) {
-            return htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.ico)["']([^>]*?)>/gi, (match, before, filename, after) => {
-                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
-                if (file && file.type === 'image') {
-                    const newHref = `href="${file.content}"`;
-                    return match.replace(/href\s*=\s*["'][^"']*["']/i, newHref);
-                }
-                return match;
-            });
+            return this.applyReplacement(htmlContent, fileSystem, currentFilePath, this.REPLACEMENT_CONFIGS.favicon);
         },
 
         replaceDownloadLinks(htmlContent, fileSystem, currentFilePath) {
             return htmlContent.replace(/<a([^>]*?)href\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
                 if (match.includes('download') || !filename.includes('://')) {
-                    const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
+                    const file = CodePreviewer.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
                     if (file) {
-                        let href;
-                        if (file.isBinary) {
-                            href = file.content;
-                        } else {
-                            const mimeType = CodePreviewer.getMimeTypeFromFileType(file.type);
-                            href = `data:${mimeType};charset=utf-8,${encodeURIComponent(file.content)}`;
-                        }
-                        const newHref = `href="${href}"`;
-                        return match.replace(/href\s*=\s*["'][^"']*["']/i, newHref);
+                        const href = file.isBinary 
+                            ? file.content 
+                            : CodePreviewer.fileSystemUtils.getFileDataUrl(file);
+                        return match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${href}"`);
                     }
                 }
                 return match;
@@ -2424,13 +3082,7 @@ const CodePreviewer = {
         },
 
         replaceFontLinks(htmlContent, fileSystem, currentFilePath) {
-            return htmlContent.replace(/<link([^>]*?)href\s*=\s*["']([^"']+\.(?:woff|woff2|ttf|otf|eot))["']([^>]*?)>/gi, (match, before, filename, after) => {
-                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
-                if (file && file.type === 'font') {
-                    return `<link${before}href="${file.content}"${after}>`;
-                }
-                return match;
-            });
+            return this.applyReplacement(htmlContent, fileSystem, currentFilePath, this.REPLACEMENT_CONFIGS.font);
         },
 
         replaceStyleTags(htmlContent, fileSystem, currentFilePath) {
@@ -2446,7 +3098,7 @@ const CodePreviewer = {
                     return '';
                 }
                 
-                const file = CodePreviewer.findFileInSystem(fileSystem, filename, currentFilePath);
+                const file = CodePreviewer.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
                 if (file && (file.type === 'javascript' || file.type === 'javascript-module')) {
                     const scriptType = file.type === 'javascript-module' ? ' type="module"' : '';
                     return `<script${scriptType}>${file.content}</script>`;
@@ -2505,31 +3157,204 @@ const CodePreviewer = {
         return htmlFiles[0] || null;
     },
 
+    // ============================================================================
+    // CONSOLE CAPTURE AND LOGGING
+    // ============================================================================
     console: {
+        logCounts: { log: 0, warn: 0, error: 0, info: 0 },
+        filters: { log: true, warn: true, error: true, info: true },
+        
+        /**
+         * Configuration constants for console behavior
+         * @property {number} OBJECT_COLLAPSE_THRESHOLD - Character count threshold for collapsing JSON objects into expandable details
+         * @property {number} COPY_FEEDBACK_DURATION - Duration in milliseconds to show copy success/failure feedback
+         */
+        OBJECT_COLLAPSE_THRESHOLD: 100,
+        COPY_FEEDBACK_DURATION: 1000,
+        
         init(outputEl, clearBtn, previewFrame) {
             this.outputEl = outputEl;
             this.previewFrame = previewFrame;
             clearBtn.addEventListener('click', () => this.clear());
             window.addEventListener('message', (e) => this.handleMessage(e));
+            this.initFilterButtons();
         },
+        
+        initFilterButtons() {
+            const consoleHeader = this.outputEl.parentElement.querySelector('.console-header');
+            if (!consoleHeader) return;
+            
+            // Create filter container
+            const filterContainer = document.createElement('div');
+            filterContainer.className = 'console-filters';
+            filterContainer.innerHTML = `
+                <button class="console-filter-btn active" data-filter="log" title="Show logs">
+                    <span class="filter-icon">📝</span>
+                    <span class="filter-count" data-count="log">0</span>
+                </button>
+                <button class="console-filter-btn active" data-filter="info" title="Show info">
+                    <span class="filter-icon">ℹ️</span>
+                    <span class="filter-count" data-count="info">0</span>
+                </button>
+                <button class="console-filter-btn active" data-filter="warn" title="Show warnings">
+                    <span class="filter-icon">⚠️</span>
+                    <span class="filter-count" data-count="warn">0</span>
+                </button>
+                <button class="console-filter-btn active" data-filter="error" title="Show errors">
+                    <span class="filter-icon">❌</span>
+                    <span class="filter-count" data-count="error">0</span>
+                </button>
+            `;
+            
+            // Insert before clear button
+            const clearButton = consoleHeader.querySelector('.clear-btn');
+            if (clearButton) {
+                consoleHeader.insertBefore(filterContainer, clearButton);
+            } else {
+                consoleHeader.appendChild(filterContainer);
+            }
+            
+            // Add filter click handlers
+            filterContainer.querySelectorAll('.console-filter-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const filterType = btn.dataset.filter;
+                    this.filters[filterType] = !this.filters[filterType];
+                    btn.classList.toggle('active', this.filters[filterType]);
+                    this.applyFilters();
+                });
+            });
+        },
+        
+        applyFilters() {
+            const messages = this.outputEl.querySelectorAll('.log-message');
+            messages.forEach(msg => {
+                const types = ['log', 'info', 'warn', 'error'];
+                for (const type of types) {
+                    if (msg.classList.contains(`log-type-${type}`)) {
+                        msg.style.display = this.filters[type] ? '' : 'none';
+                        break;
+                    }
+                }
+            });
+        },
+        
+        updateFilterCounts() {
+            Object.keys(this.logCounts).forEach(type => {
+                const countEl = document.querySelector(`.filter-count[data-count="${type}"]`);
+                if (countEl) {
+                    countEl.textContent = this.logCounts[type];
+                    countEl.classList.toggle('has-count', this.logCounts[type] > 0);
+                }
+            });
+        },
+        
         clear() {
             this.outputEl.innerHTML = '';
+            this.logCounts = { log: 0, warn: 0, error: 0, info: 0 };
+            this.updateFilterCounts();
         },
-        log(logData) {
-            const el = document.createElement('div');
-            el.className = `log-message log-type-${logData.level}`;
-            
-            const messageText = logData.message.map(arg => {
-                if (typeof arg === 'object' && arg !== null) {
-                    try { return JSON.stringify(arg, null, 2); } catch (e) { return 'Unserializable Object'; }
+        
+        formatValue(arg) {
+            if (arg === null) return '<span class="console-null">null</span>';
+            if (arg === undefined) return '<span class="console-undefined">undefined</span>';
+            if (typeof arg === 'boolean') return `<span class="console-boolean">${arg}</span>`;
+            if (typeof arg === 'number') return `<span class="console-number">${arg}</span>`;
+            if (typeof arg === 'string') return this.escapeHtml(arg);
+            if (typeof arg === 'object' && arg !== null) {
+                try {
+                    const json = JSON.stringify(arg, null, 2);
+                    const isLarge = json.length > this.OBJECT_COLLAPSE_THRESHOLD || json.includes('\n');
+                    if (isLarge) {
+                        return `<details class="console-object"><summary>${Array.isArray(arg) ? `Array(${arg.length})` : 'Object'}</summary><pre>${this.escapeHtml(json)}</pre></details>`;
+                    }
+                    return `<span class="console-object-inline">${this.escapeHtml(json)}</span>`;
+                } catch (e) {
+                    return '<span class="console-error">[Unserializable Object]</span>';
                 }
-                return String(arg);
-            }).join(' ');
-
-            el.textContent = `> ${messageText}`;
+            }
+            return String(arg);
+        },
+        
+        escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        },
+        
+        getIcon(level) {
+            const icons = {
+                log: '📝',
+                info: 'ℹ️',
+                warn: '⚠️',
+                error: '❌'
+            };
+            return icons[level] || '📝';
+        },
+        
+        getTimestamp() {
+            const now = new Date();
+            return now.toLocaleTimeString('en-US', { 
+                hour12: false, 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit',
+                fractionalSecondDigits: 3
+            });
+        },
+        
+        log(logData) {
+            const level = logData.level || 'log';
+            this.logCounts[level] = (this.logCounts[level] || 0) + 1;
+            this.updateFilterCounts();
+            
+            const el = document.createElement('div');
+            el.className = `log-message log-type-${level}`;
+            
+            // Apply current filter
+            if (!this.filters[level]) {
+                el.style.display = 'none';
+            }
+            
+            const messageContent = logData.message.map(arg => this.formatValue(arg)).join(' ');
+            
+            el.innerHTML = `
+                <span class="log-icon" aria-hidden="true">${this.getIcon(level)}</span>
+                <span class="log-timestamp">${this.getTimestamp()}</span>
+                <span class="log-content">${messageContent}</span>
+                <button class="log-copy-btn" title="Copy message" aria-label="Copy message to clipboard">📋</button>
+            `;
+            
+            // Add copy functionality with accessibility support
+            const copyBtn = el.querySelector('.log-copy-btn');
+            copyBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const text = logData.message.map(arg => {
+                    if (typeof arg === 'object') {
+                        try { return JSON.stringify(arg, null, 2); } catch (e) { return String(arg); }
+                    }
+                    return String(arg);
+                }).join(' ');
+                navigator.clipboard.writeText(text).then(() => {
+                    copyBtn.textContent = '✅';
+                    copyBtn.setAttribute('aria-label', 'Copied to clipboard');
+                    setTimeout(() => {
+                        copyBtn.textContent = '📋';
+                        copyBtn.setAttribute('aria-label', 'Copy message to clipboard');
+                    }, this.COPY_FEEDBACK_DURATION);
+                }).catch(() => {
+                    copyBtn.textContent = '❌';
+                    copyBtn.setAttribute('aria-label', 'Failed to copy');
+                    setTimeout(() => {
+                        copyBtn.textContent = '📋';
+                        copyBtn.setAttribute('aria-label', 'Copy message to clipboard');
+                    }, this.COPY_FEEDBACK_DURATION);
+                });
+            });
+            
             this.outputEl.appendChild(el);
             this.outputEl.scrollTop = this.outputEl.scrollHeight;
         },
+        
         handleMessage(event) {
             const { CONSOLE_MESSAGE_TYPE } = CodePreviewer.constants;
             if (event.source === this.previewFrame.contentWindow && event.data.type === CONSOLE_MESSAGE_TYPE) {
@@ -2539,6 +3364,7 @@ const CodePreviewer = {
         getCaptureScript(fileSystem = null, mainHtmlPath = 'index.html') {
             const MESSAGE_TYPE = CodePreviewer.constants.CONSOLE_MESSAGE_TYPE;
             
+            // Generate file system initialization script
             let fileSystemScript = '';
             if (fileSystem && fileSystem instanceof Map) {
                 const fileObj = {};
@@ -2563,63 +3389,17 @@ const CodePreviewer = {
                 `;
             }
             
+            // Use the centralized code generators from fileSystemUtils
+            const resolvePathCode = CodePreviewer.fileSystemUtils.generateResolvePathCode();
+            const findFileCode = CodePreviewer.fileSystemUtils.generateFindFileCode();
+            const getCurrentFilePathCode = CodePreviewer.fileSystemUtils.generateGetCurrentFilePathCode();
+            
             return '<script>\n' +
                 '(function() {\n' +
                 fileSystemScript + '\n' +
-                '    \n' +
-                '    function resolvePath(basePath, relativePath) {\n' +
-                '        if (relativePath.startsWith("/")) {\n' +
-                '            return relativePath.substring(1);\n' +
-                '        }\n' +
-                '        \n' +
-                '        const baseDir = basePath.includes("/") ? basePath.substring(0, basePath.lastIndexOf("/")) : "";\n' +
-                '        const baseParts = baseDir ? baseDir.split("/") : [];\n' +
-                '        const relativeParts = relativePath.split("/");\n' +
-                '        const resultParts = [...baseParts];\n' +
-                '        \n' +
-                '        for (const part of relativeParts) {\n' +
-                '            if (part === "..") {\n' +
-                '                if (resultParts.length > 0) {\n' +
-                '                    resultParts.pop();\n' +
-                '                }\n' +
-                '            } else if (part !== "." && part !== "") {\n' +
-                '                resultParts.push(part);\n' +
-                '            }\n' +
-                '        }\n' +
-                '        \n' +
-                '        return resultParts.join("/");\n' +
-                '    }\n' +
-                '    \n' +
-                '    function findFileInSystem(targetFilename, currentFilePath = "") {\n' +
-                '        if (currentFilePath) {\n' +
-                '            targetFilename = resolvePath(currentFilePath, targetFilename);\n' +
-                '        }\n' +
-                '        \n' +
-                '        const exactMatch = virtualFileSystem[targetFilename];\n' +
-                '        if (exactMatch) {\n' +
-                '            return exactMatch;\n' +
-                '        }\n' +
-                '        \n' +
-                '        const targetLower = targetFilename.toLowerCase();\n' +
-                '        for (const [filename, file] of Object.entries(virtualFileSystem)) {\n' +
-                '            if (filename.toLowerCase() === targetLower) {\n' +
-                '                return file;\n' +
-                '            }\n' +
-                '        }\n' +
-                '        \n' +
-                '        return null;\n' +
-                '    }\n' +
-                '    \n' +
-                '    function getCurrentFilePath() {\n' +
-                '        try {\n' +
-                '            if (window.__currentExecutionContext) {\n' +
-                '                return window.__currentExecutionContext;\n' +
-                '            }\n' +
-                '            return mainHtmlPath;\n' +
-                '        } catch (e) {\n' +
-                '            return mainHtmlPath;\n' +
-                '        }\n' +
-                '    }\n' +
+                '    ' + resolvePathCode + '\n' +
+                '    ' + findFileCode + '\n' +
+                '    ' + getCurrentFilePathCode + '\n' +
                 '    \n' +
                 '    const originalFetch = window.fetch;\n' +
                 '    window.fetch = function(input, init) {\n' +
@@ -2899,7 +3679,7 @@ const CodePreviewer = {
                 '        window.parent.postMessage({ type: \'' + MESSAGE_TYPE + '\', level, message: formattedArgs }, \'*\');\n' +
                 '    };\n' +
                 '    const originalConsole = { ...window.console };\n' +
-                '    [\'log\', \'warn\', \'error\'].forEach(level => {\n' +
+                '    [\'log\', \'info\', \'warn\', \'error\'].forEach(level => {\n' +
                 '        window.console[level] = (...args) => {\n' +
                 '            postLog(level, Array.from(args));\n' +
                 '            originalConsole[level](...args);\n' +

@@ -1,0 +1,25 @@
+# Backup files
+*.backup
+*.bak
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Node modules (if npm is added later)
+node_modules/
+
+# Build artifacts
+dist/
+build/
+
+# Temporary files
+.tmp/
+tmp/

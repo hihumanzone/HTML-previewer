@@ -33,6 +33,15 @@ Note: Exact UI and capabilities depend on the current implementation of `index.h
 - `index.html` — App markup and container for the editor and preview
 - `style.css` — App styling
 - `script.js` — App logic (e.g., wiring editors to the preview frame)
+- `js/` — Modular JavaScript files (refactored utilities and components)
+  - `constants.js` — Application constants and configuration
+  - `file-type-utils.js` — File type detection and MIME type handling
+  - `notification-system.js` — Toast notification system
+  - `utils.js` — General utility functions
+  - `dom-manager.js` — DOM element caching and management
+  - `editor-manager.js` — CodeMirror editor initialization
+
+See [REFACTORING.md](REFACTORING.md) for details about the modular architecture and migration path.
 
 ## Development
 

@@ -477,8 +477,160 @@ body {
 }
 #console-output .log-message:last-child { border-bottom: none; }
 #console-output .log-type-log { color: var(--primary-color); }
+#console-output .log-type-info { color: var(--accent-color); }
 #console-output .log-type-error { color: var(--error-color); }
 #console-output .log-type-warn { color: var(--warn-color); }
+
+/* Enhanced Console Styles */
+.console-filters {
+    display: flex;
+    gap: 0.5rem;
+    margin-right: 1rem;
+}
+
+.console-filter-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--secondary-color);
+    cursor: pointer;
+    font-size: 0.75rem;
+    color: var(--primary-color);
+    opacity: 0.5;
+    transition: all 0.2s ease;
+}
+
+.console-filter-btn.active {
+    opacity: 1;
+    border-color: var(--accent-color);
+}
+
+.console-filter-btn:hover {
+    background: var(--border-color);
+}
+
+.filter-icon {
+    font-size: 0.9rem;
+}
+
+.filter-count {
+    background: var(--border-color);
+    padding: 0.1rem 0.4rem;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    min-width: 1.2rem;
+    text-align: center;
+}
+
+.filter-count.has-count {
+    background: var(--accent-color);
+    color: var(--bg-color);
+}
+
+#console-output .log-message {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.4rem 0.5rem;
+    white-space: pre-wrap;
+    word-break: break-all;
+    border-bottom: 1px solid var(--secondary-color);
+    font-size: 0.85rem;
+}
+
+#console-output .log-message:hover {
+    background: var(--secondary-color);
+}
+
+#console-output .log-message:last-child {
+    border-bottom: none;
+}
+
+.log-icon {
+    font-size: 0.9rem;
+    flex-shrink: 0;
+}
+
+.log-timestamp {
+    color: var(--border-color);
+    font-size: 0.75rem;
+    flex-shrink: 0;
+    font-family: monospace;
+}
+
+.log-content {
+    flex: 1;
+    overflow-wrap: break-word;
+}
+
+.log-copy-btn {
+    padding: 0.2rem 0.4rem;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 0.8rem;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    flex-shrink: 0;
+}
+
+#console-output .log-message:hover .log-copy-btn {
+    opacity: 1;
+}
+
+.log-copy-btn:hover {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+/* Console value types */
+.console-null,
+.console-undefined {
+    color: var(--border-color);
+    font-style: italic;
+}
+
+.console-boolean {
+    color: #f5c2e7;
+}
+
+.console-number {
+    color: #94e2d5;
+}
+
+.console-object-inline {
+    color: var(--accent-color);
+}
+
+.console-object {
+    margin: 0;
+}
+
+.console-object summary {
+    cursor: pointer;
+    color: var(--accent-color);
+    user-select: none;
+}
+
+.console-object summary:hover {
+    text-decoration: underline;
+}
+
+.console-object pre {
+    margin: 0.5rem 0 0 1rem;
+    padding: 0.5rem;
+    background: var(--secondary-color);
+    border-radius: 4px;
+    overflow-x: auto;
+    font-size: 0.8rem;
+}
+
+.console-error {
+    color: var(--error-color);
+}
 
 .close-btn {
     font-size: 1.75rem; 
@@ -738,28 +890,33 @@ body {
 }
 
 /* ZIP Import/Export Buttons */
-.import-zip-btn, .export-zip-btn {
-    background-color: var(--accent-color);
-    color: var(--bg-color);
-    border: none;
-    padding: 0.5rem 1rem;
+.import-zip-btn, .export-zip-btn, .import-file-btn, .add-folder-btn, .add-file-btn {
+    background-color: var(--secondary-color);
+    color: var(--primary-color);
+    border: 1px solid var(--border-color);
+    padding: 0.4rem 0.8rem;
     border-radius: 4px;
     cursor: pointer;
     font-size: 0.8rem;
-    font-weight: bold;
-    transition: background-color 0.2s;
+    font-weight: 500;
+    transition: all 0.2s ease;
 }
 
-.import-zip-btn:hover, .export-zip-btn:hover {
-    background-color: #6a9ae8;
+.import-zip-btn:hover, .export-zip-btn:hover, .import-file-btn:hover, .add-folder-btn:hover, .add-file-btn:hover {
+    background-color: var(--border-color);
+    border-color: var(--accent-color);
 }
 
-.export-zip-btn {
-    background-color: var(--warn-color);
+/* Primary action button */
+.add-file-btn {
+    background-color: var(--accent-color);
+    color: var(--bg-color);
+    border-color: var(--accent-color);
 }
 
-.export-zip-btn:hover {
-    background-color: #e89c62;
+.add-file-btn:hover {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
 }
 
 /* Main HTML File Selector */
@@ -817,5 +974,206 @@ body {
     
     #main-html-select {
         max-width: 100%;
+    }
+}
+
+/* ==========================================================================
+   FILE TREE STYLES
+   ========================================================================== */
+
+.multi-file-layout {
+    display: flex;
+    gap: 1rem;
+    flex: 1;
+}
+
+.file-tree-container {
+    width: 250px;
+    min-width: 200px;
+    max-width: 300px;
+    background-color: var(--secondary-color);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.5rem;
+    overflow-y: auto;
+    max-height: calc(100vh - 300px);
+}
+
+.file-tree-container:empty::before {
+    content: 'No folders yet. Add a folder or import a ZIP.';
+    color: var(--border-color);
+    font-size: 0.8rem;
+    font-style: italic;
+    display: block;
+    text-align: center;
+    padding: 1rem;
+}
+
+.tree-folder {
+    margin-bottom: 0.25rem;
+}
+
+.tree-folder-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.tree-folder-header:hover {
+    background-color: var(--border-color);
+}
+
+.tree-folder.expanded > .tree-folder-header {
+    background-color: rgba(137, 180, 250, 0.1);
+}
+
+.folder-icon {
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.folder-name {
+    flex: 1;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--accent-color);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.folder-actions {
+    display: none;
+    gap: 0.25rem;
+}
+
+.tree-folder-header:hover .folder-actions {
+    display: flex;
+}
+
+.folder-actions button {
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    padding: 0.15rem 0.3rem;
+    font-size: 0.7rem;
+    cursor: pointer;
+    color: var(--primary-color);
+    transition: all 0.2s ease;
+}
+
+.folder-actions button:hover {
+    background: var(--accent-color);
+    color: var(--bg-color);
+}
+
+.tree-folder-contents {
+    padding-left: 1rem;
+    border-left: 1px solid var(--border-color);
+    margin-left: 0.5rem;
+}
+
+.tree-file {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.tree-file:hover {
+    background-color: var(--border-color);
+}
+
+/* Open file indicator */
+.tree-file.file-open {
+    background-color: rgba(137, 180, 250, 0.15);
+    border-left: 2px solid var(--accent-color);
+    padding-left: calc(0.5rem - 2px);
+}
+
+.tree-file.file-open .file-name {
+    color: var(--accent-color);
+    font-weight: 500;
+}
+
+.file-icon {
+    font-size: 0.9rem;
+    flex-shrink: 0;
+}
+
+.tree-file .file-name {
+    flex: 1;
+    font-size: 0.8rem;
+    color: var(--primary-color);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-actions {
+    display: none;
+    gap: 0.25rem;
+}
+
+.tree-file:hover .file-actions,
+.tree-file.file-open .file-actions {
+    display: flex;
+}
+
+.file-actions button {
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    padding: 0.15rem 0.3rem;
+    font-size: 0.7rem;
+    cursor: pointer;
+    color: var(--primary-color);
+    transition: all 0.2s ease;
+}
+
+.file-actions button:hover {
+    background: var(--accent-color);
+    color: var(--bg-color);
+}
+
+/* Delete button styling */
+.file-actions .delete-file-btn:hover {
+    background: var(--error-color);
+    border-color: var(--error-color);
+}
+
+/* File selected highlight animation */
+.file-selected {
+    animation: file-highlight 2s ease;
+}
+
+@keyframes file-highlight {
+    0%, 50% {
+        box-shadow: 0 0 10px var(--accent-color);
+        border-color: var(--accent-color);
+    }
+    100% {
+        box-shadow: none;
+        border-color: var(--border-color);
+    }
+}
+
+/* Responsive adjustments for file tree */
+@media (max-width: 900px) {
+    .multi-file-layout {
+        flex-direction: column;
+    }
+    
+    .file-tree-container {
+        width: 100%;
+        max-width: none;
+        max-height: 200px;
     }
 }
