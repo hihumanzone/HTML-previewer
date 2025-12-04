@@ -890,28 +890,33 @@ body {
 }
 
 /* ZIP Import/Export Buttons */
-.import-zip-btn, .export-zip-btn {
-    background-color: var(--accent-color);
-    color: var(--bg-color);
-    border: none;
-    padding: 0.5rem 1rem;
+.import-zip-btn, .export-zip-btn, .import-file-btn, .add-folder-btn, .add-file-btn {
+    background-color: var(--secondary-color);
+    color: var(--primary-color);
+    border: 1px solid var(--border-color);
+    padding: 0.4rem 0.8rem;
     border-radius: 4px;
     cursor: pointer;
     font-size: 0.8rem;
-    font-weight: bold;
-    transition: background-color 0.2s;
+    font-weight: 500;
+    transition: all 0.2s ease;
 }
 
-.import-zip-btn:hover, .export-zip-btn:hover {
-    background-color: #6a9ae8;
+.import-zip-btn:hover, .export-zip-btn:hover, .import-file-btn:hover, .add-folder-btn:hover, .add-file-btn:hover {
+    background-color: var(--border-color);
+    border-color: var(--accent-color);
 }
 
-.export-zip-btn {
-    background-color: var(--warn-color);
+/* Primary action button */
+.add-file-btn {
+    background-color: var(--accent-color);
+    color: var(--bg-color);
+    border-color: var(--accent-color);
 }
 
-.export-zip-btn:hover {
-    background-color: #e89c62;
+.add-file-btn:hover {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
 }
 
 /* Main HTML File Selector */
@@ -1158,41 +1163,6 @@ body {
         box-shadow: none;
         border-color: var(--border-color);
     }
-}
-
-/* View toggle button */
-.view-toggle-btn {
-    background-color: var(--accent-color);
-    color: var(--bg-color);
-    border: none;
-    padding: 0.4rem 0.8rem;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.8rem;
-    font-weight: 500;
-    transition: all 0.2s ease;
-}
-
-.view-toggle-btn:hover {
-    background-color: var(--primary-color);
-}
-
-/* Add folder button */
-.add-folder-btn {
-    background-color: var(--secondary-color);
-    color: var(--accent-color);
-    border: 1px solid var(--accent-color);
-    padding: 0.4rem 0.8rem;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.8rem;
-    font-weight: 500;
-    transition: all 0.2s ease;
-}
-
-.add-folder-btn:hover {
-    background-color: var(--accent-color);
-    color: var(--bg-color);
 }
 
 /* Responsive adjustments for file tree */

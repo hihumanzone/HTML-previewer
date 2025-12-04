@@ -47,7 +47,6 @@ const CodePreviewer = {
             draggedFileId: null,
             dropIndicator: null,
         },
-        viewMode: 'grid', // 'grid' or 'tree'
     },
 
     // ============================================================================
@@ -74,7 +73,6 @@ const CodePreviewer = {
             MULTI_MODE_RADIO: 'multi-mode-radio',
             ADD_FILE_BTN: 'add-file-btn',
             ADD_FOLDER_BTN: 'add-folder-btn',
-            VIEW_TOGGLE_BTN: 'view-toggle-btn',
             IMPORT_FILE_BTN: 'import-file-btn',
             IMPORT_ZIP_BTN: 'import-zip-btn',
             EXPORT_ZIP_BTN: 'export-zip-btn',
@@ -438,7 +436,6 @@ const CodePreviewer = {
             multiModeOption: document.querySelector('label[for="multi-mode-radio"]') || this.getSafeParentElement(CONTROL_IDS.MULTI_MODE_RADIO),
             addFileBtn: document.getElementById(CONTROL_IDS.ADD_FILE_BTN),
             addFolderBtn: document.getElementById(CONTROL_IDS.ADD_FOLDER_BTN),
-            viewToggleBtn: document.getElementById(CONTROL_IDS.VIEW_TOGGLE_BTN),
             importFileBtn: document.getElementById(CONTROL_IDS.IMPORT_FILE_BTN),
             importZipBtn: document.getElementById(CONTROL_IDS.IMPORT_ZIP_BTN),
             exportZipBtn: document.getElementById(CONTROL_IDS.EXPORT_ZIP_BTN),
@@ -633,9 +630,6 @@ const CodePreviewer = {
         if (this.dom.addFolderBtn) {
             this.dom.addFolderBtn.addEventListener('click', () => this.addNewFolder());
         }
-        if (this.dom.viewToggleBtn) {
-            this.dom.viewToggleBtn.addEventListener('click', () => this.toggleViewMode());
-        }
         this.dom.importFileBtn.addEventListener('click', () => this.importFile());
         this.dom.importZipBtn.addEventListener('click', () => this.importZip());
         this.dom.exportZipBtn.addEventListener('click', () => this.exportZip());
@@ -673,26 +667,6 @@ const CodePreviewer = {
                 });
             }
         }, 100);
-    },
-
-    /**
-     * Toggle between grid and tree view modes
-     */
-    toggleViewMode() {
-        this.state.viewMode = this.state.viewMode === 'grid' ? 'tree' : 'grid';
-        this.renderFileTree();
-        this.updateViewToggleButton();
-    },
-
-    /**
-     * Update the view toggle button text/icon
-     */
-    updateViewToggleButton() {
-        if (this.dom.viewToggleBtn) {
-            const icon = this.state.viewMode === 'grid' ? '🗂️' : '📑';
-            const text = this.state.viewMode === 'grid' ? 'Tree View' : 'Grid View';
-            this.dom.viewToggleBtn.innerHTML = `${icon} ${text}`;
-        }
     },
 
     isModuleFile(content, filename) {
