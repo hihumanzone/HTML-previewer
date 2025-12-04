@@ -18,6 +18,7 @@ export const CONTROL_IDS = {
     SINGLE_MODE_RADIO: 'single-mode-radio',
     MULTI_MODE_RADIO: 'multi-mode-radio',
     ADD_FILE_BTN: 'add-file-btn',
+    ADD_FOLDER_BTN: 'add-folder-btn',
     IMPORT_FILE_BTN: 'import-file-btn',
     IMPORT_ZIP_BTN: 'import-zip-btn',
     EXPORT_ZIP_BTN: 'export-zip-btn',
@@ -27,6 +28,7 @@ export const CONTROL_IDS = {
 export const CONTAINER_IDS = {
     SINGLE_FILE: 'single-file-container',
     MULTI_FILE: 'multi-file-container',
+    FILE_TREE: 'file-tree-container',
 };
 
 export const MODAL_IDS = {

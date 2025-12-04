@@ -78,12 +78,15 @@ Centralized file system operations with:
 - ✅ Extract editor manager basics
 - ✅ Extract file system utilities
 
-### Phase 2: Core Module Extraction (IN PROGRESS)
+### Phase 2: Core Module Extraction (COMPLETED)
 - ✅ Refactor file referencing support in multi-file system
 - ✅ Consolidate asset replacement patterns
+- ✅ Add folder support in multi-file mode
+- ✅ Enhance console with filtering, timestamps, and copy functionality
+- ✅ Fix panel close/delete behavior
 - ⬜ Extract file management (import/export, panel creation)
 - ⬜ Extract preview rendering logic
-- ⬜ Extract console logging system
+- ⬜ Extract console logging system as standalone module
 - ⬜ Extract drag-and-drop functionality
 - ⬜ Extract toolbar event handlers
 
@@ -104,15 +107,17 @@ Centralized file system operations with:
 
 ## Current Usage
 
-The original `script.js` is still in use. To use the modular version:
+The original `script.js` is the main application entry point. The modular utilities in the `js/` folder can be imported for use in new projects or for testing purposes:
 
-1. Use `index-modular.html` instead of `index.html`
-2. Ensure `js/app.js` is created with full application logic
-3. Test all functionality thoroughly before switching
+```javascript
+// Example: Import file system utilities for testing
+import { resolvePath, findFile } from './js/file-system-utils.js';
+import { getTypeFromExtension, isBinaryFile } from './js/file-type-utils.js';
+```
 
 ## Notes
 
-- `script.js.backup` contains the original unmodified script
 - All new modules use ES6 syntax (export/import)
 - Backward compatibility maintained during transition
 - The `fileSystemUtils` object in script.js mirrors the standalone module for compatibility
+- Constants in `js/constants.js` are kept in sync with `script.js`
