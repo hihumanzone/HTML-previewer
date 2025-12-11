@@ -2255,10 +2255,19 @@ const CodePreviewer = {
             if (/type\s*=\s*["']module["']/i.test(attrs)) return match;
             
             if (this.isModuleFile(scriptContent)) {
-                const updatedAttrs = /type\s*=/.test(attrs)
-                    ? attrs.replace(/type\s*=\s*["'][^"']*["']/i, ' type="module"')
-                    : `${attrs} type="module"`;
-                return `<script${updatedAttrs}>${scriptContent}</script>`;
+                const hasTypeAttr = /type\s*=\s*["'][^"']*["']/i.test(attrs);
+                let cleanedAttrs = attrs || '';
+                
+                if (hasTypeAttr) {
+                    cleanedAttrs = cleanedAttrs.replace(/type\s*=\s*["'][^"']*["']/i, 'type="module"');
+                } else {
+                    cleanedAttrs = `${cleanedAttrs} type="module"`;
+                }
+                
+                const normalizedAttrs = cleanedAttrs.trim();
+                const attrPrefix = normalizedAttrs ? ` ${normalizedAttrs}` : '';
+                
+                return `<script${attrPrefix}>${scriptContent}</script>`;
             }
             
             return match;
@@ -3032,8 +3041,14 @@ const CodePreviewer = {
             favicon: {
                 pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.(?:ico|png|svg))["']([^>]*?)>/gi,
                 types: ['image', 'svg'],
-                replace: (file, match) => {
-                    const href = CodePreviewer.fileSystemUtils.getFileDataUrl(file, 'image/png');
+                replace: (file, match, before, filename) => {
+                    const extension = CodePreviewer.fileTypeUtils.getExtension(filename);
+                    const defaultMime = extension === 'svg' 
+                        ? 'image/svg+xml' 
+                        : extension === 'ico' 
+                            ? 'image/x-icon' 
+                            : 'image/png';
+                    const href = CodePreviewer.fileSystemUtils.getFileDataUrl(file, defaultMime);
                     return match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${href}"`);
                 }
             },
