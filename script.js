@@ -2255,15 +2255,15 @@ const CodePreviewer = {
             if (/type\s*=\s*["']module["']/i.test(attrs)) return match;
             
             if (this.isModuleFile(scriptContent)) {
-                let attrsText = attrs || '';
+                let attrsText = (attrs || '').trim();
                 
                 if (/type\s*=\s*["'][^"']*["']/i.test(attrsText)) {
                     attrsText = attrsText.replace(/type\s*=\s*["'][^"']*["']/i, 'type="module"');
                 } else {
-                    attrsText = `${attrsText} type="module"`;
+                    attrsText = attrsText ? `${attrsText} type="module"` : 'type="module"';
                 }
                 
-                const normalizedAttrs = attrsText.trim().replace(/\s+/g, ' ');
+                const normalizedAttrs = attrsText.replace(/\s+/g, ' ');
                 const attrPrefix = normalizedAttrs ? ` ${normalizedAttrs}` : '';
                 
                 return `<script${attrPrefix}>${scriptContent}</script>`;
@@ -3042,11 +3042,8 @@ const CodePreviewer = {
                 types: ['image', 'svg'],
                 replace: (file, match, before, filename) => {
                     const extension = CodePreviewer.fileTypeUtils.getExtension(filename);
-                    const defaultMime = extension === 'svg' 
-                        ? 'image/svg+xml' 
-                        : extension === 'ico' 
-                            ? 'image/x-icon' 
-                            : 'image/png';
+                    const mimeTypes = { svg: 'image/svg+xml', ico: 'image/x-icon' };
+                    const defaultMime = mimeTypes[extension] || 'image/png';
                     const href = CodePreviewer.fileSystemUtils.getFileDataUrl(file, defaultMime);
                     return match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${href}"`);
                 }
