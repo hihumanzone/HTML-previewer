@@ -2250,7 +2250,7 @@ const CodePreviewer = {
     },
 
     ensureInlineModuleScripts(htmlContent) {
-        return htmlContent.replace(/<script([^>]*?)>([\s\S]*?)<\/script\s*>/gi, (match, attrs, scriptContent) => {
+        return htmlContent.replace(/<script([^>]*?)>([\s\S]*?)<\/script[^>]*>/gi, (match, attrs, scriptContent) => {
             if (/src\s*=\s*["'][^"']*["']/i.test(attrs)) return match;
             
             if (this.isModuleFile(scriptContent, '')) {
