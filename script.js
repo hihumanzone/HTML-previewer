@@ -2252,7 +2252,6 @@ const CodePreviewer = {
     ensureInlineModuleScripts(htmlContent) {
         return htmlContent.replace(/<script([^>]*?)>([\s\S]*?)<\/script>/gi, (match, attrs, scriptContent) => {
             if (/src\s*=\s*["'][^"']*["']/i.test(attrs)) return match;
-            if (/type\s*=\s*["']module["']/i.test(attrs)) return match;
             
             if (this.isModuleFile(scriptContent, '')) {
                 let attrsText = (attrs || '').trim();
@@ -2263,8 +2262,7 @@ const CodePreviewer = {
                     attrsText = attrsText ? `${attrsText} type="module"` : 'type="module"';
                 }
                 
-                const normalizedAttrs = attrsText.replace(/\s+/g, ' ');
-                const attrPrefix = normalizedAttrs ? ` ${normalizedAttrs}` : '';
+                const attrPrefix = attrsText ? ` ${attrsText}` : '';
                 
                 return `<script${attrPrefix}>${scriptContent}</script>`;
             }
@@ -3004,6 +3002,10 @@ const CodePreviewer = {
     // virtual file system content
     // ============================================================================
     assetReplacers: {
+        FAVICON_MIME_MAP: {
+            svg: 'image/svg+xml',
+            ico: 'image/x-icon'
+        },
         /**
          * Configuration for different asset replacement patterns
          * Each entry defines: regex pattern, allowed file types, and replacement strategy
@@ -3038,12 +3040,11 @@ const CodePreviewer = {
                 replace: (file, match) => match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${file.content}"`)
             },
             favicon: {
-                pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.(?:ico|png|svg))["']([^>]*?)>/gi,
+                pattern: /<link([^>]*?\brel\s*=\s*["'][^"']*icon[^"']*["'][^>]*?)href\s*=\s*["']([^"']+\.(?:ico|png|svg))["']([^>]*?)>/gi,
                 types: ['image', 'svg'],
                 replace: (file, match, before, filename, after) => {
                     const extension = CodePreviewer.fileTypeUtils.getExtension(filename);
-                    const mimeTypes = { svg: 'image/svg+xml', ico: 'image/x-icon' };
-                    const defaultMime = mimeTypes[extension] || 'image/png';
+                    const defaultMime = CodePreviewer.assetReplacers.FAVICON_MIME_MAP[extension] || 'image/png';
                     const href = CodePreviewer.fileSystemUtils.getFileDataUrl(file, defaultMime);
                     return match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${href}"`);
                 }
