@@ -2255,16 +2255,15 @@ const CodePreviewer = {
             if (/type\s*=\s*["']module["']/i.test(attrs)) return match;
             
             if (this.isModuleFile(scriptContent)) {
-                const hasTypeAttr = /type\s*=\s*["'][^"']*["']/i.test(attrs);
-                let cleanedAttrs = attrs || '';
+                let attrsText = attrs || '';
                 
-                if (hasTypeAttr) {
-                    cleanedAttrs = cleanedAttrs.replace(/type\s*=\s*["'][^"']*["']/i, 'type="module"');
+                if (/type\s*=\s*["'][^"']*["']/i.test(attrsText)) {
+                    attrsText = attrsText.replace(/type\s*=\s*["'][^"']*["']/i, 'type="module"');
                 } else {
-                    cleanedAttrs = `${cleanedAttrs} type="module"`;
+                    attrsText = `${attrsText} type="module"`;
                 }
                 
-                const normalizedAttrs = cleanedAttrs.trim();
+                const normalizedAttrs = attrsText.trim().replace(/\s+/g, ' ');
                 const attrPrefix = normalizedAttrs ? ` ${normalizedAttrs}` : '';
                 
                 return `<script${attrPrefix}>${scriptContent}</script>`;
