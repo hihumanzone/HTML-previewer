@@ -2244,8 +2244,25 @@ const CodePreviewer = {
         
         const workerFileSet = new Set(workerFileNames);
         htmlContent = this.assetReplacers.replaceScriptTags(htmlContent, fileSystem, currentFilePath, workerFileSet);
+        htmlContent = this.ensureInlineModuleScripts(htmlContent);
         
         return htmlContent;
+    },
+
+    ensureInlineModuleScripts(htmlContent) {
+        return htmlContent.replace(/<script([^>]*?)>([\s\S]*?)<\/script>/gi, (match, attrs, scriptContent) => {
+            if (/src\s*=\s*["'][^"']*["']/i.test(attrs)) return match;
+            if (/type\s*=\s*["']module["']/i.test(attrs)) return match;
+            
+            if (this.isModuleFile(scriptContent)) {
+                const updatedAttrs = /type\s*=/.test(attrs)
+                    ? attrs.replace(/type\s*=\s*["'][^"']*["']/i, ' type="module"')
+                    : `${attrs} type="module"`;
+                return `<script${updatedAttrs}>${scriptContent}</script>`;
+            }
+            
+            return match;
+        });
     },
 
     replaceCSSAssetReferences(cssContent, fileSystem, currentFilePath = '') {
@@ -3013,9 +3030,12 @@ const CodePreviewer = {
                 replace: (file, match) => match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${file.content}"`)
             },
             favicon: {
-                pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.ico)["']([^>]*?)>/gi,
-                types: ['image'],
-                replace: (file, match) => match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${file.content}"`)
+                pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.(?:ico|png|svg))["']([^>]*?)>/gi,
+                types: ['image', 'svg'],
+                replace: (file, match) => {
+                    const href = CodePreviewer.fileSystemUtils.getFileDataUrl(file, 'image/png');
+                    return match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${href}"`);
+                }
             },
             font: {
                 pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.(?:woff|woff2|ttf|otf|eot))["']([^>]*?)>/gi,
