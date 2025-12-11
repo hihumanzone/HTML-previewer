@@ -2254,7 +2254,7 @@ const CodePreviewer = {
             if (/src\s*=\s*["'][^"']*["']/i.test(attrs)) return match;
             if (/type\s*=\s*["']module["']/i.test(attrs)) return match;
             
-            if (this.isModuleFile(scriptContent)) {
+            if (this.isModuleFile(scriptContent, '')) {
                 let attrsText = (attrs || '').trim();
                 
                 if (/type\s*=\s*["'][^"']*["']/i.test(attrsText)) {
@@ -3040,7 +3040,7 @@ const CodePreviewer = {
             favicon: {
                 pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.(?:ico|png|svg))["']([^>]*?)>/gi,
                 types: ['image', 'svg'],
-                replace: (file, match, before, filename) => {
+                replace: (file, match, before, filename, after) => {
                     const extension = CodePreviewer.fileTypeUtils.getExtension(filename);
                     const mimeTypes = { svg: 'image/svg+xml', ico: 'image/x-icon' };
                     const defaultMime = mimeTypes[extension] || 'image/png';
