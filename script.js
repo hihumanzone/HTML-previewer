@@ -40,6 +40,7 @@ const CodePreviewer = {
         nextFolderId: 1,
         expandedFolders: new Set(),
         openPanels: new Set(), // Track which file panels are currently open/visible
+        savedFileStates: {}, // Track saved states for files: { fileId: { content: string, fileName: string } }
         codeModalEditor: null,
         mainHtmlFile: '',
         dragState: {
@@ -824,8 +825,9 @@ const CodePreviewer = {
     addFileToFolder(folderPath) {
         const fileId = `file-${this.state.nextFileId++}`;
         const fileName = folderPath ? `${folderPath}/newfile.html` : 'newfile.html';
+        const content = '';
         
-        this.createFilePanel(fileId, fileName, 'html', '', false);
+        this.createFilePanel(fileId, fileName, 'html', content, false);
         
         const newTextarea = document.getElementById(fileId);
         const newEditor = this.createEditorForTextarea(newTextarea, 'html');
@@ -836,6 +838,10 @@ const CodePreviewer = {
             type: 'html',
             fileName: fileName
         });
+        
+        // Initialize saved state and set up change listener
+        this.initFileSavedState(fileId, content, fileName);
+        this.setupEditorChangeListener(fileId, newEditor);
         
         // Mark panel as open
         this.state.openPanels.add(fileId);
@@ -1085,8 +1091,9 @@ const CodePreviewer = {
     addNewFile() {
         const fileId = `file-${this.state.nextFileId++}`;
         const fileName = `newfile.html`;
+        const content = '';
         
-        this.createFilePanel(fileId, fileName, 'html', '', false);
+        this.createFilePanel(fileId, fileName, 'html', content, false);
         
         const newTextarea = document.getElementById(fileId);
         const newEditor = this.createEditorForTextarea(newTextarea, 'html');
@@ -1097,6 +1104,10 @@ const CodePreviewer = {
             type: 'html',
             fileName: fileName
         });
+        
+        // Initialize saved state and set up change listener
+        this.initFileSavedState(fileId, content, fileName);
+        this.setupEditorChangeListener(fileId, newEditor);
         
         // Mark panel as open
         this.state.openPanels.add(fileId);
@@ -1230,6 +1241,10 @@ const CodePreviewer = {
             isBinary: isBinary,
             fileName: fileName
         });
+        
+        // Initialize saved state and set up change listener
+        this.initFileSavedState(fileId, content, fileName);
+        this.setupEditorChangeListener(fileId, newEditor);
         
         // Mark panel as open
         this.state.openPanels.add(fileId);
@@ -1431,7 +1446,19 @@ const CodePreviewer = {
                             fileInfo.editor.setOption('autoCloseTags', suggestedType === 'html');
                         }
                     }
+                    
+                    // Update file tree and main HTML selector when filename changes
+                    this.renderFileTree();
+                    this.updateMainHtmlSelector();
+                    
+                    // Check for unsaved changes and update UI
+                    this.checkFileModified(fileId, panel);
                 }
+            });
+            
+            // Also listen for input changes to detect unsaved filename changes
+            fileNameInput.addEventListener('input', () => {
+                this.checkFileModified(fileId, panel);
             });
         }
         
@@ -1498,6 +1525,213 @@ const CodePreviewer = {
     },
 
     /**
+     * Initialize the saved state for a file (call when file is first created or opened)
+     * @param {string} fileId - The file ID
+     * @param {string} content - The initial content
+     * @param {string} fileName - The initial file name
+     */
+    initFileSavedState(fileId, content, fileName) {
+        this.state.savedFileStates[fileId] = {
+            content: content || '',
+            fileName: fileName || ''
+        };
+    },
+
+    /**
+     * Check if a file has been modified from its saved state
+     * @param {string} fileId - The file ID
+     * @param {HTMLElement} panel - The panel element (optional, will be found if not provided)
+     * @returns {boolean} True if the file has unsaved changes
+     */
+    checkFileModified(fileId, panel = null) {
+        if (!panel) {
+            panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+        }
+        if (!panel) return false;
+        
+        const fileInfo = this.state.files.find(f => f.id === fileId);
+        if (!fileInfo) return false;
+        
+        const savedState = this.state.savedFileStates[fileId];
+        const fileNameInput = panel.querySelector('.file-name-input');
+        const currentFileName = fileNameInput ? fileNameInput.value : '';
+        const currentContent = (fileInfo.editor && fileInfo.editor.getValue) ? fileInfo.editor.getValue() : '';
+        
+        let isModified = false;
+        
+        if (savedState) {
+            isModified = currentContent !== savedState.content || currentFileName !== savedState.fileName;
+        } else {
+            // Initialize saved state if it doesn't exist (for files created before tracking was added)
+            this.initFileSavedState(fileId, currentContent, currentFileName);
+        }
+        
+        // Update UI to show/hide apply/discard buttons
+        this.updateModifiedIndicator(panel, isModified, fileId);
+        
+        return isModified;
+    },
+
+    /**
+     * Update the modified indicator and show/hide apply/discard buttons
+     * @param {HTMLElement} panel - The panel element
+     * @param {boolean} isModified - Whether the file has unsaved changes
+     * @param {string} fileId - The file ID
+     */
+    updateModifiedIndicator(panel, isModified, fileId) {
+        // Add or remove modified class from panel
+        panel.classList.toggle('file-modified', isModified);
+        
+        // Update file name input to show modified indicator
+        const fileNameInput = panel.querySelector('.file-name-input');
+        if (fileNameInput) {
+            fileNameInput.classList.toggle('modified', isModified);
+        }
+        
+        // Show/hide apply and discard buttons in toolbar
+        const toolbar = panel.querySelector('.editor-toolbar');
+        if (!toolbar) return;
+        
+        let applyBtn = toolbar.querySelector('.apply-changes-btn');
+        let discardBtn = toolbar.querySelector('.discard-changes-btn');
+        
+        if (isModified) {
+            // Create buttons if they don't exist
+            if (!applyBtn) {
+                applyBtn = document.createElement('button');
+                applyBtn.className = 'toolbar-btn apply-changes-btn';
+                applyBtn.setAttribute('aria-label', 'Apply changes');
+                applyBtn.setAttribute('title', 'Apply changes');
+                applyBtn.innerHTML = '<span class="btn-icon">✓</span> Apply';
+                applyBtn.addEventListener('click', () => this.applyFileChanges(fileId));
+                toolbar.insertBefore(applyBtn, toolbar.firstChild);
+            }
+            
+            if (!discardBtn) {
+                discardBtn = document.createElement('button');
+                discardBtn.className = 'toolbar-btn discard-changes-btn';
+                discardBtn.setAttribute('aria-label', 'Discard changes');
+                discardBtn.setAttribute('title', 'Discard changes');
+                discardBtn.innerHTML = '<span class="btn-icon">✕</span> Discard';
+                discardBtn.addEventListener('click', () => this.discardFileChanges(fileId));
+                toolbar.insertBefore(discardBtn, applyBtn.nextSibling);
+            }
+            
+            applyBtn.style.display = '';
+            discardBtn.style.display = '';
+        } else {
+            // Hide buttons if they exist
+            if (applyBtn) applyBtn.style.display = 'none';
+            if (discardBtn) discardBtn.style.display = 'none';
+        }
+        
+        // Update the file tree to show modified indicator
+        this.updateFileTreeModifiedState(fileId, isModified);
+    },
+
+    /**
+     * Update the file tree to show a modified indicator for a file
+     * @param {string} fileId - The file ID
+     * @param {boolean} isModified - Whether the file is modified
+     */
+    updateFileTreeModifiedState(fileId, isModified) {
+        const treeFile = this.dom.fileTreeContainer?.querySelector(`.tree-file[data-file-id="${fileId}"]`);
+        if (treeFile) {
+            treeFile.classList.toggle('file-modified', isModified);
+            
+            // Update file name with modified indicator
+            const fileName = treeFile.querySelector('.file-name');
+            if (fileName) {
+                // Use consistent bullet character: • (U+2022)
+                const originalName = fileName.textContent.replace(/^• /, '');
+                fileName.textContent = isModified ? '• ' + originalName : originalName;
+            }
+        }
+    },
+
+    /**
+     * Apply changes to a file (save the current state)
+     * @param {string} fileId - The file ID
+     */
+    applyFileChanges(fileId) {
+        const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+        if (!panel) return;
+        
+        const fileInfo = this.state.files.find(f => f.id === fileId);
+        if (!fileInfo) return;
+        
+        const fileNameInput = panel.querySelector('.file-name-input');
+        const currentFileName = fileNameInput ? fileNameInput.value : '';
+        const currentContent = fileInfo.editor ? fileInfo.editor.getValue() : '';
+        
+        // Update saved state
+        this.state.savedFileStates[fileId] = {
+            content: currentContent,
+            fileName: currentFileName
+        };
+        
+        // Update file info
+        fileInfo.fileName = currentFileName;
+        
+        // Update UI
+        this.checkFileModified(fileId, panel);
+        this.renderFileTree();
+        this.updateMainHtmlSelector();
+        
+        this.showNotification('Changes applied successfully', 'success');
+    },
+
+    /**
+     * Discard changes to a file (revert to saved state)
+     * @param {string} fileId - The file ID
+     */
+    discardFileChanges(fileId) {
+        const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+        if (!panel) return;
+        
+        const fileInfo = this.state.files.find(f => f.id === fileId);
+        if (!fileInfo) return;
+        
+        const savedState = this.state.savedFileStates[fileId];
+        if (!savedState) return;
+        
+        // Revert file name
+        const fileNameInput = panel.querySelector('.file-name-input');
+        if (fileNameInput) {
+            fileNameInput.value = savedState.fileName;
+        }
+        
+        // Revert content
+        if (fileInfo.editor && fileInfo.editor.setValue) {
+            fileInfo.editor.setValue(savedState.content);
+        }
+        
+        // Update file info
+        fileInfo.fileName = savedState.fileName;
+        
+        // Update UI
+        this.checkFileModified(fileId, panel);
+        this.renderFileTree();
+        this.updateMainHtmlSelector();
+        
+        this.showNotification('Changes discarded', 'info');
+    },
+
+    /**
+     * Set up content change listeners for a file editor
+     * @param {string} fileId - The file ID
+     * @param {Object} editor - The CodeMirror editor instance
+     */
+    setupEditorChangeListener(fileId, editor) {
+        if (!editor || !editor.on) return;
+        
+        editor.on('change', () => {
+            const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+            this.checkFileModified(fileId, panel);
+        });
+    },
+
+    /**
      * Close a file panel (hide it) - does NOT delete the file
      * @param {string} fileId - The file ID to close
      */
@@ -1549,6 +1783,9 @@ const CodePreviewer = {
         
         this.state.files = this.state.files.filter(f => f.id !== fileId);
         this.state.openPanels.delete(fileId);
+        
+        // Clean up saved state
+        delete this.state.savedFileStates[fileId];
         
         if (fileId === 'default-html') {
             this.state.editors.html = null;
@@ -1611,6 +1848,11 @@ const CodePreviewer = {
                     });
                     // Mark panel as open
                     this.state.openPanels.add(fileId);
+                    
+                    // Initialize saved state for existing files
+                    const content = editor.getValue ? editor.getValue() : '';
+                    this.initFileSavedState(fileId, content, fileName);
+                    this.setupEditorChangeListener(fileId, editor);
                 }
             }
             

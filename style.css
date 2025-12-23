@@ -1085,6 +1085,7 @@ body {
     border-radius: 4px;
     cursor: pointer;
     transition: background-color 0.2s ease;
+    position: relative;
 }
 
 .tree-file:hover {
@@ -1176,4 +1177,70 @@ body {
         max-width: none;
         max-height: 200px;
     }
+}
+
+/* ==========================================================================
+   APPLY/DISCARD CHANGES BUTTONS & MODIFIED INDICATORS
+   ========================================================================== */
+
+/* Apply changes button */
+.apply-changes-btn {
+    background-color: #a6e3a1 !important;
+    color: var(--bg-color) !important;
+    border-color: #a6e3a1 !important;
+}
+
+.apply-changes-btn:hover {
+    background-color: #7ed380 !important;
+    border-color: #7ed380 !important;
+}
+
+/* Discard changes button */
+.discard-changes-btn {
+    background-color: var(--error-color) !important;
+    color: var(--bg-color) !important;
+    border-color: var(--error-color) !important;
+}
+
+.discard-changes-btn:hover {
+    background-color: #e07d94 !important;
+    border-color: #e07d94 !important;
+}
+
+/* Modified indicator on file name input */
+.file-name-input.modified {
+    border-color: var(--warn-color);
+    background-color: rgba(250, 179, 135, 0.1);
+}
+
+.file-name-input.modified::before {
+    content: '• ';
+    color: var(--warn-color);
+}
+
+/* Modified indicator on editor panel */
+.editor-panel.file-modified {
+    border-left: 3px solid var(--warn-color);
+}
+
+.editor-panel.file-modified .panel-header {
+    background: linear-gradient(90deg, rgba(250, 179, 135, 0.15) 0%, var(--header-bg) 50%);
+}
+
+/* Modified indicator on file tree item */
+.tree-file.file-modified .file-name {
+    color: var(--warn-color);
+    font-style: italic;
+}
+
+.tree-file.file-modified::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 6px;
+    height: 6px;
+    background-color: var(--warn-color);
+    border-radius: 50%;
 }
