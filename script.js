@@ -1213,10 +1213,14 @@ const CodePreviewer = {
     },
 
     /**
-     * Handle file conflict resolution during import
+     * Handle file conflict resolution during import.
+     * This method uses a shared `resolution` object to remember user preferences
+     * across multiple calls (e.g., 'replace-all' or 'skip-all') so that subsequent
+     * conflicts are resolved automatically without re-prompting.
      * @param {string} fileName - Name of the file being imported
-     * @param {Object} resolution - Mutable object tracking conflict resolution state: { action: string|null }
-     * @returns {Promise<string>} 'imported', 'skipped', or the resolved action
+     * @param {Object} resolution - Shared state object: { action: string|null }. The `action`
+     *   property is updated by this method when the user chooses 'replace-all' or 'skip-all'.
+     * @returns {Promise<string>} 'imported' if the file should be imported, 'skipped' if it should be skipped
      */
     async _resolveImportConflict(fileName, resolution) {
         const existingFilenames = this.getExistingFilenames();
