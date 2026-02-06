@@ -284,15 +284,6 @@ body {
     background-color: rgba(243, 139, 168, 0.2);
 }
 
-.panel-header {
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-}
-
-
 .editor-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -324,8 +315,10 @@ body {
     color: var(--accent-color);
     border-bottom: 1px solid var(--border-color);
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 0.5rem;
 }
 
 
@@ -349,6 +342,7 @@ body {
     flex-grow: 1;
     display: flex;
     flex-direction: column;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
 }
 .editor-wrapper.collapsed {
     display: none;
@@ -376,6 +370,7 @@ body {
     padding: 1.5rem;
     opacity: 0;
     visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
 }
 .modal-overlay[aria-hidden="false"] {
     opacity: 1;
@@ -469,12 +464,6 @@ body {
     background-color: var(--bg-color);
 }
 
-#console-output .log-message {
-    padding: 2px 0;
-    white-space: pre-wrap;
-    word-break: break-all;
-    border-bottom: 1px solid var(--secondary-color);
-}
 #console-output .log-message:last-child { border-bottom: none; }
 #console-output .log-type-log { color: var(--primary-color); }
 #console-output .log-type-info { color: var(--accent-color); }
@@ -668,7 +657,7 @@ body {
     transition: background-color 0.2s ease;
 }
 .save-btn:hover {
-    background: var(--secondary-color);
+    background: #a6caff;
 }
 
 #preview-frame {
@@ -703,7 +692,6 @@ body {
         height: 100%;
         font-size: 13px;
     }
-}
 }
 
 @media (max-width: 500px) {
