@@ -1126,49 +1126,89 @@ const CodePreviewer = {
     },
 
     /**
+     * Create and show a modal dialog with custom content and buttons
+     * @private
+     * @param {Object} config - Dialog configuration
+     * @param {string} config.title - Dialog title
+     * @param {string|HTMLElement} config.body - Dialog body content (string or DOM element)
+     * @param {Array<{text: string, action: string, className: string}>} config.buttons - Button configurations
+     * @returns {Promise<string>} - Resolves with the clicked button's action value
+     */
+    _showDialog({title, body, buttons}) {
+        return new Promise((resolve) => {
+            // Create overlay
+            const overlay = document.createElement('div');
+            overlay.className = 'conflict-dialog-overlay';
+            
+            // Create dialog container
+            const dialog = document.createElement('div');
+            dialog.className = 'conflict-dialog';
+            
+            // Create header
+            const header = document.createElement('div');
+            header.className = 'conflict-dialog-header';
+            const h3 = document.createElement('h3');
+            h3.textContent = title;
+            header.appendChild(h3);
+            dialog.appendChild(header);
+            
+            // Create body
+            const bodyElement = document.createElement('div');
+            bodyElement.className = 'conflict-dialog-body';
+            if (typeof body === 'string') {
+                const p = document.createElement('p');
+                p.textContent = body;
+                bodyElement.appendChild(p);
+            } else {
+                bodyElement.appendChild(body);
+            }
+            dialog.appendChild(bodyElement);
+            
+            // Create buttons
+            const buttonsContainer = document.createElement('div');
+            buttonsContainer.className = 'conflict-dialog-buttons';
+            buttons.forEach(btn => {
+                const button = document.createElement('button');
+                button.className = `conflict-btn ${btn.className}`;
+                button.textContent = btn.text;
+                button.dataset.action = btn.action;
+                button.addEventListener('click', () => {
+                    document.body.removeChild(overlay);
+                    resolve(btn.action);
+                });
+                buttonsContainer.appendChild(button);
+            });
+            dialog.appendChild(buttonsContainer);
+            
+            overlay.appendChild(dialog);
+            document.body.appendChild(overlay);
+        });
+    },
+
+    /**
      * Show a dialog to resolve file conflicts during import
      * @param {string} fileName - Name of the conflicting file
      * @returns {Promise<string>} - 'replace', 'skip', 'replace-all', or 'skip-all'
      */
     showFileConflictDialog(fileName) {
-        return new Promise((resolve) => {
-            const dialog = document.createElement('div');
-            dialog.className = 'conflict-dialog-overlay';
-            
-            const dialogContent = document.createElement('div');
-            dialogContent.className = 'conflict-dialog';
-            
-            dialogContent.innerHTML = `
-                <div class="conflict-dialog-header">
-                    <h3>File Conflict</h3>
-                </div>
-                <div class="conflict-dialog-body">
-                    <p>A file named <strong class="file-name-display"></strong> already exists.</p>
-                    <p>What would you like to do?</p>
-                </div>
-                <div class="conflict-dialog-buttons">
-                    <button class="conflict-btn conflict-replace" data-action="replace">Replace</button>
-                    <button class="conflict-btn conflict-skip" data-action="skip">Skip</button>
-                    <button class="conflict-btn conflict-replace-all" data-action="replace-all">Replace All</button>
-                    <button class="conflict-btn conflict-skip-all" data-action="skip-all">Skip All</button>
-                </div>
-            `;
-            
-            // Safely set the file name as text content to prevent XSS
-            const fileNameDisplay = dialogContent.querySelector('.file-name-display');
-            fileNameDisplay.textContent = `"${fileName}"`;
-            
-            dialog.appendChild(dialogContent);
-            document.body.appendChild(dialog);
-
-            const buttons = dialog.querySelectorAll('.conflict-btn');
-            buttons.forEach(button => {
-                button.addEventListener('click', () => {
-                    const action = button.dataset.action;
-                    document.body.removeChild(dialog);
-                    resolve(action);
-                });
-            });
+        // Create body with safe text content
+        const bodyContent = document.createElement('div');
+        const p1 = document.createElement('p');
+        p1.textContent = `A file named "${fileName}" already exists.`;
+        const p2 = document.createElement('p');
+        p2.textContent = 'What would you like to do?';
+        bodyContent.appendChild(p1);
+        bodyContent.appendChild(p2);
+        
+        return this._showDialog({
+            title: 'File Conflict',
+            body: bodyContent,
+            buttons: [
+                {text: 'Replace', action: 'replace', className: 'conflict-replace'},
+                {text: 'Skip', action: 'skip', className: 'conflict-skip'},
+                {text: 'Replace All', action: 'replace-all', className: 'conflict-replace-all'},
+                {text: 'Skip All', action: 'skip-all', className: 'conflict-skip-all'}
+            ]
         });
     },
 
@@ -1177,50 +1217,16 @@ const CodePreviewer = {
      * @param {string} message - The confirmation message
      * @returns {Promise<boolean>} - True if confirmed, false if cancelled
      */
-    showConfirmDialog(message) {
-        return new Promise((resolve) => {
-            const dialog = document.createElement('div');
-            dialog.className = 'conflict-dialog-overlay';
-            
-            const dialogContent = document.createElement('div');
-            dialogContent.className = 'conflict-dialog';
-            
-            // Build header first
-            dialogContent.innerHTML = `
-                <div class="conflict-dialog-header">
-                    <h3>Confirmation</h3>
-                </div>
-            `;
-            
-            // Add message body
-            const messageElement = document.createElement('div');
-            messageElement.className = 'conflict-dialog-body';
-            const paragraph = document.createElement('p');
-            paragraph.textContent = message;
-            messageElement.appendChild(paragraph);
-            dialogContent.appendChild(messageElement);
-            
-            // Add buttons
-            const buttonsContainer = document.createElement('div');
-            buttonsContainer.className = 'conflict-dialog-buttons';
-            buttonsContainer.innerHTML = `
-                <button class="conflict-btn conflict-skip" data-action="cancel">Cancel</button>
-                <button class="conflict-btn conflict-replace" data-action="confirm">Confirm</button>
-            `;
-            dialogContent.appendChild(buttonsContainer);
-            
-            dialog.appendChild(dialogContent);
-            document.body.appendChild(dialog);
-
-            const buttons = dialog.querySelectorAll('.conflict-btn');
-            buttons.forEach(button => {
-                button.addEventListener('click', () => {
-                    const action = button.dataset.action;
-                    document.body.removeChild(dialog);
-                    resolve(action === 'confirm');
-                });
-            });
+    async showConfirmDialog(message) {
+        const action = await this._showDialog({
+            title: 'Confirmation',
+            body: message,
+            buttons: [
+                {text: 'Cancel', action: 'cancel', className: 'conflict-skip'},
+                {text: 'Confirm', action: 'confirm', className: 'conflict-replace'}
+            ]
         });
+        return action === 'confirm';
     },
 
     importFile() {
