@@ -170,6 +170,12 @@ const CodePreviewer = {
                 'markdown': 'markdown',
                 'text': 'text',
                 'svg': 'xml'
+            },
+            DEFAULT_EXTENSIONS: {
+                'html': '.html', 'css': '.css',
+                'javascript': '.js', 'javascript-module': '.js',
+                'json': '.json', 'xml': '.xml', 'markdown': '.md',
+                'svg': '.svg', 'text': '.txt'
             }
         }
     },
@@ -2153,13 +2159,7 @@ const CodePreviewer = {
                 if (fileNameInput && fileNameInput.value.trim()) {
                     fileName = fileNameInput.value.trim();
                 } else {
-                    const defaultExtensions = {
-                        'html': '.html', 'css': '.css',
-                        'javascript': '.js', 'javascript-module': '.js',
-                        'json': '.json', 'xml': '.xml', 'markdown': '.md',
-                        'svg': '.svg', 'text': '.txt'
-                    };
-                    fileName = 'untitled' + (defaultExtensions[fileType] || '.txt');
+                    fileName = 'untitled' + (this.constants.FILE_TYPES.DEFAULT_EXTENSIONS[fileType] || '.txt');
                 }
 
                 mimeType = this.fileTypeUtils.getMimeTypeFromFileType(fileType) || 'text/plain';
