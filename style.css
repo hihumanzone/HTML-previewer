@@ -1244,3 +1244,135 @@ body {
     background-color: var(--warn-color);
     border-radius: 50%;
 }
+
+/* Conflict Resolution Dialog */
+.conflict-dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+}
+
+.conflict-dialog {
+    background: var(--bg-dark);
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    max-width: 500px;
+    width: 90%;
+    padding: 0;
+    animation: slideIn 0.2s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateY(-20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.conflict-dialog-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.conflict-dialog-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    color: var(--text-primary);
+}
+
+.conflict-dialog-body {
+    padding: 1.5rem;
+    color: var(--text-primary);
+}
+
+.conflict-dialog-body p {
+    margin: 0 0 1rem 0;
+}
+
+.conflict-dialog-body p:last-child {
+    margin-bottom: 0;
+}
+
+.conflict-dialog-body strong {
+    color: var(--accent-color);
+}
+
+.conflict-dialog-buttons {
+    padding: 1rem 1.5rem 1.5rem;
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.conflict-btn {
+    flex: 1;
+    min-width: 100px;
+    padding: 0.75rem 1rem;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.conflict-replace {
+    background: var(--accent-color);
+    color: white;
+}
+
+.conflict-replace:hover {
+    background: var(--accent-hover);
+    transform: translateY(-1px);
+}
+
+.conflict-skip {
+    background: var(--bg-light);
+    color: var(--text-primary);
+}
+
+.conflict-skip:hover {
+    background: var(--border-color);
+    transform: translateY(-1px);
+}
+
+.conflict-replace-all {
+    background: var(--warn-color);
+    color: white;
+}
+
+.conflict-replace-all:hover {
+    background: #d97706;
+    transform: translateY(-1px);
+}
+
+.conflict-skip-all {
+    background: var(--bg-panel);
+    color: var(--text-primary);
+}
+
+.conflict-skip-all:hover {
+    background: var(--bg-light);
+    transform: translateY(-1px);
+}
+
+/* Clear All Files Button Styling */
+.clear-all-files-btn {
+    background: var(--error-color);
+    color: white;
+}
+
+.clear-all-files-btn:hover {
+    background: #dc2626;
+}

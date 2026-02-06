@@ -74,6 +74,7 @@ const CodePreviewer = {
             MULTI_MODE_RADIO: 'multi-mode-radio',
             ADD_FILE_BTN: 'add-file-btn',
             ADD_FOLDER_BTN: 'add-folder-btn',
+            CLEAR_ALL_FILES_BTN: 'clear-all-files-btn',
             IMPORT_FILE_BTN: 'import-file-btn',
             IMPORT_ZIP_BTN: 'import-zip-btn',
             EXPORT_ZIP_BTN: 'export-zip-btn',
@@ -437,6 +438,7 @@ const CodePreviewer = {
             multiModeOption: document.querySelector('label[for="multi-mode-radio"]') || this.getSafeParentElement(CONTROL_IDS.MULTI_MODE_RADIO),
             addFileBtn: document.getElementById(CONTROL_IDS.ADD_FILE_BTN),
             addFolderBtn: document.getElementById(CONTROL_IDS.ADD_FOLDER_BTN),
+            clearAllFilesBtn: document.getElementById(CONTROL_IDS.CLEAR_ALL_FILES_BTN),
             importFileBtn: document.getElementById(CONTROL_IDS.IMPORT_FILE_BTN),
             importZipBtn: document.getElementById(CONTROL_IDS.IMPORT_ZIP_BTN),
             exportZipBtn: document.getElementById(CONTROL_IDS.EXPORT_ZIP_BTN),
@@ -630,6 +632,9 @@ const CodePreviewer = {
         this.dom.addFileBtn.addEventListener('click', () => this.addNewFile());
         if (this.dom.addFolderBtn) {
             this.dom.addFolderBtn.addEventListener('click', () => this.addNewFolder());
+        }
+        if (this.dom.clearAllFilesBtn) {
+            this.dom.clearAllFilesBtn.addEventListener('click', () => this.clearAllFiles());
         }
         this.dom.importFileBtn.addEventListener('click', () => this.importFile());
         this.dom.importZipBtn.addEventListener('click', () => this.importZip());
@@ -1120,6 +1125,46 @@ const CodePreviewer = {
         this.renderFileTree();
     },
 
+    /**
+     * Show a dialog to resolve file conflicts during import
+     * @param {string} fileName - Name of the conflicting file
+     * @returns {Promise<string>} - 'replace', 'skip', 'replace-all', or 'skip-all'
+     */
+    showFileConflictDialog(fileName) {
+        return new Promise((resolve) => {
+            const dialog = document.createElement('div');
+            dialog.className = 'conflict-dialog-overlay';
+            dialog.innerHTML = `
+                <div class="conflict-dialog">
+                    <div class="conflict-dialog-header">
+                        <h3>File Conflict</h3>
+                    </div>
+                    <div class="conflict-dialog-body">
+                        <p>A file named <strong>"${fileName}"</strong> already exists.</p>
+                        <p>What would you like to do?</p>
+                    </div>
+                    <div class="conflict-dialog-buttons">
+                        <button class="conflict-btn conflict-replace" data-action="replace">Replace</button>
+                        <button class="conflict-btn conflict-skip" data-action="skip">Skip</button>
+                        <button class="conflict-btn conflict-replace-all" data-action="replace-all">Replace All</button>
+                        <button class="conflict-btn conflict-skip-all" data-action="skip-all">Skip All</button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(dialog);
+
+            const buttons = dialog.querySelectorAll('.conflict-btn');
+            buttons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const action = button.dataset.action;
+                    document.body.removeChild(dialog);
+                    resolve(action);
+                });
+            });
+        });
+    },
+
     importFile() {
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
@@ -1141,11 +1186,38 @@ const CodePreviewer = {
             }
             
             try {
+                let conflictResolution = null; // 'replace-all', 'skip-all', or null for ask each time
+                let importedCount = 0;
+                let skippedCount = 0;
+
                 for (const file of files) {
                     const existingFilenames = this.getExistingFilenames();
                     if (existingFilenames.includes(file.name)) {
-                        this.showNotification(`A file named "${file.name}" already exists. Please rename the existing file first or choose a different file.`, 'error');
-                        continue;
+                        // Handle conflict
+                        let action = conflictResolution;
+                        
+                        if (!action || (action !== 'replace-all' && action !== 'skip-all')) {
+                            // Ask user what to do
+                            action = await this.showFileConflictDialog(file.name);
+                            
+                            // Save preference if user chose "all" option
+                            if (action === 'replace-all' || action === 'skip-all') {
+                                conflictResolution = action;
+                            }
+                        }
+                        
+                        if (action === 'skip' || action === 'skip-all') {
+                            skippedCount++;
+                            continue;
+                        }
+                        
+                        if (action === 'replace' || action === 'replace-all') {
+                            // Find and delete the existing file
+                            const existingFile = this.state.files.find(f => f.fileName === file.name);
+                            if (existingFile) {
+                                this.deleteFile(existingFile.id);
+                            }
+                        }
                     }
                     
                     const fileData = await this.readFileContent(file);
@@ -1153,10 +1225,16 @@ const CodePreviewer = {
                     const detectedType = this.autoDetectFileType(file.name, fileData.isBinary ? null : fileData.content, file.type);
                     
                     this.addNewFileWithContent(file.name, detectedType, fileData.content, fileData.isBinary);
+                    importedCount++;
                 }
                 
-                if (files.length > 1) {
-                    this.showNotification(`Successfully imported ${files.length} files`, 'success');
+                // Show summary notification
+                if (importedCount > 0 && skippedCount > 0) {
+                    this.showNotification(`Imported ${importedCount} file(s), skipped ${skippedCount} file(s)`, 'success');
+                } else if (importedCount > 0) {
+                    this.showNotification(`Successfully imported ${importedCount} file(s)`, 'success');
+                } else if (skippedCount > 0) {
+                    this.showNotification(`Skipped ${skippedCount} file(s)`, 'info');
                 }
                 
             } catch (error) {
@@ -1798,6 +1876,53 @@ const CodePreviewer = {
         this.updateRemoveButtonsVisibility();
         this.updateMainHtmlSelector();
         this.renderFileTree();
+    },
+
+    clearAllFiles() {
+        // Check if there are any files to clear
+        if (this.state.files.length === 0) {
+            this.showNotification('No files to clear', 'info');
+            return;
+        }
+
+        // Confirm with the user
+        const fileCount = this.state.files.length;
+        if (!confirm(`Are you sure you want to delete all ${fileCount} file(s)? This action cannot be undone.`)) {
+            return;
+        }
+
+        // Close all open panels first
+        const allFileIds = [...this.state.files.map(f => f.id)];
+        allFileIds.forEach(fileId => {
+            const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+            if (panel) {
+                panel.remove();
+            }
+        });
+
+        // Clear the files array
+        this.state.files = [];
+        this.state.openPanels.clear();
+        this.state.savedFileStates = {};
+
+        // Clear default editors
+        this.state.editors.html = null;
+        this.state.editors.css = null;
+        this.state.editors.js = null;
+
+        // Clear folders and expanded folders
+        this.state.folders = [];
+        this.state.expandedFolders.clear();
+
+        // Reset the next file ID
+        this.state.nextFileId = 1;
+
+        // Update UI
+        this.updateRemoveButtonsVisibility();
+        this.updateMainHtmlSelector();
+        this.renderFileTree();
+
+        this.showNotification('All files cleared successfully', 'success');
     },
 
     /**
@@ -2713,6 +2838,22 @@ const CodePreviewer = {
             this.dom.modalConsolePanel.classList.add('hidden');
             this.dom.toggleConsoleBtn.classList.remove('active');
             this.dom.toggleConsoleBtn.textContent = '📋 Console';
+        } else {
+            // Clean up when closing the modal
+            // Clear the iframe content to stop all scripts and event listeners
+            this.dom.previewFrame.srcdoc = '';
+            
+            // Alternative: completely remove and recreate the iframe to ensure full cleanup
+            const iframe = this.dom.previewFrame;
+            const parent = iframe.parentNode;
+            const newIframe = iframe.cloneNode(false);
+            parent.replaceChild(newIframe, iframe);
+            
+            // Update the reference to the new iframe
+            this.dom.previewFrame = newIframe;
+            
+            // Clear console
+            this.console.clear();
         }
     },
 
@@ -3018,6 +3159,10 @@ const CodePreviewer = {
                 try {
                     const zip = await JSZip.loadAsync(file);
                     
+                    let conflictResolution = null; // 'replace-all', 'skip-all', or null for ask each time
+                    let importedCount = 0;
+                    let skippedCount = 0;
+
                     for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
                         if (zipEntry.dir) continue;
                         
@@ -3041,14 +3186,45 @@ const CodePreviewer = {
                         
                         const existingFilenames = this.getExistingFilenames();
                         if (existingFilenames.includes(fileName)) {
-                            this.showNotification(`File '${fileName}' already exists, skipping...`, 'warn');
-                            continue;
+                            // Handle conflict
+                            let action = conflictResolution;
+                            
+                            if (!action || (action !== 'replace-all' && action !== 'skip-all')) {
+                                // Ask user what to do
+                                action = await this.showFileConflictDialog(fileName);
+                                
+                                // Save preference if user chose "all" option
+                                if (action === 'replace-all' || action === 'skip-all') {
+                                    conflictResolution = action;
+                                }
+                            }
+                            
+                            if (action === 'skip' || action === 'skip-all') {
+                                skippedCount++;
+                                continue;
+                            }
+                            
+                            if (action === 'replace' || action === 'replace-all') {
+                                // Find and delete the existing file
+                                const existingFile = this.state.files.find(f => f.fileName === fileName);
+                                if (existingFile) {
+                                    this.deleteFile(existingFile.id);
+                                }
+                            }
                         }
                         
                         this.addNewFileWithContent(fileName, fileType, content, isBinary);
+                        importedCount++;
                     }
                     
-                    this.showNotification('ZIP project imported successfully!', 'success');
+                    // Show summary notification
+                    if (importedCount > 0 && skippedCount > 0) {
+                        this.showNotification(`Imported ${importedCount} file(s), skipped ${skippedCount} file(s)`, 'success');
+                    } else if (importedCount > 0) {
+                        this.showNotification('ZIP project imported successfully!', 'success');
+                    } else if (skippedCount > 0) {
+                        this.showNotification(`Skipped ${skippedCount} file(s)`, 'info');
+                    }
                     
                 } catch (error) {
                     console.error('Error processing ZIP file:', error);
