@@ -1134,24 +1134,31 @@ const CodePreviewer = {
         return new Promise((resolve) => {
             const dialog = document.createElement('div');
             dialog.className = 'conflict-dialog-overlay';
-            dialog.innerHTML = `
-                <div class="conflict-dialog">
-                    <div class="conflict-dialog-header">
-                        <h3>File Conflict</h3>
-                    </div>
-                    <div class="conflict-dialog-body">
-                        <p>A file named <strong>"${fileName}"</strong> already exists.</p>
-                        <p>What would you like to do?</p>
-                    </div>
-                    <div class="conflict-dialog-buttons">
-                        <button class="conflict-btn conflict-replace" data-action="replace">Replace</button>
-                        <button class="conflict-btn conflict-skip" data-action="skip">Skip</button>
-                        <button class="conflict-btn conflict-replace-all" data-action="replace-all">Replace All</button>
-                        <button class="conflict-btn conflict-skip-all" data-action="skip-all">Skip All</button>
-                    </div>
+            
+            const dialogContent = document.createElement('div');
+            dialogContent.className = 'conflict-dialog';
+            
+            dialogContent.innerHTML = `
+                <div class="conflict-dialog-header">
+                    <h3>File Conflict</h3>
+                </div>
+                <div class="conflict-dialog-body">
+                    <p>A file named <strong class="file-name-display"></strong> already exists.</p>
+                    <p>What would you like to do?</p>
+                </div>
+                <div class="conflict-dialog-buttons">
+                    <button class="conflict-btn conflict-replace" data-action="replace">Replace</button>
+                    <button class="conflict-btn conflict-skip" data-action="skip">Skip</button>
+                    <button class="conflict-btn conflict-replace-all" data-action="replace-all">Replace All</button>
+                    <button class="conflict-btn conflict-skip-all" data-action="skip-all">Skip All</button>
                 </div>
             `;
-
+            
+            // Safely set the file name as text content to prevent XSS
+            const fileNameDisplay = dialogContent.querySelector('.file-name-display');
+            fileNameDisplay.textContent = `"${fileName}"`;
+            
+            dialog.appendChild(dialogContent);
             document.body.appendChild(dialog);
 
             const buttons = dialog.querySelectorAll('.conflict-btn');
@@ -1160,6 +1167,54 @@ const CodePreviewer = {
                     const action = button.dataset.action;
                     document.body.removeChild(dialog);
                     resolve(action);
+                });
+            });
+        });
+    },
+
+    /**
+     * Show a confirmation dialog
+     * @param {string} message - The confirmation message
+     * @returns {Promise<boolean>} - True if confirmed, false if cancelled
+     */
+    showConfirmDialog(message) {
+        return new Promise((resolve) => {
+            const dialog = document.createElement('div');
+            dialog.className = 'conflict-dialog-overlay';
+            
+            const dialogContent = document.createElement('div');
+            dialogContent.className = 'conflict-dialog';
+            
+            const messageElement = document.createElement('div');
+            messageElement.className = 'conflict-dialog-body';
+            const paragraph = document.createElement('p');
+            paragraph.textContent = message;
+            messageElement.appendChild(paragraph);
+            
+            const buttonsContainer = document.createElement('div');
+            buttonsContainer.className = 'conflict-dialog-buttons';
+            buttonsContainer.innerHTML = `
+                <button class="conflict-btn conflict-skip" data-action="cancel">Cancel</button>
+                <button class="conflict-btn conflict-replace" data-action="confirm">Confirm</button>
+            `;
+            
+            dialogContent.innerHTML = `
+                <div class="conflict-dialog-header">
+                    <h3>Confirmation</h3>
+                </div>
+            `;
+            dialogContent.appendChild(messageElement);
+            dialogContent.appendChild(buttonsContainer);
+            
+            dialog.appendChild(dialogContent);
+            document.body.appendChild(dialog);
+
+            const buttons = dialog.querySelectorAll('.conflict-btn');
+            buttons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const action = button.dataset.action;
+                    document.body.removeChild(dialog);
+                    resolve(action === 'confirm');
                 });
             });
         });
@@ -1878,16 +1933,20 @@ const CodePreviewer = {
         this.renderFileTree();
     },
 
-    clearAllFiles() {
+    async clearAllFiles() {
         // Check if there are any files to clear
         if (this.state.files.length === 0) {
             this.showNotification('No files to clear', 'info');
             return;
         }
 
-        // Confirm with the user
+        // Confirm with the user using custom dialog
         const fileCount = this.state.files.length;
-        if (!confirm(`Are you sure you want to delete all ${fileCount} file(s)? This action cannot be undone.`)) {
+        const confirmed = await this.showConfirmDialog(
+            `Are you sure you want to delete all ${fileCount} file(s)? This action cannot be undone.`
+        );
+        
+        if (!confirmed) {
             return;
         }
 
@@ -2840,10 +2899,8 @@ const CodePreviewer = {
             this.dom.toggleConsoleBtn.textContent = '📋 Console';
         } else {
             // Clean up when closing the modal
-            // Clear the iframe content to stop all scripts and event listeners
-            this.dom.previewFrame.srcdoc = '';
-            
-            // Alternative: completely remove and recreate the iframe to ensure full cleanup
+            // Completely remove and recreate the iframe to ensure full cleanup
+            // This stops all scripts, event listeners, and timers running in the iframe
             const iframe = this.dom.previewFrame;
             const parent = iframe.parentNode;
             const newIframe = iframe.cloneNode(false);
