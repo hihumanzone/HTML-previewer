@@ -3365,35 +3365,37 @@ const CodePreviewer = {
 
         mediaPreviewContent(type, content, fileName) {
             const safeFileName = CodePreviewer.escapeHtmlAttribute(fileName);
+            const safeContent = CodePreviewer.escapeHtmlAttribute(content);
             const containers = {
                 image: `<div class="media-preview-container">
-                    <img src="${content}" alt="${safeFileName}">
+                    <img src="${safeContent}" alt="${safeFileName}">
                 </div>`,
                 audio: `<div class="media-preview-container">
                     <h3>${safeFileName}</h3>
                     <audio controls>
-                        <source src="${content}">
+                        <source src="${safeContent}">
                         Your browser does not support the audio element.
                     </audio>
                 </div>`,
                 video: `<div class="media-preview-container">
                     <h3>${safeFileName}</h3>
                     <video controls>
-                        <source src="${content}">
+                        <source src="${safeContent}">
                         Your browser does not support the video element.
                     </video>
                 </div>`,
                 pdf: `<div class="media-preview-container">
                     <h3>${safeFileName}</h3>
-                    <object data="${content}" type="application/pdf">
-                        <p>PDF failed to load. <a href="${content}" target="_blank">Open in new tab</a></p>
+                    <object data="${safeContent}" type="application/pdf">
+                        <p>PDF failed to load. <a href="${safeContent}" target="_blank">Open in new tab</a></p>
                     </object>
                 </div>`,
                 svg: (content, fileName, isBinary) => {
                     const svgDataUrl = isBinary ? content : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(content)}`;
+                    const safeSvgUrl = CodePreviewer.escapeHtmlAttribute(svgDataUrl);
                     return `<div class="media-preview-container">
                         <h3>${safeFileName}</h3>
-                        <img src="${svgDataUrl}" alt="${safeFileName}">
+                        <img src="${safeSvgUrl}" alt="${safeFileName}">
                     </div>`;
                 },
                 default: `<div class="media-preview-container">
