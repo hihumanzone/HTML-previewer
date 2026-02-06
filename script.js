@@ -465,6 +465,11 @@ const CodePreviewer = {
         return element ? element.parentElement : null;
     },
 
+    escapeHtmlAttribute(str) {
+        if (!str) return '';
+        return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    },
+
     initEditors() {
         if (typeof window.CodeMirror === 'undefined') {
             console.warn('CodeMirror not available, using fallback textarea editors');
@@ -1446,12 +1451,13 @@ const CodePreviewer = {
 
     createFilePanel(fileId, fileName, fileType, content, isBinary) {
         const fileTypeOptions = this.generateFileTypeOptions(fileType);
+        const escapedFileName = this.escapeHtmlAttribute(fileName);
         
         const panelHTML = `
             <div class="editor-panel" data-file-type="${fileType}" data-file-id="${fileId}" draggable="true">
                 <div class="panel-header">
                     <div class="drag-handle" aria-label="Drag to reorder">⋮⋮</div>
-                    <input type="text" class="file-name-input" value="${fileName}" aria-label="File name">
+                    <input type="text" class="file-name-input" value="${escapedFileName}" aria-label="File name">
                     <select class="file-type-selector" aria-label="File type">
                         ${fileTypeOptions}
                     </select>
@@ -2147,36 +2153,16 @@ const CodePreviewer = {
                 if (fileNameInput && fileNameInput.value.trim()) {
                     fileName = fileNameInput.value.trim();
                 } else {
-                    switch (fileType) {
-                        case 'html':
-                            fileName = 'untitled.html';
-                            break;
-                        case 'css':
-                            fileName = 'untitled.css';
-                            break;
-                        case 'javascript':
-                        case 'javascript-module':
-                            fileName = 'untitled.js';
-                            break;
-                        default:
-                            fileName = 'untitled.txt';
-                    }
+                    const defaultExtensions = {
+                        'html': '.html', 'css': '.css',
+                        'javascript': '.js', 'javascript-module': '.js',
+                        'json': '.json', 'xml': '.xml', 'markdown': '.md',
+                        'svg': '.svg', 'text': '.txt'
+                    };
+                    fileName = 'untitled' + (defaultExtensions[fileType] || '.txt');
                 }
 
-                switch (fileType) {
-                    case 'html':
-                        mimeType = 'text/html';
-                        break;
-                    case 'css':
-                        mimeType = 'text/css';
-                        break;
-                    case 'javascript':
-                    case 'javascript-module':
-                        mimeType = 'text/javascript';
-                        break;
-                    default:
-                        mimeType = 'text/plain';
-                }
+                mimeType = this.fileTypeUtils.getMimeTypeFromFileType(fileType) || 'text/plain';
             }
 
             const blob = new Blob([content], { type: mimeType });
