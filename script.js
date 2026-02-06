@@ -1185,25 +1185,28 @@ const CodePreviewer = {
             const dialogContent = document.createElement('div');
             dialogContent.className = 'conflict-dialog';
             
+            // Build header first
+            dialogContent.innerHTML = `
+                <div class="conflict-dialog-header">
+                    <h3>Confirmation</h3>
+                </div>
+            `;
+            
+            // Add message body
             const messageElement = document.createElement('div');
             messageElement.className = 'conflict-dialog-body';
             const paragraph = document.createElement('p');
             paragraph.textContent = message;
             messageElement.appendChild(paragraph);
+            dialogContent.appendChild(messageElement);
             
+            // Add buttons
             const buttonsContainer = document.createElement('div');
             buttonsContainer.className = 'conflict-dialog-buttons';
             buttonsContainer.innerHTML = `
                 <button class="conflict-btn conflict-skip" data-action="cancel">Cancel</button>
                 <button class="conflict-btn conflict-replace" data-action="confirm">Confirm</button>
             `;
-            
-            dialogContent.innerHTML = `
-                <div class="conflict-dialog-header">
-                    <h3>Confirmation</h3>
-                </div>
-            `;
-            dialogContent.appendChild(messageElement);
             dialogContent.appendChild(buttonsContainer);
             
             dialog.appendChild(dialogContent);
