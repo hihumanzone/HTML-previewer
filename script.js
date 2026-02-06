@@ -422,6 +422,7 @@ const CodePreviewer = {
         this.cacheDOMElements();
         this.initEditors();
         this.bindEvents();
+        this.bindFileTreeEvents();
         this.initModeToggle();
         this.initExistingFilePanels();
         this.console.init(this.dom.consoleOutput, this.dom.clearConsoleBtn, this.dom.previewFrame);
@@ -843,35 +844,7 @@ const CodePreviewer = {
      * @param {string} folderPath - The folder path to add the file in
      */
     addFileToFolder(folderPath) {
-        const fileId = `file-${this.state.nextFileId++}`;
-        const fileName = folderPath ? `${folderPath}/newfile.html` : 'newfile.html';
-        const content = '';
-        
-        this.createFilePanel(fileId, fileName, 'html', content, false);
-        
-        const newTextarea = document.getElementById(fileId);
-        const newEditor = this.createEditorForTextarea(newTextarea, 'html');
-        
-        this.state.files.push({
-            id: fileId,
-            editor: newEditor,
-            type: 'html',
-            fileName: fileName
-        });
-        
-        // Initialize saved state and set up change listener
-        this.initFileSavedState(fileId, content, fileName);
-        this.setupEditorChangeListener(fileId, newEditor);
-        
-        // Mark panel as open
-        this.state.openPanels.add(fileId);
-        
-        this.bindFilePanelEvents(document.querySelector(`.editor-panel[data-file-id="${fileId}"]`));
-        this.bindDragAndDropEvents(document.querySelector(`.editor-panel[data-file-id="${fileId}"]`));
-        
-        this.updateRemoveButtonsVisibility();
-        this.updateMainHtmlSelector();
-        this.renderFileTree();
+        this.addNewFile(folderPath);
     },
 
     /**
@@ -897,8 +870,7 @@ const CodePreviewer = {
         const html = this.renderFolderContents(tree, '');
         this.dom.fileTreeContainer.innerHTML = html;
         
-        // Bind click events for folders and files
-        this.bindFileTreeEvents();
+        // Event delegation is set up once in init, no need to rebind here
     },
 
     /**
@@ -982,34 +954,27 @@ const CodePreviewer = {
     },
 
     /**
-     * Bind click events for file tree elements
+     * Bind click events for file tree elements using event delegation
      */
     bindFileTreeEvents() {
         if (!this.dom.fileTreeContainer) return;
         
-        // Folder header clicks (toggle expansion)
-        this.dom.fileTreeContainer.querySelectorAll('.tree-folder-header').forEach(header => {
-            header.addEventListener('click', (e) => {
-                if (e.target.closest('.folder-actions')) return;
-                const folderPath = header.closest('.tree-folder').dataset.folderPath;
-                this.toggleFolder(folderPath);
-            });
-        });
-        
-        // Add file to folder
-        this.dom.fileTreeContainer.querySelectorAll('.add-file-to-folder-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
+        // Use a single delegated listener on the container
+        this.dom.fileTreeContainer.addEventListener('click', (e) => {
+            const target = e.target;
+            
+            // Add file to folder
+            if (target.closest('.add-file-to-folder-btn')) {
                 e.stopPropagation();
-                const folderPath = btn.closest('.tree-folder').dataset.folderPath;
+                const folderPath = target.closest('.tree-folder').dataset.folderPath;
                 this.addFileToFolder(folderPath);
-            });
-        });
-        
-        // Add subfolder
-        this.dom.fileTreeContainer.querySelectorAll('.add-subfolder-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
+                return;
+            }
+            
+            // Add subfolder
+            if (target.closest('.add-subfolder-btn')) {
                 e.stopPropagation();
-                const parentPath = btn.closest('.tree-folder').dataset.folderPath;
+                const parentPath = target.closest('.tree-folder').dataset.folderPath;
                 const folderName = prompt('Enter folder name:');
                 if (folderName && folderName.trim()) {
                     const newPath = `${parentPath}/${folderName.trim().replace(/[<>:"|?*]/g, '')}`;
@@ -1018,50 +983,52 @@ const CodePreviewer = {
                     this.state.expandedFolders.add(newPath);
                     this.renderFileTree();
                 }
-            });
-        });
-        
-        // Delete folder
-        this.dom.fileTreeContainer.querySelectorAll('.delete-folder-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
+                return;
+            }
+            
+            // Delete folder
+            if (target.closest('.delete-folder-btn')) {
                 e.stopPropagation();
-                const folderPath = btn.closest('.tree-folder').dataset.folderPath;
+                const folderPath = target.closest('.tree-folder').dataset.folderPath;
                 if (confirm(`Delete folder "${folderPath}" and all its contents?`)) {
                     this.deleteFolder(folderPath);
                 }
-            });
-        });
-        
-        // Open/focus file (clicking on file row or open button)
-        this.dom.fileTreeContainer.querySelectorAll('.tree-file').forEach(fileEl => {
+                return;
+            }
+            
+            // Folder header click (toggle expansion) — only if not clicking an action button
+            const folderHeader = target.closest('.tree-folder-header');
+            if (folderHeader && !target.closest('.folder-actions')) {
+                const folderPath = folderHeader.closest('.tree-folder').dataset.folderPath;
+                this.toggleFolder(folderPath);
+                return;
+            }
+            
+            // File actions
+            const fileEl = target.closest('.tree-file');
+            if (!fileEl) return;
             const fileId = fileEl.dataset.fileId;
             
-            // Click on file row to open
-            fileEl.addEventListener('click', (e) => {
-                // Don't trigger if clicking on action buttons
-                if (e.target.closest('.file-actions')) return;
-                this.openPanel(fileId);
-            });
-            
             // Open file button
-            const openBtn = fileEl.querySelector('.open-file-btn');
-            if (openBtn) {
-                openBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.openPanel(fileId);
-                });
+            if (target.closest('.open-file-btn')) {
+                e.stopPropagation();
+                this.openPanel(fileId);
+                return;
             }
             
             // Delete file button
-            const deleteBtn = fileEl.querySelector('.delete-file-btn');
-            if (deleteBtn) {
-                deleteBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const fileName = this.getFileNameFromPanel(fileId) || 'this file';
-                    if (confirm(`Delete "${fileName}"? This cannot be undone.`)) {
-                        this.deleteFile(fileId);
-                    }
-                });
+            if (target.closest('.delete-file-btn')) {
+                e.stopPropagation();
+                const fileName = this.getFileNameFromPanel(fileId) || 'this file';
+                if (confirm(`Delete "${fileName}"? This cannot be undone.`)) {
+                    this.deleteFile(fileId);
+                }
+                return;
+            }
+            
+            // Click on file row (not on action buttons) to open
+            if (!target.closest('.file-actions')) {
+                this.openPanel(fileId);
             }
         });
     },
@@ -1108,9 +1075,9 @@ const CodePreviewer = {
         this.openPanel(fileId);
     },
 
-    addNewFile() {
+    addNewFile(folderPath) {
         const fileId = `file-${this.state.nextFileId++}`;
-        const fileName = `newfile.html`;
+        const fileName = folderPath ? `${folderPath}/newfile.html` : 'newfile.html';
         const content = '';
         
         this.createFilePanel(fileId, fileName, 'html', content, false);
@@ -1132,8 +1099,9 @@ const CodePreviewer = {
         // Mark panel as open
         this.state.openPanels.add(fileId);
         
-        this.bindFilePanelEvents(document.querySelector(`.editor-panel[data-file-id="${fileId}"]`));
-        this.bindDragAndDropEvents(document.querySelector(`.editor-panel[data-file-id="${fileId}"]`));
+        const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+        this.bindFilePanelEvents(panel);
+        this.bindDragAndDropEvents(panel);
         
         this.updateRemoveButtonsVisibility();
         this.updateMainHtmlSelector();
@@ -1244,11 +1212,72 @@ const CodePreviewer = {
         return action === 'confirm';
     },
 
-    importFile() {
+    /**
+     * Handle file conflict resolution during import.
+     * This method uses a shared `resolution` object to remember user preferences
+     * across multiple calls (e.g., 'replace-all' or 'skip-all') so that subsequent
+     * conflicts are resolved automatically without re-prompting.
+     * @param {string} fileName - Name of the file being imported
+     * @param {Object} resolution - Shared state object: { action: string|null }. The `action`
+     *   property is updated by this method when the user chooses 'replace-all' or 'skip-all'.
+     * @returns {Promise<string>} 'imported' if the file should be imported, 'skipped' if it should be skipped
+     */
+    async _resolveImportConflict(fileName, resolution) {
+        const existingFilenames = this.getExistingFilenames();
+        if (!existingFilenames.includes(fileName)) {
+            return 'imported';
+        }
+        
+        let action = resolution.action;
+        
+        if (!action || (action !== 'replace-all' && action !== 'skip-all')) {
+            action = await this.showFileConflictDialog(fileName);
+            if (action === 'replace-all' || action === 'skip-all') {
+                resolution.action = action;
+            }
+        }
+        
+        if (action === 'skip' || action === 'skip-all') {
+            return 'skipped';
+        }
+        
+        if (action === 'replace' || action === 'replace-all') {
+            const existingFile = this.state.files.find(f => f.fileName === fileName);
+            if (existingFile) {
+                this.deleteFile(existingFile.id);
+            }
+        }
+        
+        return 'imported';
+    },
+
+    /**
+     * Show an import summary notification
+     * @param {number} importedCount - Number of files imported
+     * @param {number} skippedCount - Number of files skipped
+     * @param {string} [successMessage] - Custom success message for single-source imports
+     */
+    _showImportSummary(importedCount, skippedCount, successMessage) {
+        if (importedCount > 0 && skippedCount > 0) {
+            this.showNotification(`Imported ${importedCount} file(s), skipped ${skippedCount} file(s)`, 'success');
+        } else if (importedCount > 0) {
+            this.showNotification(successMessage || `Successfully imported ${importedCount} file(s)`, 'success');
+        } else if (skippedCount > 0) {
+            this.showNotification(`Skipped ${skippedCount} file(s)`, 'info');
+        }
+    },
+
+    /**
+     * Create a hidden file input, trigger it, and call back with selected files
+     * @param {string} accept - File accept attribute
+     * @param {boolean} multiple - Whether multiple files are allowed
+     * @param {Function} onFiles - Async callback receiving the FileList
+     */
+    _openFilePicker(accept, multiple, onFiles) {
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
-        fileInput.accept = '*/*';
-        fileInput.multiple = true;
+        fileInput.accept = accept;
+        fileInput.multiple = multiple;
         fileInput.style.display = 'none';
         
         const cleanup = () => {
@@ -1258,86 +1287,53 @@ const CodePreviewer = {
         };
         
         fileInput.addEventListener('change', async (event) => {
-            const files = Array.from(event.target.files);
-            if (files.length === 0) {
-                cleanup();
-                return;
-            }
-            
             try {
-                let conflictResolution = null; // 'replace-all', 'skip-all', or null for ask each time
-                let importedCount = 0;
-                let skippedCount = 0;
-
-                for (const file of files) {
-                    const existingFilenames = this.getExistingFilenames();
-                    if (existingFilenames.includes(file.name)) {
-                        // Handle conflict
-                        let action = conflictResolution;
-                        
-                        if (!action || (action !== 'replace-all' && action !== 'skip-all')) {
-                            // Ask user what to do
-                            action = await this.showFileConflictDialog(file.name);
-                            
-                            // Save preference if user chose "all" option
-                            if (action === 'replace-all' || action === 'skip-all') {
-                                conflictResolution = action;
-                            }
-                        }
-                        
-                        if (action === 'skip' || action === 'skip-all') {
-                            skippedCount++;
-                            continue;
-                        }
-                        
-                        if (action === 'replace' || action === 'replace-all') {
-                            // Find and delete the existing file
-                            const existingFile = this.state.files.find(f => f.fileName === file.name);
-                            if (existingFile) {
-                                this.deleteFile(existingFile.id);
-                            }
-                        }
-                    }
-                    
-                    const fileData = await this.readFileContent(file);
-                    
-                    const detectedType = this.autoDetectFileType(file.name, fileData.isBinary ? null : fileData.content, file.type);
-                    
-                    this.addNewFileWithContent(file.name, detectedType, fileData.content, fileData.isBinary);
-                    importedCount++;
-                }
-                
-                // Show summary notification
-                if (importedCount > 0 && skippedCount > 0) {
-                    this.showNotification(`Imported ${importedCount} file(s), skipped ${skippedCount} file(s)`, 'success');
-                } else if (importedCount > 0) {
-                    this.showNotification(`Successfully imported ${importedCount} file(s)`, 'success');
-                } else if (skippedCount > 0) {
-                    this.showNotification(`Skipped ${skippedCount} file(s)`, 'info');
-                }
-                
+                await onFiles(event.target.files);
             } catch (error) {
-                console.error('Error importing file:', error);
-                alert('Error importing file. Please try again.');
+                console.error('Error processing files:', error);
+                this.showNotification('Error processing files. Please try again.', 'error');
             }
-            
             cleanup();
         });
         
         fileInput.addEventListener('cancel', cleanup);
         
-        const focusHandler = () => {
+        window.addEventListener('focus', () => {
             setTimeout(() => {
                 if (document.body.contains(fileInput)) {
                     cleanup();
                 }
             }, 100);
-        };
-        
-        window.addEventListener('focus', focusHandler, { once: true });
+        }, { once: true });
         
         document.body.appendChild(fileInput);
         fileInput.click();
+    },
+
+    importFile() {
+        this._openFilePicker('*/*', true, async (fileList) => {
+            const files = Array.from(fileList);
+            if (files.length === 0) return;
+            
+            const resolution = { action: null };
+            let importedCount = 0;
+            let skippedCount = 0;
+
+            for (const file of files) {
+                const result = await this._resolveImportConflict(file.name, resolution);
+                if (result === 'skipped') {
+                    skippedCount++;
+                    continue;
+                }
+                
+                const fileData = await this.readFileContent(file);
+                const detectedType = this.autoDetectFileType(file.name, fileData.isBinary ? null : fileData.content, file.type);
+                this.addNewFileWithContent(file.name, detectedType, fileData.content, fileData.isBinary);
+                importedCount++;
+            }
+            
+            this._showImportSummary(importedCount, skippedCount);
+        });
     },
 
     readFileContent(file) {
@@ -3188,127 +3184,55 @@ const CodePreviewer = {
     },
     
     async importZip() {
-        try {
-            if (typeof JSZip === 'undefined') {
-                this.showNotification('JSZip library not available', 'error');
-                return;
-            }
-            
-            const fileInput = document.createElement('input');
-            fileInput.type = 'file';
-            fileInput.accept = '.zip';
-            fileInput.style.display = 'none';
-            
-            const cleanup = () => {
-                if (document.body.contains(fileInput)) {
-                    document.body.removeChild(fileInput);
-                }
-            };
-            
-            fileInput.addEventListener('change', async (e) => {
-                const file = e.target.files[0];
-                if (!file) {
-                    cleanup();
-                    return;
-                }
-                
-                try {
-                    const zip = await JSZip.loadAsync(file);
-                    
-                    let conflictResolution = null; // 'replace-all', 'skip-all', or null for ask each time
-                    let importedCount = 0;
-                    let skippedCount = 0;
-
-                    for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
-                        if (zipEntry.dir) continue;
-                        
-                        let content;
-                        let isBinary = false;
-                        
-                        const extension = relativePath.split('.').pop().toLowerCase();
-                        isBinary = this.isBinaryFile(relativePath, '');
-                        
-                        if (isBinary) {
-                            const base64Content = await zipEntry.async('base64');
-                            const mimeType = this.getMimeTypeFromExtension(extension);
-                            content = `data:${mimeType};base64,${base64Content}`;
-                        } else {
-                            content = await zipEntry.async('string');
-                        }
-                        
-                        const fileType = this.getFileTypeFromExtension(extension);
-                        
-                        const fileName = relativePath;
-                        
-                        const existingFilenames = this.getExistingFilenames();
-                        if (existingFilenames.includes(fileName)) {
-                            // Handle conflict
-                            let action = conflictResolution;
-                            
-                            if (!action || (action !== 'replace-all' && action !== 'skip-all')) {
-                                // Ask user what to do
-                                action = await this.showFileConflictDialog(fileName);
-                                
-                                // Save preference if user chose "all" option
-                                if (action === 'replace-all' || action === 'skip-all') {
-                                    conflictResolution = action;
-                                }
-                            }
-                            
-                            if (action === 'skip' || action === 'skip-all') {
-                                skippedCount++;
-                                continue;
-                            }
-                            
-                            if (action === 'replace' || action === 'replace-all') {
-                                // Find and delete the existing file
-                                const existingFile = this.state.files.find(f => f.fileName === fileName);
-                                if (existingFile) {
-                                    this.deleteFile(existingFile.id);
-                                }
-                            }
-                        }
-                        
-                        this.addNewFileWithContent(fileName, fileType, content, isBinary);
-                        importedCount++;
-                    }
-                    
-                    // Show summary notification
-                    if (importedCount > 0 && skippedCount > 0) {
-                        this.showNotification(`Imported ${importedCount} file(s), skipped ${skippedCount} file(s)`, 'success');
-                    } else if (importedCount > 0) {
-                        this.showNotification('ZIP project imported successfully!', 'success');
-                    } else if (skippedCount > 0) {
-                        this.showNotification(`Skipped ${skippedCount} file(s)`, 'info');
-                    }
-                    
-                } catch (error) {
-                    console.error('Error processing ZIP file:', error);
-                    this.showNotification('Failed to import ZIP file', 'error');
-                }
-                
-                cleanup();
-            });
-            
-            fileInput.addEventListener('cancel', cleanup);
-            
-            const focusHandler = () => {
-                setTimeout(() => {
-                    if (document.body.contains(fileInput)) {
-                        cleanup();
-                    }
-                }, 100);
-            };
-            
-            window.addEventListener('focus', focusHandler, { once: true });
-            
-            document.body.appendChild(fileInput);
-            fileInput.click();
-            
-        } catch (error) {
-            console.error('Error importing ZIP:', error);
-            this.showNotification('Failed to import ZIP file', 'error');
+        if (typeof JSZip === 'undefined') {
+            this.showNotification('JSZip library not available', 'error');
+            return;
         }
+        
+        this._openFilePicker('.zip', false, async (fileList) => {
+            const file = fileList[0];
+            if (!file) return;
+            
+            try {
+                const zip = await JSZip.loadAsync(file);
+                
+                const resolution = { action: null };
+                let importedCount = 0;
+                let skippedCount = 0;
+
+                for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
+                    if (zipEntry.dir) continue;
+                    
+                    const result = await this._resolveImportConflict(relativePath, resolution);
+                    if (result === 'skipped') {
+                        skippedCount++;
+                        continue;
+                    }
+                    
+                    const extension = relativePath.split('.').pop().toLowerCase();
+                    const isBinary = this.isBinaryFile(relativePath, '');
+                    let content;
+                    
+                    if (isBinary) {
+                        const base64Content = await zipEntry.async('base64');
+                        const mimeType = this.getMimeTypeFromExtension(extension);
+                        content = `data:${mimeType};base64,${base64Content}`;
+                    } else {
+                        content = await zipEntry.async('string');
+                    }
+                    
+                    const fileType = this.getFileTypeFromExtension(extension);
+                    this.addNewFileWithContent(relativePath, fileType, content, isBinary);
+                    importedCount++;
+                }
+                
+                this._showImportSummary(importedCount, skippedCount, 'ZIP project imported successfully!');
+                
+            } catch (error) {
+                console.error('Error processing ZIP file:', error);
+                this.showNotification('Failed to import ZIP file', 'error');
+            }
+        });
     },
     
     getMimeTypeFromExtension(extension) {
@@ -3863,306 +3787,290 @@ const CodePreviewer = {
             const findFileCode = CodePreviewer.fileSystemUtils.generateFindFileCode();
             const getCurrentFilePathCode = CodePreviewer.fileSystemUtils.generateGetCurrentFilePathCode();
             
-            return '<script>\n' +
-                '(function() {\n' +
-                fileSystemScript + '\n' +
-                '    ' + resolvePathCode + '\n' +
-                '    ' + findFileCode + '\n' +
-                '    ' + getCurrentFilePathCode + '\n' +
-                '    \n' +
-                '    const originalFetch = window.fetch;\n' +
-                '    window.fetch = function(input, init) {\n' +
-                '        let url = input;\n' +
-                '        if (typeof input === "object" && input.url) {\n' +
-                '            url = input.url;\n' +
-                '        }\n' +
-                '        \n' +
-                '        const currentFilePath = getCurrentFilePath();\n' +
-                '        let targetPath = url.replace(/^\\.\\//, "");\n' +
-                '        const fileData = findFileInSystem(targetPath, currentFilePath);\n' +
-                '        \n' +
-                '        if (fileData) {\n' +
-                '            const response = {\n' +
-                '                ok: true,\n' +
-                '                status: 200,\n' +
-                '                statusText: "OK",\n' +
-                '                headers: new Headers({\n' +
-                '                    "Content-Type": fileData.type === "json" ? "application/json" : \n' +
-                '                                   fileData.type === "html" ? "text/html" :\n' +
-                '                                   fileData.type === "css" ? "text/css" :\n' +
-                '                                   fileData.type === "javascript" ? "text/javascript" :\n' +
-                '                                   fileData.type === "xml" ? "application/xml" :\n' +
-                '                                   "text/plain"\n' +
-                '                }),\n' +
-                '                url: url,\n' +
-                '                text: () => Promise.resolve(fileData.content),\n' +
-                '                json: () => {\n' +
-                '                    try {\n' +
-                '                        return Promise.resolve(JSON.parse(fileData.content));\n' +
-                '                    } catch (e) {\n' +
-                '                        return Promise.reject(new Error("Invalid JSON"));\n' +
-                '                    }\n' +
-                '                },\n' +
-                '                blob: () => {\n' +
-                '                    if (fileData.isBinary && fileData.content.startsWith("data:")) {\n' +
-                '                        const [header, base64] = fileData.content.split(",");\n' +
-                '                        const mimeType = header.match(/data:([^;]+)/)[1];\n' +
-                '                        const byteCharacters = atob(base64);\n' +
-                '                        const byteNumbers = new Array(byteCharacters.length);\n' +
-                '                        for (let i = 0; i < byteCharacters.length; i++) {\n' +
-                '                            byteNumbers[i] = byteCharacters.charCodeAt(i);\n' +
-                '                        }\n' +
-                '                        const byteArray = new Uint8Array(byteNumbers);\n' +
-                '                        return Promise.resolve(new Blob([byteArray], { type: mimeType }));\n' +
-                '                    } else {\n' +
-                '                        return Promise.resolve(new Blob([fileData.content], { type: "text/plain" }));\n' +
-                '                    }\n' +
-                '                },\n' +
-                '                arrayBuffer: () => {\n' +
-                '                    if (fileData.isBinary && fileData.content.startsWith("data:")) {\n' +
-                '                        const [header, base64] = fileData.content.split(",");\n' +
-                '                        const byteCharacters = atob(base64);\n' +
-                '                        const byteNumbers = new Array(byteCharacters.length);\n' +
-                '                        for (let i = 0; i < byteCharacters.length; i++) {\n' +
-                '                            byteNumbers[i] = byteCharacters.charCodeAt(i);\n' +
-                '                        }\n' +
-                '                        return Promise.resolve(new Uint8Array(byteNumbers).buffer);\n' +
-                '                    } else {\n' +
-                '                        const encoder = new TextEncoder();\n' +
-                '                        return Promise.resolve(encoder.encode(fileData.content).buffer);\n' +
-                '                    }\n' +
-                '                }\n' +
-                '            };\n' +
-                '            \n' +
-                '            return Promise.resolve(response);\n' +
-                '        }\n' +
-                '        \n' +
-                '        return originalFetch.apply(this, arguments);\n' +
-                '    };\n' +
-                '    \n' +
-                '    // Override XMLHttpRequest to handle virtual file system (for Phaser.js and other libraries)\n' +
-                '    const OriginalXMLHttpRequest = window.XMLHttpRequest;\n' +
-                '    window.XMLHttpRequest = function() {\n' +
-                '        const xhr = new OriginalXMLHttpRequest();\n' +
-                '        const originalOpen = xhr.open;\n' +
-                '        const originalSend = xhr.send;\n' +
-                '        \n' +
-                '        let isVirtualRequest = false;\n' +
-                '        let virtualFileData = null;\n' +
-                '        \n' +
-                '        xhr.open = function(method, url, async, user, password) {\n' +
-                '            try {\n' +
-                '                if (method.toUpperCase() === "GET") {\n' +
-                '                    const currentFilePath = getCurrentFilePath();\n' +
-                '                    let targetPath = url.replace(/^\\.\\//, "");\n' +
-                '                    const fileData = findFileInSystem(targetPath, currentFilePath);\n' +
-                '                    \n' +
-                '                    if (fileData) {\n' +
-                '                        // Handle virtual file system request\n' +
-                '                        isVirtualRequest = true;\n' +
-                '                        virtualFileData = fileData;\n' +
-                '                        // Do not call original open for virtual requests\n' +
-                '                        return;\n' +
-                '                    }\n' +
-                '                }\n' +
-                '                \n' +
-                '                // Handle normal requests\n' +
-                '                isVirtualRequest = false;\n' +
-                '                virtualFileData = null;\n' +
-                '                return originalOpen.call(this, method, url, async, user, password);\n' +
-                '            } catch (e) {\n' +
-                '                // Fallback to normal request on any error\n' +
-                '                isVirtualRequest = false;\n' +
-                '                virtualFileData = null;\n' +
-                '                return originalOpen.call(this, method, url, async, user, password);\n' +
-                '            }\n' +
-                '        };\n' +
-                '        \n' +
-                '        xhr.send = function(data) {\n' +
-                '            if (isVirtualRequest && virtualFileData) {\n' +
-                '                try {\n' +
-                '                    // Simulate successful response for virtual files\n' +
-                '                    setTimeout(() => {\n' +
-                '                        try {\n' +
-                '                            // Set response properties\n' +
-                '                            Object.defineProperty(xhr, "readyState", { value: 4, configurable: true });\n' +
-                '                            Object.defineProperty(xhr, "status", { value: 200, configurable: true });\n' +
-                '                            Object.defineProperty(xhr, "statusText", { value: "OK", configurable: true });\n' +
-                '                            \n' +
-                '                            // Set response content\n' +
-                '                            if (virtualFileData.isBinary && virtualFileData.content.startsWith("data:")) {\n' +
-                '                                // For binary files (images, audio, etc.)\n' +
-                '                                if (xhr.responseType === "arraybuffer") {\n' +
-                '                                    // Convert data URL to ArrayBuffer\n' +
-                '                                    const [header, base64] = virtualFileData.content.split(",");\n' +
-                '                                    const byteCharacters = atob(base64);\n' +
-                '                                    const byteNumbers = new Array(byteCharacters.length);\n' +
-                '                                    for (let i = 0; i < byteCharacters.length; i++) {\n' +
-                '                                        byteNumbers[i] = byteCharacters.charCodeAt(i);\n' +
-                '                                    }\n' +
-                '                                    Object.defineProperty(xhr, "response", { value: new Uint8Array(byteNumbers).buffer, configurable: true });\n' +
-                '                                } else {\n' +
-                '                                    // Return data URL for other response types\n' +
-                '                                    Object.defineProperty(xhr, "response", { value: virtualFileData.content, configurable: true });\n' +
-                '                                    Object.defineProperty(xhr, "responseText", { value: virtualFileData.content, configurable: true });\n' +
-                '                                }\n' +
-                '                            } else {\n' +
-                '                                // For text files\n' +
-                '                                Object.defineProperty(xhr, "responseText", { value: virtualFileData.content, configurable: true });\n' +
-                '                                Object.defineProperty(xhr, "response", { value: virtualFileData.content, configurable: true });\n' +
-                '                            }\n' +
-                '                            \n' +
-                '                            // Set headers\n' +
-                '                            xhr.getResponseHeader = function(name) {\n' +
-                '                                const lowerName = name.toLowerCase();\n' +
-                '                                if (lowerName === "content-type") {\n' +
-                '                                    const typeMap = {\n' +
-                '                                        "image": "image/png",\n' +
-                '                                        "audio": "audio/mpeg",\n' +
-                '                                        "video": "video/mp4",\n' +
-                '                                        "json": "application/json",\n' +
-                '                                        "css": "text/css",\n' +
-                '                                        "javascript": "text/javascript",\n' +
-                '                                        "html": "text/html"\n' +
-                '                                    };\n' +
-                '                                    return typeMap[virtualFileData.type] || "text/plain";\n' +
-                '                                }\n' +
-                '                                return null;\n' +
-                '                            };\n' +
-                '                            \n' +
-                '                            xhr.getAllResponseHeaders = function() {\n' +
-                '                                const contentType = xhr.getResponseHeader("content-type");\n' +
-                '                                return `content-type: ${contentType}\\r\\n`;\n' +
-                '                            };\n' +
-                '                            \n' +
-                '                            // Trigger events\n' +
-                '                            if (xhr.onreadystatechange) {\n' +
-                '                                xhr.onreadystatechange();\n' +
-                '                            }\n' +
-                '                            if (xhr.onload) {\n' +
-                '                                xhr.onload();\n' +
-                '                            }\n' +
-                '                        } catch (e) {\n' +
-                '                            // Handle error in response simulation\n' +
-                '                            if (xhr.onerror) {\n' +
-                '                                xhr.onerror();\n' +
-                '                            }\n' +
-                '                        }\n' +
-                '                    }, 1);\n' +
-                '                } catch (e) {\n' +
-                '                    // Handle error in virtual request\n' +
-                '                    if (xhr.onerror) {\n' +
-                '                        xhr.onerror();\n' +
-                '                    }\n' +
-                '                }\n' +
-                '                return;\n' +
-                '            }\n' +
-                '            \n' +
-                '            // Handle normal requests\n' +
-                '            return originalSend.call(this, data);\n' +
-                '        };\n' +
-                '        \n' +
-                '        return xhr;\n' +
-                '    };\n' +
-                '    \n' +
-                '    // Override Image constructor to handle virtual file system\n' +
-                '    const OriginalImage = window.Image;\n' +
-                '    window.Image = function() {\n' +
-                '        const img = new OriginalImage();\n' +
-                '        \n' +
-                '        let _originalSrc = "";\n' +
-                '        let _resolvedSrc = "";\n' +
-                '        \n' +
-                '        Object.defineProperty(img, "src", {\n' +
-                '            get: function() {\n' +
-                '                return _resolvedSrc || _originalSrc;\n' +
-                '            },\n' +
-                '            set: function(value) {\n' +
-                '                _originalSrc = value;\n' +
-                '                \n' +
-                '                const currentFilePath = getCurrentFilePath();\n' +
-                '                let targetPath = value.replace(/^\\.\\//, "");\n' +
-                '                const fileData = findFileInSystem(targetPath, currentFilePath);\n' +
-                '                \n' +
-                '                if (fileData && (fileData.type === "image" || fileData.type === "svg")) {\n' +
-                '                    const dataUrl = fileData.isBinary ? fileData.content : \n' +
-                '                                   `data:image/svg+xml;charset=utf-8,${encodeURIComponent(fileData.content)}`;\n' +
-                '                    _resolvedSrc = dataUrl;\n' +
-                '                    img.setAttribute("src", dataUrl);\n' +
-                '                } else {\n' +
-                '                    _resolvedSrc = value;\n' +
-                '                    img.setAttribute("src", value);\n' +
-                '                }\n' +
-                '            },\n' +
-                '            enumerable: true,\n' +
-                '            configurable: true\n' +
-                '        });\n' +
-                '        \n' +
-                '        return img;\n' +
-                '    };\n' +
-                '    \n' +
-                '    // Override Audio constructor to handle virtual file system\n' +
-                '    const OriginalAudio = window.Audio;\n' +
-                '    window.Audio = function(src) {\n' +
-                '        const audio = new OriginalAudio();\n' +
-                '        \n' +
-                '        let _originalSrc = "";\n' +
-                '        let _resolvedSrc = "";\n' +
-                '        \n' +
-                '        Object.defineProperty(audio, "src", {\n' +
-                '            get: function() {\n' +
-                '                return _resolvedSrc || _originalSrc;\n' +
-                '            },\n' +
-                '            set: function(value) {\n' +
-                '                _originalSrc = value;\n' +
-                '                \n' +
-                '                const currentFilePath = getCurrentFilePath();\n' +
-                '                let targetPath = value.replace(/^\\.\\//, "");\n' +
-                '                const fileData = findFileInSystem(targetPath, currentFilePath);\n' +
-                '                \n' +
-                '                if (fileData && fileData.type === "audio") {\n' +
-                '                    _resolvedSrc = fileData.content;\n' +
-                '                    audio.setAttribute("src", fileData.content);\n' +
-                '                } else {\n' +
-                '                    _resolvedSrc = value;\n' +
-                '                    audio.setAttribute("src", value);\n' +
-                '                }\n' +
-                '            },\n' +
-                '            enumerable: true,\n' +
-                '            configurable: true\n' +
-                '        });\n' +
-                '        \n' +
-                '        // Handle constructor with src parameter\n' +
-                '        if (src !== undefined) {\n' +
-                '            audio.src = src;\n' +
-                '        }\n' +
-                '        \n' +
-                '        return audio;\n' +
-                '    };\n' +
-                '    \n' +
-                '    const postLog = (level, args) => {\n' +
-                '        const formattedArgs = args.map(arg => {\n' +
-                '            if (arg instanceof Error) return { message: arg.message, stack: arg.stack };\n' +
-                '            try { return JSON.parse(JSON.stringify(arg)); } catch (e) { return \'Unserializable Object\'; }\n' +
-                '        });\n' +
-                '        window.parent.postMessage({ type: \'' + MESSAGE_TYPE + '\', level, message: formattedArgs }, \'*\');\n' +
-                '    };\n' +
-                '    const originalConsole = { ...window.console };\n' +
-                '    [\'log\', \'info\', \'warn\', \'error\'].forEach(level => {\n' +
-                '        window.console[level] = (...args) => {\n' +
-                '            postLog(level, Array.from(args));\n' +
-                '            originalConsole[level](...args);\n' +
-                '        };\n' +
-                '    });\n' +
-                '    window.onerror = (message, source, lineno, colno, error) => {\n' +
-                '        postLog(\'error\', [message, \'at \' + source.split(\'/\').pop() + \':\' + lineno + \':\' + colno]);\n' +
-                '        return true;\n' +
-                '    };\n' +
-                '    window.addEventListener(\'unhandledrejection\', e => {\n' +
-                '        postLog(\'error\', [\'Unhandled promise rejection:\', e.reason]);\n' +
-                '    });\n' +
-                '})();\n' +
-                '</script>';
+            return `<script>
+(function() {
+    ${fileSystemScript}
+    ${resolvePathCode}
+    ${findFileCode}
+    ${getCurrentFilePathCode}
+
+    const originalFetch = window.fetch;
+    window.fetch = function(input, init) {
+        let url = input;
+        if (typeof input === "object" && input.url) {
+            url = input.url;
+        }
+        
+        const currentFilePath = getCurrentFilePath();
+        let targetPath = url.replace(/^\\.\\//,"");
+        const fileData = findFileInSystem(targetPath, currentFilePath);
+        
+        if (fileData) {
+            const response = {
+                ok: true,
+                status: 200,
+                statusText: "OK",
+                headers: new Headers({
+                    "Content-Type": fileData.type === "json" ? "application/json" : 
+                                   fileData.type === "html" ? "text/html" :
+                                   fileData.type === "css" ? "text/css" :
+                                   fileData.type === "javascript" ? "text/javascript" :
+                                   fileData.type === "xml" ? "application/xml" :
+                                   "text/plain"
+                }),
+                url: url,
+                text: () => Promise.resolve(fileData.content),
+                json: () => {
+                    try {
+                        return Promise.resolve(JSON.parse(fileData.content));
+                    } catch (e) {
+                        return Promise.reject(new Error("Invalid JSON"));
+                    }
+                },
+                blob: () => {
+                    if (fileData.isBinary && fileData.content.startsWith("data:")) {
+                        const [header, base64] = fileData.content.split(",");
+                        const mimeType = header.match(/data:([^;]+)/)[1];
+                        const byteCharacters = atob(base64);
+                        const byteNumbers = new Array(byteCharacters.length);
+                        for (let i = 0; i < byteCharacters.length; i++) {
+                            byteNumbers[i] = byteCharacters.charCodeAt(i);
+                        }
+                        const byteArray = new Uint8Array(byteNumbers);
+                        return Promise.resolve(new Blob([byteArray], { type: mimeType }));
+                    } else {
+                        return Promise.resolve(new Blob([fileData.content], { type: "text/plain" }));
+                    }
+                },
+                arrayBuffer: () => {
+                    if (fileData.isBinary && fileData.content.startsWith("data:")) {
+                        const [header, base64] = fileData.content.split(",");
+                        const byteCharacters = atob(base64);
+                        const byteNumbers = new Array(byteCharacters.length);
+                        for (let i = 0; i < byteCharacters.length; i++) {
+                            byteNumbers[i] = byteCharacters.charCodeAt(i);
+                        }
+                        return Promise.resolve(new Uint8Array(byteNumbers).buffer);
+                    } else {
+                        const encoder = new TextEncoder();
+                        return Promise.resolve(encoder.encode(fileData.content).buffer);
+                    }
+                }
+            };
+            
+            return Promise.resolve(response);
+        }
+        
+        return originalFetch.apply(this, arguments);
+    };
+    
+    // Override XMLHttpRequest to handle virtual file system (for Phaser.js and other libraries)
+    const OriginalXMLHttpRequest = window.XMLHttpRequest;
+    window.XMLHttpRequest = function() {
+        const xhr = new OriginalXMLHttpRequest();
+        const originalOpen = xhr.open;
+        const originalSend = xhr.send;
+        
+        let isVirtualRequest = false;
+        let virtualFileData = null;
+        
+        xhr.open = function(method, url, async, user, password) {
+            try {
+                if (method.toUpperCase() === "GET") {
+                    const currentFilePath = getCurrentFilePath();
+                    let targetPath = url.replace(/^\\.\\//,"");
+                    const fileData = findFileInSystem(targetPath, currentFilePath);
+                    
+                    if (fileData) {
+                        isVirtualRequest = true;
+                        virtualFileData = fileData;
+                        return;
+                    }
+                }
+                
+                isVirtualRequest = false;
+                virtualFileData = null;
+                return originalOpen.call(this, method, url, async, user, password);
+            } catch (e) {
+                isVirtualRequest = false;
+                virtualFileData = null;
+                return originalOpen.call(this, method, url, async, user, password);
+            }
+        };
+        
+        xhr.send = function(data) {
+            if (isVirtualRequest && virtualFileData) {
+                try {
+                    setTimeout(() => {
+                        try {
+                            Object.defineProperty(xhr, "readyState", { value: 4, configurable: true });
+                            Object.defineProperty(xhr, "status", { value: 200, configurable: true });
+                            Object.defineProperty(xhr, "statusText", { value: "OK", configurable: true });
+                            
+                            if (virtualFileData.isBinary && virtualFileData.content.startsWith("data:")) {
+                                if (xhr.responseType === "arraybuffer") {
+                                    const [header, base64] = virtualFileData.content.split(",");
+                                    const byteCharacters = atob(base64);
+                                    const byteNumbers = new Array(byteCharacters.length);
+                                    for (let i = 0; i < byteCharacters.length; i++) {
+                                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                                    }
+                                    Object.defineProperty(xhr, "response", { value: new Uint8Array(byteNumbers).buffer, configurable: true });
+                                } else {
+                                    Object.defineProperty(xhr, "response", { value: virtualFileData.content, configurable: true });
+                                    Object.defineProperty(xhr, "responseText", { value: virtualFileData.content, configurable: true });
+                                }
+                            } else {
+                                Object.defineProperty(xhr, "responseText", { value: virtualFileData.content, configurable: true });
+                                Object.defineProperty(xhr, "response", { value: virtualFileData.content, configurable: true });
+                            }
+                            
+                            xhr.getResponseHeader = function(name) {
+                                const lowerName = name.toLowerCase();
+                                if (lowerName === "content-type") {
+                                    const typeMap = {
+                                        "image": "image/png",
+                                        "audio": "audio/mpeg",
+                                        "video": "video/mp4",
+                                        "json": "application/json",
+                                        "css": "text/css",
+                                        "javascript": "text/javascript",
+                                        "html": "text/html"
+                                    };
+                                    return typeMap[virtualFileData.type] || "text/plain";
+                                }
+                                return null;
+                            };
+                            
+                            xhr.getAllResponseHeaders = function() {
+                                const contentType = xhr.getResponseHeader("content-type");
+                                return "content-type: " + contentType + "\\r\\n";
+                            };
+                            
+                            if (xhr.onreadystatechange) {
+                                xhr.onreadystatechange();
+                            }
+                            if (xhr.onload) {
+                                xhr.onload();
+                            }
+                        } catch (e) {
+                            if (xhr.onerror) {
+                                xhr.onerror();
+                            }
+                        }
+                    }, 1);
+                } catch (e) {
+                    if (xhr.onerror) {
+                        xhr.onerror();
+                    }
+                }
+                return;
+            }
+            
+            return originalSend.call(this, data);
+        };
+        
+        return xhr;
+    };
+    
+    // Override Image constructor to handle virtual file system
+    const OriginalImage = window.Image;
+    window.Image = function() {
+        const img = new OriginalImage();
+        
+        let _originalSrc = "";
+        let _resolvedSrc = "";
+        
+        Object.defineProperty(img, "src", {
+            get: function() {
+                return _resolvedSrc || _originalSrc;
+            },
+            set: function(value) {
+                _originalSrc = value;
+                
+                const currentFilePath = getCurrentFilePath();
+                let targetPath = value.replace(/^\\.\\//,"");
+                const fileData = findFileInSystem(targetPath, currentFilePath);
+                
+                if (fileData && (fileData.type === "image" || fileData.type === "svg")) {
+                    const dataUrl = fileData.isBinary ? fileData.content : 
+                                   "data:image/svg+xml;charset=utf-8," + encodeURIComponent(fileData.content);
+                    _resolvedSrc = dataUrl;
+                    img.setAttribute("src", dataUrl);
+                } else {
+                    _resolvedSrc = value;
+                    img.setAttribute("src", value);
+                }
+            },
+            enumerable: true,
+            configurable: true
+        });
+        
+        return img;
+    };
+    
+    // Override Audio constructor to handle virtual file system
+    const OriginalAudio = window.Audio;
+    window.Audio = function(src) {
+        const audio = new OriginalAudio();
+        
+        let _originalSrc = "";
+        let _resolvedSrc = "";
+        
+        Object.defineProperty(audio, "src", {
+            get: function() {
+                return _resolvedSrc || _originalSrc;
+            },
+            set: function(value) {
+                _originalSrc = value;
+                
+                const currentFilePath = getCurrentFilePath();
+                let targetPath = value.replace(/^\\.\\//,"");
+                const fileData = findFileInSystem(targetPath, currentFilePath);
+                
+                if (fileData && fileData.type === "audio") {
+                    _resolvedSrc = fileData.content;
+                    audio.setAttribute("src", fileData.content);
+                } else {
+                    _resolvedSrc = value;
+                    audio.setAttribute("src", value);
+                }
+            },
+            enumerable: true,
+            configurable: true
+        });
+        
+        // Handle constructor with src parameter
+        if (src !== undefined) {
+            audio.src = src;
+        }
+        
+        return audio;
+    };
+    
+    const postLog = (level, args) => {
+        const formattedArgs = args.map(arg => {
+            if (arg instanceof Error) return { message: arg.message, stack: arg.stack };
+            try { return JSON.parse(JSON.stringify(arg)); } catch (e) { return 'Unserializable Object'; }
+        });
+        window.parent.postMessage({ type: '${MESSAGE_TYPE}', level, message: formattedArgs }, '*');
+    };
+    const originalConsole = { ...window.console };
+    ['log', 'info', 'warn', 'error'].forEach(level => {
+        window.console[level] = (...args) => {
+            postLog(level, Array.from(args));
+            originalConsole[level](...args);
+        };
+    });
+    window.onerror = (message, source, lineno, colno, error) => {
+        postLog('error', [message, 'at ' + source.split('/').pop() + ':' + lineno + ':' + colno]);
+        return true;
+    };
+    window.addEventListener('unhandledrejection', e => {
+        postLog('error', ['Unhandled promise rejection:', e.reason]);
+    });
+})();
+</script>`;
         },
     },
 };

@@ -4,11 +4,14 @@
     --primary-color: #cdd6f4;
     --secondary-color: #313244;
     --accent-color: #89b4fa;
+    --accent-hover: #a6caff;
     --border-color: #45475a;
     --header-bg: #181825;
     --error-color: #f38ba8;
     --warn-color: #fab387;
+    --success-color: #a6e3a1;
     --modal-bg: rgba(17, 17, 27, 0.75);
+    --transition-speed: 0.2s;
 }
 
 *, *::before, *::after {
@@ -171,7 +174,7 @@ body {
     border-radius: 4px;
     cursor: pointer;
     font-family: inherit;
-    transition: background-color 0.2s;
+    transition: background-color var(--transition-speed), color var(--transition-speed), border-color var(--transition-speed), box-shadow var(--transition-speed);
 }
 
 .btn {
@@ -182,7 +185,7 @@ body {
     font-weight: bold;
 }
 .btn:hover { 
-    background-color: #a6caff; 
+    background-color: var(--accent-hover); 
 }
 
 .clear-btn {
@@ -262,6 +265,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    transition: background-color var(--transition-speed);
 }
 .remove-file-btn:hover {
     background-color: rgba(243, 139, 168, 0.2);
@@ -398,7 +402,7 @@ body {
     transition: background-color 0.2s;
 }
 .toggle-console-btn:hover {
-    background-color: #a6caff;
+    background-color: var(--accent-hover);
 }
 .toggle-console-btn.active {
     background-color: var(--warn-color);
@@ -619,6 +623,7 @@ body {
     align-items: center;
     justify-content: center;
     border-radius: 4px;
+    transition: color var(--transition-speed), background-color var(--transition-speed);
 }
 .close-btn:hover { 
     color: var(--accent-color); 
@@ -640,7 +645,7 @@ body {
     transition: background-color 0.2s ease;
 }
 .save-btn:hover {
-    background: #a6caff;
+    background: var(--accent-hover);
 }
 
 #preview-frame {
@@ -1156,9 +1161,9 @@ body {
 
 /* Apply changes button */
 .apply-changes-btn {
-    background-color: #a6e3a1 !important;
+    background-color: var(--success-color) !important;
     color: var(--bg-color) !important;
-    border-color: #a6e3a1 !important;
+    border-color: var(--success-color) !important;
 }
 
 .apply-changes-btn:hover {
