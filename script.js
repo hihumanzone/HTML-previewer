@@ -581,6 +581,10 @@ const CodePreviewer = {
         });
         
         document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                this.renderPreview('modal');
+            }
             if (e.key === 'Escape' && this.dom.modalOverlay.getAttribute('aria-hidden') === 'false') {
                 this.toggleModal(false);
             }
@@ -3360,26 +3364,27 @@ const CodePreviewer = {
         },
 
         mediaPreviewContent(type, content, fileName) {
+            const safeFileName = CodePreviewer.escapeHtmlAttribute(fileName);
             const containers = {
                 image: `<div class="media-preview-container">
-                    <img src="${content}" alt="${fileName}">
+                    <img src="${content}" alt="${safeFileName}">
                 </div>`,
                 audio: `<div class="media-preview-container">
-                    <h3>${fileName}</h3>
+                    <h3>${safeFileName}</h3>
                     <audio controls>
                         <source src="${content}">
                         Your browser does not support the audio element.
                     </audio>
                 </div>`,
                 video: `<div class="media-preview-container">
-                    <h3>${fileName}</h3>
+                    <h3>${safeFileName}</h3>
                     <video controls>
                         <source src="${content}">
                         Your browser does not support the video element.
                     </video>
                 </div>`,
                 pdf: `<div class="media-preview-container">
-                    <h3>${fileName}</h3>
+                    <h3>${safeFileName}</h3>
                     <object data="${content}" type="application/pdf">
                         <p>PDF failed to load. <a href="${content}" target="_blank">Open in new tab</a></p>
                     </object>
@@ -3387,12 +3392,12 @@ const CodePreviewer = {
                 svg: (content, fileName, isBinary) => {
                     const svgDataUrl = isBinary ? content : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(content)}`;
                     return `<div class="media-preview-container">
-                        <h3>${fileName}</h3>
-                        <img src="${svgDataUrl}" alt="${fileName}">
+                        <h3>${safeFileName}</h3>
+                        <img src="${svgDataUrl}" alt="${safeFileName}">
                     </div>`;
                 },
                 default: `<div class="media-preview-container">
-                    <h3>${fileName}</h3>
+                    <h3>${safeFileName}</h3>
                     <p>Preview not available for this file type.</p>
                 </div>`
             };
@@ -3404,42 +3409,34 @@ const CodePreviewer = {
     // NOTIFICATION SYSTEM
     // ============================================================================
     notificationSystem: {
+        container: null,
+
+        getContainer() {
+            if (!this.container) {
+                this.container = document.createElement('div');
+                this.container.className = 'notification-container';
+                document.body.appendChild(this.container);
+            }
+            return this.container;
+        },
+
         show(message, type = 'info') {
-            let notification = document.getElementById('notification');
-            if (!notification) {
-                notification = document.createElement('div');
-                notification.id = 'notification';
-                notification.style.cssText = `
-                    position: fixed; top: 20px; right: 20px; background: var(--secondary-color);
-                    color: var(--primary-color); padding: 1rem; border-radius: 8px;
-                    border: 1px solid var(--border-color); z-index: 2000; opacity: 0;
-                    transform: translateX(100%); transition: all 0.3s ease; max-width: 300px;
-                    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-                `;
-                document.body.appendChild(notification);
-            }
-            
+            const container = this.getContainer();
+
+            const notification = document.createElement('div');
+            notification.className = `notification notification-${type}`;
             notification.textContent = message;
-            notification.className = `notification-${type}`;
-            
-            const colors = {
-                success: { border: 'var(--accent-color)', bg: 'rgba(137, 180, 250, 0.1)' },
-                warn: { border: 'var(--warn-color)', bg: 'rgba(250, 179, 135, 0.1)' },
-                error: { border: 'var(--error-color)', bg: 'rgba(243, 139, 168, 0.1)' }
+
+            container.appendChild(notification);
+
+            const dismiss = () => {
+                notification.classList.add('notification-hiding');
+                notification.addEventListener('animationend', () => {
+                    notification.remove();
+                }, { once: true });
             };
-            
-            if (colors[type]) {
-                notification.style.borderColor = colors[type].border;
-                notification.style.background = colors[type].bg;
-            }
-            
-            notification.style.opacity = '1';
-            notification.style.transform = 'translateX(0)';
-            
-            setTimeout(() => {
-                notification.style.opacity = '0';
-                notification.style.transform = 'translateX(100%)';
-            }, 3000);
+
+            setTimeout(dismiss, 3000);
         }
     },
 

@@ -185,23 +185,6 @@ body {
     background-color: #a6caff; 
 }
 
-.add-file-btn, .import-file-btn {
-    background-color: var(--accent-color);
-    color: var(--bg-color);
-    padding: 0.5rem 1rem;
-    font-size: 0.9rem;
-}
-.add-file-btn:hover, .import-file-btn:hover {
-    background-color: #a6caff;
-}
-
-.import-file-btn {
-    background-color: #fab387;
-}
-.import-file-btn:hover {
-    background-color: #fcc78a;
-}
-
 .clear-btn {
     background-color: transparent;
     border: 1px solid var(--border-color);
@@ -1389,4 +1372,74 @@ body {
     background-color: #dc2626;
     border-color: #dc2626;
     box-shadow: 0 2px 8px rgba(243, 139, 168, 0.4);
+}
+
+/* ==========================================================================
+   NOTIFICATION SYSTEM
+   ========================================================================== */
+
+.notification-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-width: 350px;
+    pointer-events: none;
+}
+
+.notification {
+    background: var(--secondary-color);
+    color: var(--primary-color);
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    pointer-events: auto;
+    animation: notification-slide-in 0.3s ease forwards;
+    font-size: 0.85rem;
+    line-height: 1.4;
+}
+
+.notification.notification-hiding {
+    animation: notification-slide-out 0.3s ease forwards;
+}
+
+.notification-success {
+    border-color: var(--accent-color);
+    background: rgba(137, 180, 250, 0.1);
+}
+
+.notification-warn {
+    border-color: var(--warn-color);
+    background: rgba(250, 179, 135, 0.1);
+}
+
+.notification-error {
+    border-color: var(--error-color);
+    background: rgba(243, 139, 168, 0.1);
+}
+
+@keyframes notification-slide-in {
+    from {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes notification-slide-out {
+    from {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(100%);
+    }
 }
