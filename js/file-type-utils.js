@@ -56,7 +56,7 @@ export function getMimeTypeFromFileType(fileType) {
  * @returns {boolean} True if binary extension
  */
 export function isBinaryExtension(extension) {
-    return BINARY_EXTENSIONS.includes(extension);
+    return BINARY_EXTENSIONS.has(extension);
 }
 
 /**
