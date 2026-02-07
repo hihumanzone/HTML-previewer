@@ -18,55 +18,7 @@
         </header>
 
         <main class="main-content">
-            <div class="mode-selector">
-                <div class="mode-selector-header">Input Mode</div>
-                <div class="mode-options">
-                    <label class="mode-option">
-                        <input type="radio" name="editor-mode" value="single" id="single-mode-radio" checked>
-                        <span>Single-File Mode</span>
-                        <small>Complete HTML with embedded CSS and JavaScript</small>
-                    </label>
-                    <label class="mode-option">
-                        <input type="radio" name="editor-mode" value="multi" id="multi-mode-radio">
-                        <span>Multi-File Mode</span>
-                        <small>Separate files for HTML, CSS, and JavaScript</small>
-                    </label>
-                </div>
-            </div>
-
-            <div id="single-file-container" class="editor-container">
-                <div class="editor-panel">
-                    <div class="panel-header">
-                        <span>Complete HTML Document</span>
-                    </div>
-                    <div class="editor-toolbar">
-                        <button class="toolbar-btn clear-btn" aria-label="Clear content" title="Clear">
-                            <span class="btn-icon">🗑️</span> Clear
-                        </button>
-                        <button class="toolbar-btn paste-btn" aria-label="Paste from clipboard" title="Paste">
-                            <span class="btn-icon">📋</span> Paste
-                        </button>
-                        <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
-                            <span class="btn-icon">📄</span> Copy
-                        </button>
-                        <button class="toolbar-btn expand-btn" aria-label="Expand code view" title="Expand">
-                            <span class="btn-icon">🔍</span> Expand
-                        </button>
-                        <button class="toolbar-btn export-btn" aria-label="Export file" title="Export">
-                            <span class="btn-icon">💾</span> Export
-                        </button>
-                        <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
-                            <span class="btn-icon">📁</span> Collapse
-                        </button>
-                    </div>
-                    <label for="single-file-editor" class="sr-only">Complete HTML Code Editor</label>
-                    <div class="editor-wrapper">
-                        <textarea id="single-file-editor"></textarea>
-                    </div>
-                </div>
-            </div>
-
-            <div id="multi-file-container" class="editor-container" style="display: none;">
+            <div id="multi-file-container" class="editor-container">
                 <div class="files-header">
                     <span>Files</span>
                     <div class="files-header-buttons">

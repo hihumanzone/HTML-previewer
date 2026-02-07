@@ -68,7 +68,6 @@ export function initEditors(dom) {
         html: null,
         css: null,
         js: null,
-        singleFile: null
     };
 
     if (typeof window.CodeMirror === 'undefined') {
@@ -76,7 +75,6 @@ export function initEditors(dom) {
         editors.html = createMockEditor(dom.htmlEditor);
         editors.css = createMockEditor(dom.cssEditor);
         editors.js = createMockEditor(dom.jsEditor);
-        editors.singleFile = createMockEditor(dom.singleFileEditor);
     } else {
         if (dom.htmlEditor) {
             editors.html = window.CodeMirror.fromTextArea(dom.htmlEditor, createEditorConfig('htmlmixed'));
@@ -86,9 +84,6 @@ export function initEditors(dom) {
         }
         if (dom.jsEditor) {
             editors.js = window.CodeMirror.fromTextArea(dom.jsEditor, createEditorConfig('javascript'));
-        }
-        if (dom.singleFileEditor) {
-            editors.singleFile = window.CodeMirror.fromTextArea(dom.singleFileEditor, createEditorConfig('htmlmixed'));
         }
     }
 
@@ -109,28 +104,6 @@ function setDefaultContent(editors) {
     }
     if (editors.js) {
         editors.js.setValue(DEFAULT_CONTENT.js);
-    }
-
-    const singleFileContent = `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Page</title>
-    <style>
-${DEFAULT_CONTENT.css}
-    </style>
-</head>
-<body>
-    ${DEFAULT_CONTENT.html}
-    <script>
-${DEFAULT_CONTENT.js}
-    </script>
-</body>
-</html>`;
-    
-    if (editors.singleFile) {
-        editors.singleFile.setValue(singleFileContent);
     }
 }
 
@@ -160,16 +133,11 @@ export function createEditorForTextarea(textarea, fileType, isBinary = false) {
 /**
  * Refresh all editors
  * @param {Object} editors - Editor instances
- * @param {string} mode - Current mode ('single' or 'multi')
  */
-export function refreshEditors(editors, mode) {
+export function refreshEditors(editors) {
     setTimeout(() => {
-        if (mode === 'single' && editors.singleFile) {
-            editors.singleFile.refresh();
-        } else {
-            Object.values(editors).forEach(editor => {
-                if (editor && editor.refresh) editor.refresh();
-            });
-        }
+        Object.values(editors).forEach(editor => {
+            if (editor && editor.refresh) editor.refresh();
+        });
     }, 100);
 }
