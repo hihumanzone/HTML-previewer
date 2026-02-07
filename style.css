@@ -296,7 +296,6 @@ body {
     opacity: 0;
     transition: opacity 0.3s ease;
     pointer-events: none;
-    z-index: 1;
 }
 
 .editor-panel:hover {
@@ -871,14 +870,9 @@ body {
 /* Disable hover effects while dragging */
 .editor-panel.dragging:hover {
     transform: rotate(2deg);
-    box-shadow: 
-        0 4px 16px rgba(0, 0, 0, 0.3),
-        0 1px 3px rgba(0, 0, 0, 0.2),
-        inset 0 1px 0 rgba(137, 180, 250, 0.1);
-    border-color: rgba(137, 180, 250, 0.2);
 }
 
-.editor-panel.dragging:hover::before {
+.editor-panel.dragging::before {
     opacity: 0;
 }
 
