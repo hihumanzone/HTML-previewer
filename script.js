@@ -1974,6 +1974,7 @@ const CodePreviewer = {
         });
         this.updateRemoveButtonsVisibility();
         this.updateMainHtmlSelector();
+        this.renderFileTree();
     },
 
     bindToolbarEvents(panel) {
