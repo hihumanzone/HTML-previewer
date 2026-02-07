@@ -27,12 +27,11 @@ const CodePreviewer = {
     // APPLICATION STATE
     // ============================================================================
     state: {
-        mode: 'single',
+        mode: 'multi',
         editors: {
             html: null,
             css: null,
             js: null,
-            singleFile: null,
         },
         files: [],
         folders: [],
@@ -63,15 +62,12 @@ const CodePreviewer = {
             HTML: 'html-editor',
             CSS: 'css-editor',
             JS: 'js-editor',
-            SINGLE_FILE: 'single-file-editor',
         },
         CONTROL_IDS: {
             MODAL_BTN: 'preview-modal-btn',
             TAB_BTN: 'preview-tab-btn',
             CLEAR_CONSOLE_BTN: 'clear-console-btn',
             TOGGLE_CONSOLE_BTN: 'toggle-console-btn',
-            SINGLE_MODE_RADIO: 'single-mode-radio',
-            MULTI_MODE_RADIO: 'multi-mode-radio',
             ADD_FILE_BTN: 'add-file-btn',
             ADD_FOLDER_BTN: 'add-folder-btn',
             CLEAR_ALL_FILES_BTN: 'clear-all-files-btn',
@@ -81,7 +77,6 @@ const CodePreviewer = {
             MAIN_HTML_SELECT: 'main-html-select',
         },
         CONTAINER_IDS: {
-            SINGLE_FILE: 'single-file-container',
             MULTI_FILE: 'multi-file-container',
             FILE_TREE: 'file-tree-container',
         },
@@ -423,7 +418,6 @@ const CodePreviewer = {
         this.initEditors();
         this.bindEvents();
         this.bindFileTreeEvents();
-        this.initModeToggle();
         this.initExistingFilePanels();
         this.console.init(this.dom.consoleOutput, this.dom.clearConsoleBtn, this.dom.previewFrame);
     },
@@ -434,15 +428,10 @@ const CodePreviewer = {
             htmlEditor: document.getElementById(EDITOR_IDS.HTML),
             cssEditor: document.getElementById(EDITOR_IDS.CSS),
             jsEditor: document.getElementById(EDITOR_IDS.JS),
-            singleFileEditor: document.getElementById(EDITOR_IDS.SINGLE_FILE),
             modalBtn: document.getElementById(CONTROL_IDS.MODAL_BTN),
             tabBtn: document.getElementById(CONTROL_IDS.TAB_BTN),
             clearConsoleBtn: document.getElementById(CONTROL_IDS.CLEAR_CONSOLE_BTN),
             toggleConsoleBtn: document.getElementById(CONTROL_IDS.TOGGLE_CONSOLE_BTN),
-            singleModeRadio: document.getElementById(CONTROL_IDS.SINGLE_MODE_RADIO),
-            multiModeRadio: document.getElementById(CONTROL_IDS.MULTI_MODE_RADIO),
-            singleModeOption: document.querySelector('label[for="single-mode-radio"]') || this.getSafeParentElement(CONTROL_IDS.SINGLE_MODE_RADIO),
-            multiModeOption: document.querySelector('label[for="multi-mode-radio"]') || this.getSafeParentElement(CONTROL_IDS.MULTI_MODE_RADIO),
             addFileBtn: document.getElementById(CONTROL_IDS.ADD_FILE_BTN),
             addFolderBtn: document.getElementById(CONTROL_IDS.ADD_FOLDER_BTN),
             clearAllFilesBtn: document.getElementById(CONTROL_IDS.CLEAR_ALL_FILES_BTN),
@@ -451,7 +440,6 @@ const CodePreviewer = {
             exportZipBtn: document.getElementById(CONTROL_IDS.EXPORT_ZIP_BTN),
             mainHtmlSelect: document.getElementById(CONTROL_IDS.MAIN_HTML_SELECT),
             mainHtmlSelector: document.getElementById('main-html-selector'),
-            singleFileContainer: document.getElementById(CONTAINER_IDS.SINGLE_FILE),
             multiFileContainer: document.getElementById(CONTAINER_IDS.MULTI_FILE),
             fileTreeContainer: document.getElementById(CONTAINER_IDS.FILE_TREE),
             modalOverlay: document.getElementById(MODAL_IDS.OVERLAY),
@@ -501,9 +489,6 @@ const CodePreviewer = {
         if (this.dom.jsEditor) {
             this.state.editors.js = window.CodeMirror.fromTextArea(this.dom.jsEditor, editorConfig('javascript'));
         }
-        if (this.dom.singleFileEditor) {
-            this.state.editors.singleFile = window.CodeMirror.fromTextArea(this.dom.singleFileEditor, editorConfig('htmlmixed'));
-        }
 
         this.setDefaultContent();
     },
@@ -529,7 +514,6 @@ const CodePreviewer = {
         this.state.editors.html = createMockEditor(this.dom.htmlEditor);
         this.state.editors.css = createMockEditor(this.dom.cssEditor);
         this.state.editors.js = createMockEditor(this.dom.jsEditor);
-        this.state.editors.singleFile = createMockEditor(this.dom.singleFileEditor);
 
         this.setDefaultContent();
     },
@@ -547,28 +531,6 @@ const CodePreviewer = {
         }
         if (this.state.editors.js) {
             this.state.editors.js.setValue(initialJS);
-        }
-
-        const singleFileContent = '<!DOCTYPE html>\n' +
-            '<html lang="en">\n' +
-            '<head>\n' +
-            '    <meta charset="UTF-8">\n' +
-            '    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
-            '    <title>My Page</title>\n' +
-            '    <style>\n' +
-            initialCSS + '\n' +
-            '    </style>\n' +
-            '</head>\n' +
-            '<body>\n' +
-            '    ' + initialHTML + '\n' +
-            '    <script>\n' +
-            initialJS + '\n' +
-            '    </script>\n' +
-            '</body>\n' +
-            '</html>';
-        
-        if (this.state.editors.singleFile) {
-            this.state.editors.singleFile.setValue(singleFileContent);
         }
     },
 
@@ -631,20 +593,6 @@ const CodePreviewer = {
             });
         }
 
-        this.dom.singleModeRadio.addEventListener('change', () => this.switchMode('single'));
-        this.dom.multiModeRadio.addEventListener('change', () => this.switchMode('multi'));
-        
-        this.dom.singleModeOption.addEventListener('click', (e) => {
-            e.preventDefault();
-            this.dom.singleModeRadio.checked = true;
-            this.switchMode('single');
-        });
-        this.dom.multiModeOption.addEventListener('click', (e) => {
-            e.preventDefault();
-            this.dom.multiModeRadio.checked = true;
-            this.switchMode('multi');
-        });
-        
         this.dom.addFileBtn.addEventListener('click', () => this.addNewFile());
         if (this.dom.addFolderBtn) {
             this.dom.addFolderBtn.addEventListener('click', () => this.addNewFolder());
@@ -658,37 +606,6 @@ const CodePreviewer = {
         this.dom.mainHtmlSelect.addEventListener('change', (e) => {
             this.state.mainHtmlFile = e.target.value;
         });
-    },
-
-    initModeToggle() {
-        if (this.dom.singleModeRadio.checked) {
-            this.switchMode('single');
-        } else if (this.dom.multiModeRadio.checked) {
-            this.switchMode('multi');
-        }
-    },
-
-    switchMode(mode) {
-        this.state.mode = mode;
-        
-        if (mode === 'single') {
-            this.dom.singleFileContainer.style.display = 'flex';
-            this.dom.multiFileContainer.style.display = 'none';
-        } else {
-            this.dom.singleFileContainer.style.display = 'none';
-            this.dom.multiFileContainer.style.display = 'flex';
-            this.renderFileTree();
-        }
-
-        setTimeout(() => {
-            if (mode === 'single' && this.state.editors.singleFile) {
-                this.state.editors.singleFile.refresh();
-            } else {
-                Object.values(this.state.editors).forEach(editor => {
-                    if (editor && editor.refresh) editor.refresh();
-                });
-            }
-        }, 100);
     },
 
     isModuleFile(content, filename) {
@@ -2045,11 +1962,6 @@ const CodePreviewer = {
         });
         this.updateRemoveButtonsVisibility();
         this.updateMainHtmlSelector();
-        
-        const singleFilePanel = document.querySelector('#single-file-container .editor-panel');
-        if (singleFilePanel) {
-            this.bindToolbarEvents(singleFilePanel);
-        }
     },
 
     bindToolbarEvents(panel) {
@@ -2128,21 +2040,16 @@ const CodePreviewer = {
             let fileName = 'untitled.txt';
             let mimeType = 'text/plain';
 
-            if (panel.closest('#single-file-container')) {
-                fileName = 'index.html';
-                mimeType = 'text/html';
+            const fileNameInput = panel.querySelector('.file-name-input');
+            const fileType = panel.dataset.fileType;
+            
+            if (fileNameInput && fileNameInput.value.trim()) {
+                fileName = fileNameInput.value.trim();
             } else {
-                const fileNameInput = panel.querySelector('.file-name-input');
-                const fileType = panel.dataset.fileType;
-                
-                if (fileNameInput && fileNameInput.value.trim()) {
-                    fileName = fileNameInput.value.trim();
-                } else {
-                    fileName = 'untitled' + (this.constants.FILE_TYPES.DEFAULT_EXTENSIONS[fileType] || '.txt');
-                }
-
-                mimeType = this.fileTypeUtils.getMimeTypeFromFileType(fileType) || 'text/plain';
+                fileName = 'untitled' + (this.constants.FILE_TYPES.DEFAULT_EXTENSIONS[fileType] || '.txt');
             }
+
+            mimeType = this.fileTypeUtils.getMimeTypeFromFileType(fileType) || 'text/plain';
 
             const blob = new Blob([content], { type: mimeType });
             const url = URL.createObjectURL(blob);
@@ -2181,24 +2088,19 @@ const CodePreviewer = {
         let fileName = 'Code';
         let language = 'text';
 
-        if (panel.closest('#single-file-container')) {
-            fileName = 'Complete HTML Document';
+        const fileNameInput = panel.querySelector('.file-name-input');
+        const fileType = panel.dataset.fileType;
+        
+        if (fileNameInput) {
+            fileName = fileNameInput.value || 'Untitled';
+        }
+        
+        if (fileType === 'html') {
             language = 'htmlmixed';
-        } else {
-            const fileNameInput = panel.querySelector('.file-name-input');
-            const fileType = panel.dataset.fileType;
-            
-            if (fileNameInput) {
-                fileName = fileNameInput.value || 'Untitled';
-            }
-            
-            if (fileType === 'html') {
-                language = 'htmlmixed';
-            } else if (fileType === 'css') {
-                language = 'css';
-            } else if (fileType === 'javascript' || fileType === 'javascript-module') {
-                language = 'javascript';
-            }
+        } else if (fileType === 'css') {
+            language = 'css';
+        } else if (fileType === 'javascript' || fileType === 'javascript-module') {
+            language = 'javascript';
         }
 
         this.openCodeModal(content, fileName, language, panel);
@@ -2380,10 +2282,6 @@ const CodePreviewer = {
     },
 
     getEditorFromPanel(panel) {
-        if (panel.closest('#single-file-container')) {
-            return this.state.editors.singleFile;
-        }
-        
         const textarea = panel.querySelector('textarea');
         if (textarea) {
             const textareaId = textarea.id;
@@ -2403,28 +2301,6 @@ const CodePreviewer = {
 
     showNotification(message, type = 'info') {
         this.notificationSystem.show(message, type);
-    },
-
-    generateSingleFilePreview() {
-        const singleFileContent = this.state.editors.singleFile ? this.state.editors.singleFile.getValue() : '';
-        const captureScript = this.console.getCaptureScript(null, 'index.html');
-        
-        if (singleFileContent.includes('</head>')) {
-            return singleFileContent.replace('</head>', captureScript + '\n</head>');
-        } else {
-            return '<!DOCTYPE html>\n' +
-                '<html lang="en">\n' +
-                '<head>\n' +
-                '    <meta charset="UTF-8">\n' +
-                '    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
-                '    <title>Live Preview</title>\n' +
-                '    ' + captureScript + '\n' +
-                '</head>\n' +
-                '<body>\n' +
-                '    ' + singleFileContent + '\n' +
-                '</body>\n' +
-                '</html>';
-        }
     },
 
     extractHTMLContent(content) {
@@ -2821,9 +2697,6 @@ const CodePreviewer = {
     },
 
     generatePreviewContent() {
-        if (this.state.mode === 'single') {
-            return this.generateSingleFilePreview();
-        }
         return this.generateMultiFilePreview();
     },
 

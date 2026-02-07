@@ -7,7 +7,6 @@ export const EDITOR_IDS = {
     HTML: 'html-editor',
     CSS: 'css-editor',
     JS: 'js-editor',
-    SINGLE_FILE: 'single-file-editor',
 };
 
 export const CONTROL_IDS = {
@@ -15,8 +14,6 @@ export const CONTROL_IDS = {
     TAB_BTN: 'preview-tab-btn',
     CLEAR_CONSOLE_BTN: 'clear-console-btn',
     TOGGLE_CONSOLE_BTN: 'toggle-console-btn',
-    SINGLE_MODE_RADIO: 'single-mode-radio',
-    MULTI_MODE_RADIO: 'multi-mode-radio',
     ADD_FILE_BTN: 'add-file-btn',
     ADD_FOLDER_BTN: 'add-folder-btn',
     IMPORT_FILE_BTN: 'import-file-btn',
@@ -26,7 +23,6 @@ export const CONTROL_IDS = {
 };
 
 export const CONTAINER_IDS = {
-    SINGLE_FILE: 'single-file-container',
     MULTI_FILE: 'multi-file-container',
     FILE_TREE: 'file-tree-container',
 };
