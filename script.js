@@ -543,6 +543,18 @@ const CodePreviewer = {
             if (e.target === this.dom.modalOverlay) this.toggleModal(false);
         });
         
+        // Enable drag-and-drop for the editor grid container
+        if (this.dom.editorGrid) {
+            this.dom.editorGrid.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+            });
+            
+            this.dom.editorGrid.addEventListener('drop', (e) => {
+                e.preventDefault();
+            });
+        }
+        
         document.addEventListener('keydown', (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                 e.preventDefault();
