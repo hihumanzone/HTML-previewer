@@ -864,7 +864,6 @@ body {
 .editor-panel.dragging {
     opacity: 0.5;
     transform: rotate(2deg);
-    pointer-events: none;
 }
 
 /* Disable hover effects while dragging */
