@@ -148,7 +148,7 @@ const CodePreviewer = {
                 'json': 'application/json', 'xml': 'application/xml'
             },
             
-            BINARY_EXTENSIONS: [
+            BINARY_EXTENSIONS: new Set([
                 'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'ico', 'tiff',
                 'mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'wma',
                 'mp4', 'webm', 'mov', 'avi', 'mkv', 'wmv', 'flv', 'm4v',
@@ -156,7 +156,7 @@ const CodePreviewer = {
                 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
                 'zip', 'rar', '7z', 'tar', 'gz',
                 'exe', 'dll', 'so', 'dylib'
-            ],
+            ]),
             
             EDITABLE_TYPES: ['html', 'css', 'javascript', 'javascript-module', 'json', 'xml', 'markdown', 'text', 'svg'],
             PREVIEWABLE_TYPES: ['html', 'css', 'javascript', 'javascript-module', 'json', 'xml', 'markdown', 'text', 'svg', 'image', 'audio', 'video', 'pdf'],
@@ -202,7 +202,7 @@ const CodePreviewer = {
         },
 
         isBinaryExtension(extension) {
-            return CodePreviewer.constants.FILE_TYPES.BINARY_EXTENSIONS.includes(extension);
+            return CodePreviewer.constants.FILE_TYPES.BINARY_EXTENSIONS.has(extension);
         },
 
         isBinaryFile(filename, mimeType) {
@@ -1066,15 +1066,6 @@ const CodePreviewer = {
         this.updateMainHtmlSelector();
     },
 
-    /**
-     * Select and scroll to a file in the editor
-     * @param {string} fileId - The file ID to select
-     * @deprecated Use openPanel() instead
-     */
-    selectFileInEditor(fileId) {
-        this.openPanel(fileId);
-    },
-
     addNewFile(folderPath) {
         const fileId = `file-${this.state.nextFileId++}`;
         const fileName = folderPath ? `${folderPath}/newfile.html` : 'newfile.html';
@@ -1341,20 +1332,16 @@ const CodePreviewer = {
             const reader = new FileReader();
             reader.onload = (e) => resolve({
                 content: e.target.result,
-                isBinary: this.isBinaryFile(file.name, file.type)
+                isBinary: this.fileTypeUtils.isBinaryFile(file.name, file.type)
             });
             reader.onerror = (e) => reject(e);
             
-            if (this.isBinaryFile(file.name, file.type)) {
+            if (this.fileTypeUtils.isBinaryFile(file.name, file.type)) {
                 reader.readAsDataURL(file);
             } else {
                 reader.readAsText(file);
             }
         });
-    },
-
-    isBinaryFile(filename, mimeType) {
-        return this.fileTypeUtils.isBinaryFile(filename, mimeType);
     },
 
     addNewFileWithContent(fileName, fileType, content, isBinary = false) {
@@ -1651,7 +1638,7 @@ const CodePreviewer = {
         
         if (removeBtn) {
             removeBtn.addEventListener('click', () => {
-                this.removeFile(fileId);
+                this.closePanel(fileId);
             });
         }
 
@@ -2003,14 +1990,6 @@ const CodePreviewer = {
         this.renderFileTree();
 
         this.showNotification('All files cleared successfully', 'success');
-    },
-
-    /**
-     * @deprecated Use closePanel() instead - this now calls closePanel for backwards compatibility
-     */
-    removeFile(fileId) {
-        // Changed to close panel instead of delete
-        this.closePanel(fileId);
     },
 
     updateRemoveButtonsVisibility() {
@@ -2585,26 +2564,6 @@ const CodePreviewer = {
         return fileSystem;
     },
 
-    getMimeTypeFromFileType(fileType) {
-        return this.fileTypeUtils.getMimeTypeFromFileType(fileType);
-    },
-
-    /**
-     * Resolves a relative path - delegates to fileSystemUtils
-     * @deprecated Use fileSystemUtils.resolvePath() directly
-     */
-    resolvePath(basePath, relativePath) {
-        return this.fileSystemUtils.resolvePath(basePath, relativePath);
-    },
-
-    /**
-     * Finds a file in the virtual file system - delegates to fileSystemUtils
-     * @deprecated Use fileSystemUtils.findFile() directly
-     */
-    findFileInSystem(fileSystem, targetFilename, currentFilePath = '') {
-        return this.fileSystemUtils.findFile(fileSystem, targetFilename, currentFilePath);
-    },
-
     extractWorkerFileNames(htmlContent) {
         const workerMatches = htmlContent.match(/new\s+Worker\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/gi) || [];
         return workerMatches.map(match => {
@@ -2618,7 +2577,7 @@ const CodePreviewer = {
         
         let script = '<script>\n';
         workerFileNames.forEach(fileName => {
-            const file = this.findFileInSystem(fileSystem, fileName, currentFilePath);
+            const file = this.fileSystemUtils.findFile(fileSystem, fileName, currentFilePath);
             if (file && (file.type === 'javascript' || file.type === 'javascript-module')) {
                 const blobVar = 'workerBlob_' + fileName.replace(/[^a-zA-Z0-9]/g, '_');
                 const urlVar = 'workerUrl_' + fileName.replace(/[^a-zA-Z0-9]/g, '_');
@@ -2671,7 +2630,7 @@ const CodePreviewer = {
 
     replaceCSSAssetReferences(cssContent, fileSystem, currentFilePath = '') {
         cssContent = cssContent.replace(/background-image\s*:\s*url\s*\(\s*["']?([^"')]+)["']?\s*\)/gi, (match, filename) => {
-            const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
+            const file = this.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
             if (file && (file.type === 'image' || file.type === 'svg')) {
                 const src = file.isBinary ? file.content : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(file.content)}`;
                 return `background-image: url("${src}")`;
@@ -2680,7 +2639,7 @@ const CodePreviewer = {
         });
         
         cssContent = cssContent.replace(/@font-face\s*{[^}]*src\s*:\s*url\s*\(\s*["']?([^"')]+)["']?\s*\)[^}]*}/gi, (match, filename) => {
-            const file = this.findFileInSystem(fileSystem, filename, currentFilePath);
+            const file = this.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
             if (file && file.type === 'font') {
                 return match.replace(filename, file.content);
             }
@@ -3210,18 +3169,18 @@ const CodePreviewer = {
                     }
                     
                     const extension = relativePath.split('.').pop().toLowerCase();
-                    const isBinary = this.isBinaryFile(relativePath, '');
+                    const isBinary = this.fileTypeUtils.isBinaryFile(relativePath, '');
                     let content;
                     
                     if (isBinary) {
                         const base64Content = await zipEntry.async('base64');
-                        const mimeType = this.getMimeTypeFromExtension(extension);
+                        const mimeType = this.fileTypeUtils.getMimeTypeFromExtension(extension);
                         content = `data:${mimeType};base64,${base64Content}`;
                     } else {
                         content = await zipEntry.async('string');
                     }
                     
-                    const fileType = this.getFileTypeFromExtension(extension);
+                    const fileType = this.fileTypeUtils.getTypeFromExtension(extension);
                     this.addNewFileWithContent(relativePath, fileType, content, isBinary);
                     importedCount++;
                 }
@@ -3233,14 +3192,6 @@ const CodePreviewer = {
                 this.showNotification('Failed to import ZIP file', 'error');
             }
         });
-    },
-    
-    getMimeTypeFromExtension(extension) {
-        return this.fileTypeUtils.getMimeTypeFromExtension(extension);
-    },
-    
-    getFileTypeFromExtension(extension) {
-        return this.fileTypeUtils.getTypeFromExtension(extension);
     },
 
     // ============================================================================
@@ -3769,10 +3720,16 @@ const CodePreviewer = {
                     };
                 });
                 const jsonString = JSON.stringify(fileObj);
-                const base64Data = btoa(unescape(encodeURIComponent(jsonString)));
+                const bytes = new TextEncoder().encode(jsonString);
+                const binaryChars = new Array(bytes.length);
+                for (let i = 0; i < bytes.length; i++) binaryChars[i] = String.fromCharCode(bytes[i]);
+                const base64Data = btoa(binaryChars.join(''));
                 fileSystemScript = `
                     const virtualFileSystemData = "${base64Data}";
-                    const virtualFileSystem = JSON.parse(decodeURIComponent(escape(atob(virtualFileSystemData))));
+                    const rawBytes = atob(virtualFileSystemData);
+                    const bytes = new Uint8Array(rawBytes.length);
+                    for (let i = 0; i < rawBytes.length; i++) bytes[i] = rawBytes.charCodeAt(i);
+                    const virtualFileSystem = JSON.parse(new TextDecoder().decode(bytes));
                     const mainHtmlPath = "${mainHtmlPath}";
                 `;
             } else {

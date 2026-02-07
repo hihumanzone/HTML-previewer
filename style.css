@@ -174,7 +174,7 @@ body {
     border-radius: 4px;
     cursor: pointer;
     font-family: inherit;
-    transition: background-color var(--transition-speed), color var(--transition-speed), border-color var(--transition-speed), box-shadow var(--transition-speed);
+    transition: background-color var(--transition-speed), color var(--transition-speed), border-color var(--transition-speed), box-shadow var(--transition-speed), transform var(--transition-speed);
 }
 
 .btn {
@@ -185,7 +185,9 @@ body {
     font-weight: bold;
 }
 .btn:hover { 
-    background-color: var(--accent-hover); 
+    background-color: var(--accent-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(137, 180, 250, 0.3);
 }
 
 .clear-btn {
@@ -285,6 +287,7 @@ body {
     display: flex;
     flex-direction: column;
     background-color: var(--header-bg);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 /* Prevent collapsed panels from stretching */
@@ -451,7 +454,6 @@ body {
     background-color: var(--bg-color);
 }
 
-#console-output .log-message:last-child { border-bottom: none; }
 #console-output .log-type-log { color: var(--primary-color); }
 #console-output .log-type-info { color: var(--accent-color); }
 #console-output .log-type-error { color: var(--error-color); }
@@ -1160,27 +1162,27 @@ body {
    ========================================================================== */
 
 /* Apply changes button */
-.apply-changes-btn {
-    background-color: var(--success-color) !important;
-    color: var(--bg-color) !important;
-    border-color: var(--success-color) !important;
+.editor-toolbar .toolbar-btn.apply-changes-btn {
+    background-color: var(--success-color);
+    color: var(--bg-color);
+    border-color: var(--success-color);
 }
 
-.apply-changes-btn:hover {
-    background-color: #7ed380 !important;
-    border-color: #7ed380 !important;
+.editor-toolbar .toolbar-btn.apply-changes-btn:hover {
+    background-color: #7ed380;
+    border-color: #7ed380;
 }
 
 /* Discard changes button */
-.discard-changes-btn {
-    background-color: var(--error-color) !important;
-    color: var(--bg-color) !important;
-    border-color: var(--error-color) !important;
+.editor-toolbar .toolbar-btn.discard-changes-btn {
+    background-color: var(--error-color);
+    color: var(--bg-color);
+    border-color: var(--error-color);
 }
 
-.discard-changes-btn:hover {
-    background-color: #e07d94 !important;
-    border-color: #e07d94 !important;
+.editor-toolbar .toolbar-btn.discard-changes-btn:hover {
+    background-color: #e07d94;
+    border-color: #e07d94;
 }
 
 /* Modified indicator on file name input */
@@ -1415,6 +1417,11 @@ body {
 .notification-success {
     border-color: var(--accent-color);
     background: rgba(137, 180, 250, 0.1);
+}
+
+.notification-info {
+    border-color: var(--accent-color);
+    background: rgba(137, 180, 250, 0.08);
 }
 
 .notification-warn {

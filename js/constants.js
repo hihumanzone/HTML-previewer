@@ -94,7 +94,7 @@ export const EXTENSION_MIME_MAP = {
     'json': 'application/json', 'xml': 'application/xml'
 };
 
-export const BINARY_EXTENSIONS = [
+export const BINARY_EXTENSIONS = new Set([
     'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'ico', 'tiff',
     'mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'wma',
     'mp4', 'webm', 'mov', 'avi', 'mkv', 'wmv', 'flv', 'm4v',
@@ -102,7 +102,7 @@ export const BINARY_EXTENSIONS = [
     'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
     'zip', 'rar', '7z', 'tar', 'gz',
     'exe', 'dll', 'so', 'dylib'
-];
+]);
 
 export const EDITABLE_TYPES = ['html', 'css', 'javascript', 'javascript-module', 'json', 'xml', 'markdown', 'text', 'svg'];
 export const PREVIEWABLE_TYPES = ['html', 'css', 'javascript', 'javascript-module', 'json', 'xml', 'markdown', 'text', 'svg', 'image', 'audio', 'video', 'pdf'];
