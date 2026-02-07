@@ -328,7 +328,7 @@ body {
     justify-content: flex-start;
     flex-wrap: wrap;
     gap: 0.5rem;
-    backdrop-filter: blur(10px);
+    backdrop-filter: blur(4px);
     position: relative;
 }
 
@@ -360,7 +360,7 @@ body {
     background: linear-gradient(180deg, rgba(49, 50, 68, 0.6) 0%, rgba(49, 50, 68, 0.8) 100%);
     border-bottom: 1px solid rgba(69, 71, 90, 0.5);
     flex-wrap: wrap;
-    backdrop-filter: blur(8px);
+    backdrop-filter: blur(3px);
 }
 
 .editor-wrapper {
