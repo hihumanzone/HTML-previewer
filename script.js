@@ -2089,7 +2089,6 @@ const CodePreviewer = {
         let language = 'text';
 
         const fileNameInput = panel.querySelector('.file-name-input');
-        const fileType = panel.dataset.fileType;
         
         if (fileNameInput) {
             fileName = fileNameInput.value || 'Untitled';
