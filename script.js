@@ -3720,10 +3720,16 @@ const CodePreviewer = {
                     };
                 });
                 const jsonString = JSON.stringify(fileObj);
-                const base64Data = btoa(new TextEncoder().encode(jsonString).reduce((s, b) => s + String.fromCharCode(b), ''));
+                const bytes = new TextEncoder().encode(jsonString);
+                const binaryChars = new Array(bytes.length);
+                for (let i = 0; i < bytes.length; i++) binaryChars[i] = String.fromCharCode(bytes[i]);
+                const base64Data = btoa(binaryChars.join(''));
                 fileSystemScript = `
                     const virtualFileSystemData = "${base64Data}";
-                    const virtualFileSystem = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(virtualFileSystemData), c => c.charCodeAt(0))));
+                    const rawBytes = atob(virtualFileSystemData);
+                    const bytes = new Uint8Array(rawBytes.length);
+                    for (let i = 0; i < rawBytes.length; i++) bytes[i] = rawBytes.charCodeAt(i);
+                    const virtualFileSystem = JSON.parse(new TextDecoder().decode(bytes));
                     const mainHtmlPath = "${mainHtmlPath}";
                 `;
             } else {
