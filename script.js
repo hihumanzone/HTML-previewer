@@ -840,10 +840,6 @@ const CodePreviewer = {
             const isExpanded = this.state.expandedFolders.has(folderPath);
             const childHtml = this.renderFolderContents(folder, folderPath);
 
-            if (!childHtml.trim()) {
-                return;
-            }
-
             html += `
                 <div class="tree-folder ${isExpanded ? 'expanded' : ''}" data-folder-path="${folderPath}">
                     <div class="tree-folder-header">
