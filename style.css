@@ -252,6 +252,9 @@ body {
 }
 
 .remove-file-btn {
+    position: absolute;
+    top: 0.55rem;
+    right: 0.65rem;
     background: rgba(243, 139, 168, 0.1);
     border: 1px solid rgba(243, 139, 168, 0.2);
     color: var(--error-color);
@@ -346,7 +349,7 @@ body {
 
 .panel-header {
     background: linear-gradient(180deg, rgba(24, 24, 37, 0.95) 0%, rgba(24, 24, 37, 0.8) 100%);
-    padding: 0.75rem 1.25rem;
+    padding: 0.75rem 3.2rem 0.75rem 1.25rem;
     font-weight: 600;
     font-size: 0.85rem;
     text-transform: uppercase;
@@ -1345,8 +1348,7 @@ body {
 
 /* Modified indicator on file tree item */
 .tree-file.file-modified .file-name {
-    color: var(--warn-color);
-    font-style: italic;
+    font-weight: 600;
 }
 
 .tree-file.file-modified::before {

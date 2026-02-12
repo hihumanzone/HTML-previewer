@@ -40,6 +40,7 @@ const CodePreviewer = {
         expandedFolders: new Set(),
         openPanels: new Set(), // Track which file panels are currently open/visible
         savedFileStates: {}, // Track saved states for files: { fileId: { content: string, fileName: string } }
+        modifiedFiles: new Set(),
         codeModalEditor: null,
         mainHtmlFile: '',
     },
@@ -833,8 +834,9 @@ const CodePreviewer = {
             const fileIcon = this.getFileIcon(file.type);
             const isOpen = this.state.openPanels.has(file.id);
             const openClass = isOpen ? 'file-open' : '';
+            const modifiedClass = this.state.modifiedFiles.has(file.id) ? 'file-modified' : '';
             html += `
-                <div class="tree-file ${openClass}" data-file-id="${file.id}">
+                <div class="tree-file ${openClass} ${modifiedClass}" data-file-id="${file.id}">
                     <span class="file-icon">${fileIcon}</span>
                     <span class="file-name">${file.displayName}</span>
                     <div class="file-actions">
@@ -1796,6 +1798,12 @@ const CodePreviewer = {
             if (discardBtn) discardBtn.style.display = 'none';
         }
         
+        if (isModified) {
+            this.state.modifiedFiles.add(fileId);
+        } else {
+            this.state.modifiedFiles.delete(fileId);
+        }
+
         // Update the file tree to show modified indicator
         this.updateFileTreeModifiedState(fileId, isModified);
     },
@@ -1809,14 +1817,6 @@ const CodePreviewer = {
         const treeFile = this.dom.fileTreeContainer?.querySelector(`.tree-file[data-file-id="${fileId}"]`);
         if (treeFile) {
             treeFile.classList.toggle('file-modified', isModified);
-            
-            // Update file name with modified indicator
-            const fileName = treeFile.querySelector('.file-name');
-            if (fileName) {
-                // Use consistent bullet character: • (U+2022)
-                const originalName = fileName.textContent.replace(/^• /, '');
-                fileName.textContent = isModified ? '• ' + originalName : originalName;
-            }
         }
     },
 
@@ -1959,6 +1959,7 @@ const CodePreviewer = {
         
         // Clean up saved state
         delete this.state.savedFileStates[fileId];
+        this.state.modifiedFiles.delete(fileId);
         
         if (fileId === 'default-html') {
             this.state.editors.html = null;
@@ -2008,6 +2009,7 @@ const CodePreviewer = {
         this.state.files = [];
         this.state.openPanels.clear();
         this.state.savedFileStates = {};
+        this.state.modifiedFiles.clear();
 
         // Clear default editors
         this.state.editors.html = null;
