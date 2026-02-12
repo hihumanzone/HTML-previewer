@@ -1441,6 +1441,33 @@ const CodePreviewer = {
         });
     },
 
+    importFolder() {
+        this._openFilePicker('*/*', true, async (fileList) => {
+            const files = Array.from(fileList);
+            if (files.length === 0) return;
+
+            const resolution = { action: null };
+            let importedCount = 0;
+            let skippedCount = 0;
+
+            for (const file of files) {
+                const relativePath = file.webkitRelativePath || file.name;
+                const result = await this._resolveImportConflict(relativePath, resolution);
+                if (result === 'skipped') {
+                    skippedCount++;
+                    continue;
+                }
+
+                const fileData = await this.readFileContent(file);
+                const detectedType = this.autoDetectFileType(relativePath, fileData.isBinary ? null : fileData.content, file.type);
+                this.addNewFileWithContent(relativePath, detectedType, fileData.content, fileData.isBinary);
+                importedCount++;
+            }
+
+            this._showImportSummary(importedCount, skippedCount, `Successfully imported folder (${importedCount} file(s))`);
+        }, { directory: true });
+    },
+
     readFileContent(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
