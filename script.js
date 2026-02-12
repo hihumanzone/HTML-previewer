@@ -441,6 +441,9 @@ const CodePreviewer = {
             exportZipBtn: document.getElementById(CONTROL_IDS.EXPORT_ZIP_BTN),
             mainHtmlSelect: document.getElementById(CONTROL_IDS.MAIN_HTML_SELECT),
             mainHtmlSelector: document.getElementById('main-html-selector'),
+            mainHtmlDropdown: document.getElementById('main-html-dropdown'),
+            mainHtmlDropdownTrigger: document.getElementById('main-html-dropdown-trigger'),
+            mainHtmlDropdownList: document.getElementById('main-html-dropdown-list'),
             multiFileContainer: document.getElementById(CONTAINER_IDS.MULTI_FILE),
             fileTreeContainer: document.getElementById(CONTAINER_IDS.FILE_TREE),
             modalOverlay: document.getElementById(MODAL_IDS.OVERLAY),
@@ -607,9 +610,7 @@ const CodePreviewer = {
         }
         this.dom.importZipBtn.addEventListener('click', () => this.importZip());
         this.dom.exportZipBtn.addEventListener('click', () => this.exportZip());
-        this.dom.mainHtmlSelect.addEventListener('change', (e) => {
-            this.state.mainHtmlFile = e.target.value;
-        });
+        this.setupMainHtmlDropdownEvents();
 
     },
 
@@ -3576,30 +3577,113 @@ const CodePreviewer = {
         }
     },
 
+    setupMainHtmlDropdownEvents() {
+        if (!this.dom.mainHtmlDropdownTrigger || !this.dom.mainHtmlDropdownList || !this.dom.mainHtmlDropdown) return;
+
+        this.dom.mainHtmlDropdownTrigger.addEventListener('click', () => {
+            this.toggleMainHtmlDropdown();
+        });
+
+        this.dom.mainHtmlDropdownList.addEventListener('click', (event) => {
+            const optionButton = event.target.closest('.main-html-dropdown-option');
+            if (!optionButton) return;
+            this.selectMainHtmlOption(optionButton.dataset.value || '');
+        });
+
+        document.addEventListener('click', (event) => {
+            if (!this.dom.mainHtmlDropdown.contains(event.target)) {
+                this.closeMainHtmlDropdown();
+            }
+        });
+
+        this.dom.mainHtmlDropdownTrigger.addEventListener('keydown', (event) => {
+            if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                this.openMainHtmlDropdown();
+            }
+        });
+
+        this.dom.mainHtmlDropdownList.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                this.closeMainHtmlDropdown(true);
+            }
+        });
+    },
+
+    toggleMainHtmlDropdown() {
+        if (!this.dom.mainHtmlDropdownList || !this.dom.mainHtmlDropdownTrigger) return;
+        const isOpen = this.dom.mainHtmlDropdownTrigger.getAttribute('aria-expanded') === 'true';
+        if (isOpen) {
+            this.closeMainHtmlDropdown(true);
+        } else {
+            this.openMainHtmlDropdown();
+        }
+    },
+
+    openMainHtmlDropdown() {
+        if (!this.dom.mainHtmlDropdownList || !this.dom.mainHtmlDropdownTrigger) return;
+        this.dom.mainHtmlDropdownList.hidden = false;
+        this.dom.mainHtmlDropdownTrigger.setAttribute('aria-expanded', 'true');
+    },
+
+    closeMainHtmlDropdown(focusTrigger = false) {
+        if (!this.dom.mainHtmlDropdownList || !this.dom.mainHtmlDropdownTrigger) return;
+        this.dom.mainHtmlDropdownList.hidden = true;
+        this.dom.mainHtmlDropdownTrigger.setAttribute('aria-expanded', 'false');
+        if (focusTrigger) {
+            this.dom.mainHtmlDropdownTrigger.focus();
+        }
+    },
+
+    selectMainHtmlOption(fileId) {
+        this.state.mainHtmlFile = fileId;
+        if (this.dom.mainHtmlSelect) {
+            this.dom.mainHtmlSelect.value = fileId;
+        }
+        this.updateMainHtmlSelector();
+        this.closeMainHtmlDropdown(true);
+    },
+
     updateMainHtmlSelector() {
         const htmlFiles = this.state.files.filter(f => f.type === 'html');
-        
+
         if (htmlFiles.length <= 1) {
             this.dom.mainHtmlSelector.style.display = 'none';
+            this.closeMainHtmlDropdown();
             return;
         }
-        
+
         this.dom.mainHtmlSelector.style.display = 'flex';
-        
         this.dom.mainHtmlSelect.innerHTML = '<option value="">Auto-detect</option>';
-        
+
+        const options = [{ value: '', label: 'Auto-detect' }];
+
         htmlFiles.forEach(file => {
             const fileName = this.getFileNameFromPanel(file.id) || `file_${file.id}`;
             const option = document.createElement('option');
             option.value = file.id;
             option.textContent = fileName;
-            
-            if (this.state.mainHtmlFile === file.id) {
-                option.selected = true;
-            }
-            
             this.dom.mainHtmlSelect.appendChild(option);
+            options.push({ value: file.id, label: fileName });
         });
+
+        const selectedValue = options.some(o => o.value === this.state.mainHtmlFile) ? this.state.mainHtmlFile : '';
+        this.state.mainHtmlFile = selectedValue;
+        this.dom.mainHtmlSelect.value = selectedValue;
+
+        if (this.dom.mainHtmlDropdownList) {
+            this.dom.mainHtmlDropdownList.innerHTML = options.map((option) => {
+                const selectedClass = option.value === selectedValue ? ' is-selected' : '';
+                const checked = option.value === selectedValue ? 'true' : 'false';
+                return `<li role="option" aria-selected="${checked}"><button type="button" class="main-html-dropdown-option${selectedClass}" data-value="${this.escapeHtmlAttribute(option.value)}">${this.escapeHtml(option.label)}</button></li>`;
+            }).join('');
+        }
+
+        if (this.dom.mainHtmlDropdownTrigger) {
+            const selectedOption = options.find(option => option.value === selectedValue) || options[0];
+            this.dom.mainHtmlDropdownTrigger.textContent = selectedOption.label;
+        }
     },
     
     getMainHtmlFile() {

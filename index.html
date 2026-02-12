@@ -28,8 +28,12 @@
                     </div>
                 </div>
                 <div class="main-html-selector" id="main-html-selector" style="display: none;">
-                    <label for="main-html-select">Main HTML file:</label>
-                    <select id="main-html-select" aria-label="Select main HTML file for preview">
+                    <label id="main-html-label" for="main-html-select">Main HTML file:</label>
+                    <div class="main-html-dropdown" id="main-html-dropdown">
+                        <button type="button" id="main-html-dropdown-trigger" class="main-html-dropdown-trigger" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="main-html-label main-html-dropdown-trigger">Auto-detect</button>
+                        <ul id="main-html-dropdown-list" class="main-html-dropdown-list" role="listbox" aria-labelledby="main-html-label" tabindex="-1" hidden></ul>
+                    </div>
+                    <select id="main-html-select" aria-label="Select main HTML file for preview" class="visually-hidden-select">
                         <option value="">Auto-detect</option>
                     </select>
                 </div>
