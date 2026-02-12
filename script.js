@@ -811,8 +811,6 @@ const CodePreviewer = {
             <div class="file-tree-toolbar">
                 <input type="search" class="file-tree-search-input" placeholder="Search files..." value="${this.escapeHtmlAttribute(this.state.sidebarSearchQuery)}" aria-label="Search files in sidebar">
                 <div class="file-tree-toolbar-actions">
-                    <button class="tree-toolbar-btn expand-all-folders-btn" title="Expand all folders">Expand</button>
-                    <button class="tree-toolbar-btn collapse-all-folders-btn" title="Collapse all folders">Collapse</button>
                     <button class="tree-toolbar-btn clear-selection-btn" title="Clear selection" ${hasSelection ? '' : 'disabled'}>Clear</button>
                     <button class="tree-toolbar-btn open-selected-btn" title="Open selected files" ${hasSelection ? '' : 'disabled'}>Open</button>
                     <button class="tree-toolbar-btn delete-selected-btn" title="Delete selected files" ${hasSelection ? '' : 'disabled'}>Delete</button>
@@ -976,18 +974,6 @@ const CodePreviewer = {
                     this.state.selectedFileIds.clear();
                     this.renderFileTree();
                 }
-                return;
-            }
-
-            if (target.closest('.expand-all-folders-btn')) {
-                this.state.folders.forEach(folder => this.state.expandedFolders.add(folder.path));
-                this.renderFileTree();
-                return;
-            }
-
-            if (target.closest('.collapse-all-folders-btn')) {
-                this.state.expandedFolders.clear();
-                this.renderFileTree();
                 return;
             }
 
