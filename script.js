@@ -1148,6 +1148,9 @@ const CodePreviewer = {
             // Create dialog container
             const dialog = document.createElement('div');
             dialog.className = 'conflict-dialog';
+            dialog.setAttribute('role', 'dialog');
+            dialog.setAttribute('aria-modal', 'true');
+            dialog.setAttribute('tabindex', '-1');
             
             // Create header
             const header = document.createElement('div');
@@ -1172,21 +1175,58 @@ const CodePreviewer = {
             // Create buttons
             const buttonsContainer = document.createElement('div');
             buttonsContainer.className = 'conflict-dialog-buttons';
+            const buttonElements = [];
+            const closeDialog = (action) => {
+                if (document.body.contains(overlay)) {
+                    document.body.removeChild(overlay);
+                }
+                resolve(action);
+            };
+
             buttons.forEach(btn => {
                 const button = document.createElement('button');
                 button.className = `conflict-btn ${btn.className}`;
                 button.textContent = btn.text;
                 button.dataset.action = btn.action;
-                button.addEventListener('click', () => {
-                    document.body.removeChild(overlay);
-                    resolve(btn.action);
-                });
+                button.addEventListener('click', () => closeDialog(btn.action));
                 buttonsContainer.appendChild(button);
+                buttonElements.push(button);
             });
+
+            const getConfirmAction = () => {
+                const preferred = ['confirm', 'replace', 'replace-all', 'submit'];
+                const found = preferred.find(action => buttonElements.some(button => button.dataset.action === action));
+                return found || buttonElements[0]?.dataset.action || 'cancel';
+            };
+
+            const getCancelAction = () => {
+                const preferred = ['cancel', 'skip', 'skip-all'];
+                const found = preferred.find(action => buttonElements.some(button => button.dataset.action === action));
+                return found || buttonElements[buttonElements.length - 1]?.dataset.action || 'cancel';
+            };
+
+            dialog.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    closeDialog(getConfirmAction());
+                }
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    closeDialog(getCancelAction());
+                }
+            });
+
             dialog.appendChild(buttonsContainer);
             
             overlay.appendChild(dialog);
             document.body.appendChild(overlay);
+
+            const preferredFocusButton = buttonElements.find(button => ['confirm', 'replace', 'replace-all'].includes(button.dataset.action)) || buttonElements[0];
+            if (preferredFocusButton) {
+                preferredFocusButton.focus();
+            } else {
+                dialog.focus();
+            }
         });
     },
 
