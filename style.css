@@ -365,6 +365,111 @@ body {
     backdrop-filter: blur(3px);
 }
 
+
+.editor-panel.search-active {
+    box-shadow: 0 0 0 1px rgba(137, 180, 250, 0.4), 0 8px 18px rgba(0, 0, 0, 0.25);
+}
+
+.toolbar-btn.search-btn.active {
+    background: linear-gradient(135deg, rgba(137, 180, 250, 0.9) 0%, rgba(166, 202, 255, 0.9) 100%);
+    color: var(--bg-color);
+    border-color: rgba(137, 180, 250, 0.9);
+}
+
+.panel-search {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 0.9rem;
+    border-bottom: 1px solid rgba(69, 71, 90, 0.45);
+    background: linear-gradient(180deg, rgba(24, 24, 37, 0.8) 0%, rgba(24, 24, 37, 0.55) 100%);
+    animation: panelSearchSlideDown 0.16s ease-out;
+}
+
+@keyframes panelSearchSlideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.panel-search[hidden] {
+    display: none;
+}
+
+.panel-search-input {
+    flex: 1;
+    min-width: 0;
+    background: rgba(49, 50, 68, 0.82);
+    border: 1px solid rgba(137, 180, 250, 0.25);
+    color: var(--primary-color);
+    border-radius: 8px;
+    padding: 0.4rem 0.65rem;
+    font-size: 0.82rem;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.panel-search-input::placeholder {
+    color: #9ea4ba;
+}
+
+.panel-search-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px rgba(137, 180, 250, 0.18);
+}
+
+.panel-search-input.no-match {
+    border-color: var(--error-color);
+    box-shadow: 0 0 0 3px rgba(243, 139, 168, 0.16);
+}
+
+.panel-search-next-btn:focus-visible,
+.panel-search-close-btn:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 1px;
+}
+
+.panel-search-next-btn,
+.panel-search-close-btn {
+    background: rgba(49, 50, 68, 0.9);
+    border: 1px solid rgba(137, 180, 250, 0.2);
+    color: var(--primary-color);
+    border-radius: 8px;
+    padding: 0.35rem 0.62rem;
+    cursor: pointer;
+    font-size: 0.76rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.panel-search-next-btn:hover,
+.panel-search-close-btn:hover {
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+    transform: translateY(-1px);
+}
+
+.panel-search-close-btn {
+    min-width: 2rem;
+}
+
+@media (max-width: 640px) {
+    .panel-search {
+        flex-wrap: wrap;
+    }
+
+    .panel-search-input {
+        width: 100%;
+        flex-basis: 100%;
+    }
+}
+
+
 .editor-wrapper {
     flex-grow: 1;
     display: flex;
@@ -1204,8 +1309,6 @@ body {
     }
     
     .file-tree-container {
-        width: 100%;
-        max-width: none;
         max-height: 200px;
     }
 }

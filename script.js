@@ -618,6 +618,7 @@ const CodePreviewer = {
         this.dom.mainHtmlSelect.addEventListener('change', (e) => {
             this.state.mainHtmlFile = e.target.value;
         });
+
     },
 
     isModuleFile(content, filename) {
@@ -1437,6 +1438,7 @@ const CodePreviewer = {
             toolbarHTML += this.htmlGenerators.toolbarButton('🗑️', 'Clear', 'clear-btn', 'Clear content', 'Clear');
             toolbarHTML += this.htmlGenerators.toolbarButton('📋', 'Paste', 'paste-btn', 'Paste from clipboard', 'Paste');
             toolbarHTML += this.htmlGenerators.toolbarButton('📄', 'Copy', 'copy-btn', 'Copy to clipboard', 'Copy');
+            toolbarHTML += this.htmlGenerators.toolbarButton('🔎', 'Search', 'search-btn', 'Search in file', 'Search in file');
         }
         
         if (hasExpandPreview) {
@@ -1447,8 +1449,19 @@ const CodePreviewer = {
         
         toolbarHTML += this.htmlGenerators.toolbarButton('💾', 'Export', 'export-btn', 'Export file', 'Export');
         toolbarHTML += this.htmlGenerators.toolbarButton('📁', 'Collapse', 'collapse-btn', 'Collapse/Expand editor', 'Collapse/Expand');
-        
+
         toolbarHTML += '</div>';
+
+        if (isEditable) {
+            toolbarHTML += `
+                <div class="panel-search" hidden>
+                    <input type="search" class="panel-search-input" placeholder="Search in this file" aria-label="Search in this file">
+                    <button class="panel-search-next-btn" aria-label="Find next match" title="Find next">Next</button>
+                    <button class="panel-search-close-btn" aria-label="Close search" title="Close search">✕</button>
+                </div>
+            `;
+        }
+
         return toolbarHTML;
     },
 
@@ -1480,6 +1493,11 @@ const CodePreviewer = {
         const existingToolbar = panel.querySelector('.editor-toolbar');
         if (existingToolbar) {
             existingToolbar.remove();
+        }
+
+        const existingSearch = panel.querySelector('.panel-search');
+        if (existingSearch) {
+            existingSearch.remove();
         }
         
         const panelHeader = panel.querySelector('.panel-header');
@@ -1984,6 +2002,7 @@ const CodePreviewer = {
         const expandBtn = panel.querySelector('.expand-btn');
         const exportBtn = panel.querySelector('.export-btn');
         const collapseBtn = panel.querySelector('.collapse-btn');
+        const { searchBtn, searchInput, searchNextBtn, searchCloseBtn } = this.getPanelSearchElements(panel);
         
         if (clearBtn) {
             clearBtn.addEventListener('click', () => this.clearEditor(panel));
@@ -2008,6 +2027,150 @@ const CodePreviewer = {
         if (collapseBtn) {
             collapseBtn.addEventListener('click', () => this.toggleEditorCollapse(panel));
         }
+
+        if (searchBtn) {
+            searchBtn.setAttribute('aria-expanded', 'false');
+            searchBtn.addEventListener('click', () => this.togglePanelSearch(panel));
+        }
+
+        if (searchInput) {
+            searchInput.addEventListener('input', () => this.searchInPanel(panel, searchInput.value, false));
+            searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.searchInPanel(panel, searchInput.value, true);
+                }
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    this.closePanelSearch(panel);
+                }
+            });
+        }
+
+        if (searchNextBtn && searchInput) {
+            searchNextBtn.addEventListener('click', () => this.searchInPanel(panel, searchInput.value, true));
+        }
+
+        if (searchCloseBtn) {
+            searchCloseBtn.addEventListener('click', () => this.closePanelSearch(panel));
+        }
+    },
+
+    getPanelSearchElements(panel) {
+        return {
+            searchContainer: panel.querySelector('.panel-search'),
+            searchBtn: panel.querySelector('.search-btn'),
+            searchInput: panel.querySelector('.panel-search-input'),
+            searchNextBtn: panel.querySelector('.panel-search-next-btn'),
+            searchCloseBtn: panel.querySelector('.panel-search-close-btn'),
+        };
+    },
+
+    setPanelSearchActive(panel, isActive) {
+        const { searchContainer, searchBtn, searchInput } = this.getPanelSearchElements(panel);
+        if (!searchContainer || !searchInput) return;
+
+        if (isActive) {
+            searchContainer.removeAttribute('hidden');
+            panel.classList.add('search-active');
+            if (searchBtn) {
+                searchBtn.classList.add('active');
+                searchBtn.setAttribute('aria-expanded', 'true');
+            }
+            searchInput.focus();
+            searchInput.select();
+            return;
+        }
+
+        searchInput.value = '';
+        searchInput.classList.remove('no-match');
+        searchContainer.setAttribute('hidden', 'hidden');
+        panel.classList.remove('search-active');
+        if (searchBtn) {
+            searchBtn.classList.remove('active');
+            searchBtn.setAttribute('aria-expanded', 'false');
+        }
+    },
+
+    togglePanelSearch(panel) {
+        const { searchContainer } = this.getPanelSearchElements(panel);
+        if (!searchContainer) return;
+
+        const willOpen = searchContainer.hasAttribute('hidden');
+        this.setPanelSearchActive(panel, willOpen);
+    },
+
+    closePanelSearch(panel) {
+        this.setPanelSearchActive(panel, false);
+    },
+
+    getSearchStartIndex(editor, findNext) {
+        if (!findNext || !editor?.getCursor || !editor?.indexFromPos) {
+            return 0;
+        }
+
+        try {
+            return editor.indexFromPos(editor.getCursor()) + 1;
+        } catch (_e) {
+            return 0;
+        }
+    },
+
+    selectEditorSearchMatch(editor, matchIndex, queryLength) {
+        if (editor.posFromIndex && editor.setSelection) {
+            const from = editor.posFromIndex(matchIndex);
+            const to = editor.posFromIndex(matchIndex + queryLength);
+            editor.setSelection(from, to);
+            if (editor.scrollIntoView) {
+                editor.scrollIntoView({ from, to }, 100);
+            }
+            if (editor.focus) {
+                editor.focus();
+            }
+            return true;
+        }
+
+        if (typeof editor.selectionStart === 'number' && typeof editor.setSelectionRange === 'function') {
+            editor.focus();
+            editor.setSelectionRange(matchIndex, matchIndex + queryLength);
+            return true;
+        }
+
+        return false;
+    },
+
+    searchInPanel(panel, query, findNext = false) {
+        const editor = this.getEditorFromPanel(panel);
+        const { searchInput } = this.getPanelSearchElements(panel);
+        const trimmedQuery = (query || '').trim();
+
+        if (searchInput) {
+            searchInput.classList.remove('no-match');
+        }
+
+        if (!editor || !trimmedQuery) return;
+
+        const content = editor.getValue ? editor.getValue() : '';
+        if (!content) return;
+
+        const lowerContent = content.toLowerCase();
+        const lowerQuery = trimmedQuery.toLowerCase();
+        const startIndex = this.getSearchStartIndex(editor, findNext);
+
+        let matchIndex = lowerContent.indexOf(lowerQuery, startIndex);
+        if (matchIndex === -1 && startIndex > 0) {
+            matchIndex = lowerContent.indexOf(lowerQuery);
+        }
+
+        if (matchIndex === -1) {
+            if (searchInput) {
+                searchInput.classList.add('no-match');
+            }
+            this.showNotification(`No match found for "${trimmedQuery}"`, 'info');
+            return;
+        }
+
+        this.selectEditorSearchMatch(editor, matchIndex, trimmedQuery.length);
     },
 
     clearEditor(panel) {
