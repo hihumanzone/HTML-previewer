@@ -1415,56 +1415,49 @@ const CodePreviewer = {
         fileInput.click();
     },
 
+    async _importFiles(fileList, getFileName, successMessage) {
+        const files = Array.from(fileList);
+        if (files.length === 0) return;
+
+        const resolution = { action: null };
+        let importedCount = 0;
+        let skippedCount = 0;
+
+        for (const file of files) {
+            const targetFileName = getFileName(file);
+            if (!targetFileName) {
+                skippedCount++;
+                continue;
+            }
+
+            const result = await this._resolveImportConflict(targetFileName, resolution);
+            if (result === 'skipped') {
+                skippedCount++;
+                continue;
+            }
+
+            const fileData = await this.readFileContent(file);
+            const detectedType = this.autoDetectFileType(targetFileName, fileData.isBinary ? null : fileData.content, file.type);
+            this.addNewFileWithContent(targetFileName, detectedType, fileData.content, fileData.isBinary);
+            importedCount++;
+        }
+
+        this._showImportSummary(importedCount, skippedCount, successMessage);
+    },
+
     importFile() {
         this._openFilePicker('*/*', true, async (fileList) => {
-            const files = Array.from(fileList);
-            if (files.length === 0) return;
-            
-            const resolution = { action: null };
-            let importedCount = 0;
-            let skippedCount = 0;
-
-            for (const file of files) {
-                const result = await this._resolveImportConflict(file.name, resolution);
-                if (result === 'skipped') {
-                    skippedCount++;
-                    continue;
-                }
-                
-                const fileData = await this.readFileContent(file);
-                const detectedType = this.autoDetectFileType(file.name, fileData.isBinary ? null : fileData.content, file.type);
-                this.addNewFileWithContent(file.name, detectedType, fileData.content, fileData.isBinary);
-                importedCount++;
-            }
-            
-            this._showImportSummary(importedCount, skippedCount);
+            await this._importFiles(fileList, (file) => file.name);
         });
     },
 
     importFolder() {
         this._openFilePicker('*/*', true, async (fileList) => {
-            const files = Array.from(fileList);
-            if (files.length === 0) return;
-
-            const resolution = { action: null };
-            let importedCount = 0;
-            let skippedCount = 0;
-
-            for (const file of files) {
-                const relativePath = file.webkitRelativePath || file.name;
-                const result = await this._resolveImportConflict(relativePath, resolution);
-                if (result === 'skipped') {
-                    skippedCount++;
-                    continue;
-                }
-
-                const fileData = await this.readFileContent(file);
-                const detectedType = this.autoDetectFileType(relativePath, fileData.isBinary ? null : fileData.content, file.type);
-                this.addNewFileWithContent(relativePath, detectedType, fileData.content, fileData.isBinary);
-                importedCount++;
-            }
-
-            this._showImportSummary(importedCount, skippedCount, `Successfully imported folder (${importedCount} file(s))`);
+            await this._importFiles(
+                fileList,
+                (file) => file.webkitRelativePath || file.name,
+                'Successfully imported folder files'
+            );
         }, { directory: true });
     },
 
