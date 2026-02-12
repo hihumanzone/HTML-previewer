@@ -255,7 +255,7 @@ body {
     position: absolute;
     top: 0.55rem;
     right: 0.65rem;
-    background: rgba(243, 139, 168, 0.1);
+    background: rgba(243, 139, 168, 0.2);
     border: 1px solid rgba(243, 139, 168, 0.2);
     color: var(--error-color);
     font-size: 1.2rem;
@@ -1132,17 +1132,26 @@ body {
     padding: 0.45rem;
 }
 
-.file-tree-stats {
-    display: flex;
-    gap: 0.35rem;
-    align-items: center;
-    font-size: 0.72rem;
-    color: #aeb5ce;
+.file-tree-search-input {
+    width: 100%;
     margin-bottom: 0.4rem;
+    background: rgba(49, 50, 68, 0.88);
+    border: 1px solid rgba(137, 180, 250, 0.2);
+    border-radius: 6px;
+    color: var(--primary-color);
+    font-size: 0.76rem;
+    padding: 0.38rem 0.5rem;
+}
+
+.file-tree-search-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(137, 180, 250, 0.15);
 }
 
 .file-tree-toolbar-actions {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
     gap: 0.35rem;
 }
 
@@ -1290,6 +1299,19 @@ body {
 .file-actions {
     display: none;
     gap: 0.25rem;
+}
+
+.tree-file .tree-file-checkbox {
+    width: 0.85rem;
+    height: 0.85rem;
+    accent-color: var(--accent-color);
+    cursor: pointer;
+    margin-right: 0.1rem;
+}
+
+.tree-file.file-selected-in-sidebar {
+    outline: 1px solid rgba(137, 180, 250, 0.5);
+    background: rgba(137, 180, 250, 0.12);
 }
 
 .tree-file:hover .file-actions,
@@ -1608,12 +1630,13 @@ body {
 }
 
 .notification {
-    background: var(--secondary-color);
+    background: rgba(24, 24, 37, 0.96);
     color: var(--primary-color);
     padding: 0.75rem 1rem;
     border-radius: 8px;
     border: 1px solid var(--border-color);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(3px);
     pointer-events: auto;
     animation: notification-slide-in 0.3s ease forwards;
     font-size: 0.85rem;
@@ -1626,22 +1649,22 @@ body {
 
 .notification-success {
     border-color: var(--accent-color);
-    background: rgba(137, 180, 250, 0.1);
+    background: rgba(137, 180, 250, 0.2);
 }
 
 .notification-info {
     border-color: var(--accent-color);
-    background: rgba(137, 180, 250, 0.08);
+    background: rgba(137, 180, 250, 0.18);
 }
 
 .notification-warn {
     border-color: var(--warn-color);
-    background: rgba(250, 179, 135, 0.1);
+    background: rgba(250, 179, 135, 0.2);
 }
 
 .notification-error {
     border-color: var(--error-color);
-    background: rgba(243, 139, 168, 0.1);
+    background: rgba(243, 139, 168, 0.2);
 }
 
 @keyframes notification-slide-in {

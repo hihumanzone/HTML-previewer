@@ -42,6 +42,8 @@ const CodePreviewer = {
         savedFileStates: {}, // Track saved states for files: { fileId: { content: string, fileName: string } }
         modifiedFiles: new Set(),
         sidebarShowModifiedOnly: false,
+        sidebarSearchQuery: '',
+        selectedFileIds: new Set(),
         codeModalEditor: null,
         mainHtmlFile: '',
     },
@@ -69,6 +71,7 @@ const CodePreviewer = {
             ADD_FOLDER_BTN: 'add-folder-btn',
             CLEAR_ALL_FILES_BTN: 'clear-all-files-btn',
             IMPORT_FILE_BTN: 'import-file-btn',
+            IMPORT_FOLDER_BTN: 'import-folder-btn',
             IMPORT_ZIP_BTN: 'import-zip-btn',
             EXPORT_ZIP_BTN: 'export-zip-btn',
             MAIN_HTML_SELECT: 'main-html-select',
@@ -433,6 +436,7 @@ const CodePreviewer = {
             addFolderBtn: document.getElementById(CONTROL_IDS.ADD_FOLDER_BTN),
             clearAllFilesBtn: document.getElementById(CONTROL_IDS.CLEAR_ALL_FILES_BTN),
             importFileBtn: document.getElementById(CONTROL_IDS.IMPORT_FILE_BTN),
+            importFolderBtn: document.getElementById(CONTROL_IDS.IMPORT_FOLDER_BTN),
             importZipBtn: document.getElementById(CONTROL_IDS.IMPORT_ZIP_BTN),
             exportZipBtn: document.getElementById(CONTROL_IDS.EXPORT_ZIP_BTN),
             mainHtmlSelect: document.getElementById(CONTROL_IDS.MAIN_HTML_SELECT),
@@ -598,6 +602,9 @@ const CodePreviewer = {
             this.dom.clearAllFilesBtn.addEventListener('click', () => this.clearAllFiles());
         }
         this.dom.importFileBtn.addEventListener('click', () => this.importFile());
+        if (this.dom.importFolderBtn) {
+            this.dom.importFolderBtn.addEventListener('click', () => this.importFolder());
+        }
         this.dom.importZipBtn.addEventListener('click', () => this.importZip());
         this.dom.exportZipBtn.addEventListener('click', () => this.exportZip());
         this.dom.mainHtmlSelect.addEventListener('change', (e) => {
@@ -790,32 +797,31 @@ const CodePreviewer = {
         if (!this.dom.fileTreeContainer) return;
 
         const tree = this.buildFolderTree();
+
+        // Prune selections for files that no longer exist
+        const existingIds = new Set(this.state.files.map(f => f.id));
+        this.state.selectedFileIds.forEach((id) => {
+            if (!existingIds.has(id)) this.state.selectedFileIds.delete(id);
+        });
+
         const treeHtml = this.renderFolderContents(tree, '');
-        const totalFiles = this.state.files.length;
-        const modifiedCount = this.state.modifiedFiles.size;
-        const openCount = this.state.openPanels.size;
+        const hasSelection = this.state.selectedFileIds.size > 0;
 
         this.dom.fileTreeContainer.innerHTML = `
             <div class="file-tree-toolbar">
-                <div class="file-tree-stats">
-                    <span>${totalFiles} files</span>
-                    <span>•</span>
-                    <span>${openCount} open</span>
-                    <span>•</span>
-                    <span>${modifiedCount} modified</span>
-                </div>
+                <input type="search" class="file-tree-search-input" placeholder="Search files..." value="${this.escapeHtmlAttribute(this.state.sidebarSearchQuery)}" aria-label="Search files in sidebar">
                 <div class="file-tree-toolbar-actions">
                     <button class="tree-toolbar-btn expand-all-folders-btn" title="Expand all folders">Expand</button>
                     <button class="tree-toolbar-btn collapse-all-folders-btn" title="Collapse all folders">Collapse</button>
-                    <button class="tree-toolbar-btn toggle-modified-filter-btn ${this.state.sidebarShowModifiedOnly ? 'active' : ''}" title="Show only modified files">Modified</button>
+                    <button class="tree-toolbar-btn clear-selection-btn" title="Clear selection" ${hasSelection ? '' : 'disabled'}>Clear</button>
+                    <button class="tree-toolbar-btn open-selected-btn" title="Open selected files" ${hasSelection ? '' : 'disabled'}>Open</button>
+                    <button class="tree-toolbar-btn delete-selected-btn" title="Delete selected files" ${hasSelection ? '' : 'disabled'}>Delete</button>
                 </div>
             </div>
             <div class="file-tree-content">
                 ${treeHtml || '<div class="file-tree-empty">No files to show.</div>'}
             </div>
         `;
-
-        // Event delegation is set up once in init, no need to rebind here
     },
 
     /**
@@ -826,6 +832,7 @@ const CodePreviewer = {
      */
     renderFolderContents(node, currentPath) {
         let html = '';
+        const query = this.state.sidebarSearchQuery;
 
         // Render subfolders first
         const sortedFolders = Object.keys(node.children).sort();
@@ -860,7 +867,9 @@ const CodePreviewer = {
         // Render files
         node.files.forEach(file => {
             const isModified = this.state.modifiedFiles.has(file.id);
-            if (this.state.sidebarShowModifiedOnly && !isModified) {
+            const isSelected = this.state.selectedFileIds.has(file.id);
+            const filename = (file.displayName || '').toLowerCase();
+            if (query && !filename.includes(query)) {
                 return;
             }
 
@@ -868,8 +877,10 @@ const CodePreviewer = {
             const isOpen = this.state.openPanels.has(file.id);
             const openClass = isOpen ? 'file-open' : '';
             const modifiedClass = isModified ? 'file-modified' : '';
+            const selectedClass = isSelected ? 'file-selected-in-sidebar' : '';
             html += `
-                <div class="tree-file ${openClass} ${modifiedClass}" data-file-id="${file.id}">
+                <div class="tree-file ${openClass} ${modifiedClass} ${selectedClass}" data-file-id="${file.id}">
+                    <input type="checkbox" class="tree-file-checkbox" aria-label="Select file ${this.escapeHtmlAttribute(file.displayName)}" ${isSelected ? 'checked' : ''}>
                     <span class="file-icon">${fileIcon}</span>
                     <span class="file-name">${file.displayName}</span>
                     <div class="file-actions">
@@ -916,8 +927,57 @@ const CodePreviewer = {
         if (!this.dom.fileTreeContainer) return;
         
         // Use a single delegated listener on the container
+        this.dom.fileTreeContainer.addEventListener('input', (e) => {
+            const target = e.target;
+            if (target.classList.contains('file-tree-search-input')) {
+                this.state.sidebarSearchQuery = target.value.trim().toLowerCase();
+                this.renderFileTree();
+                return;
+            }
+
+            if (target.classList.contains('tree-file-checkbox')) {
+                const fileEl = target.closest('.tree-file');
+                if (!fileEl) return;
+                const fileId = fileEl.dataset.fileId;
+                if (target.checked) {
+                    this.state.selectedFileIds.add(fileId);
+                } else {
+                    this.state.selectedFileIds.delete(fileId);
+                }
+                this.renderFileTree();
+            }
+        });
+
         this.dom.fileTreeContainer.addEventListener('click', async (e) => {
             const target = e.target;
+
+            if (target.closest('.file-tree-search-input')) {
+                return;
+            }
+
+
+            if (target.closest('.clear-selection-btn')) {
+                this.state.selectedFileIds.clear();
+                this.renderFileTree();
+                return;
+            }
+
+            if (target.closest('.open-selected-btn')) {
+                this.state.selectedFileIds.forEach((id) => this.openPanel(id));
+                return;
+            }
+
+            if (target.closest('.delete-selected-btn')) {
+                const ids = Array.from(this.state.selectedFileIds);
+                if (ids.length === 0) return;
+                const confirmed = await this.showConfirmDialog(`Delete ${ids.length} selected file(s)? This cannot be undone.`);
+                if (confirmed) {
+                    ids.forEach((id) => this.deleteFile(id));
+                    this.state.selectedFileIds.clear();
+                    this.renderFileTree();
+                }
+                return;
+            }
 
             if (target.closest('.expand-all-folders-btn')) {
                 this.state.folders.forEach(folder => this.state.expandedFolders.add(folder.path));
@@ -976,6 +1036,11 @@ const CodePreviewer = {
             }
             
             // File actions
+            if (target.closest('.tree-file-checkbox')) {
+                e.stopPropagation();
+                return;
+            }
+
             const fileEl = target.closest('.tree-file');
             if (!fileEl) return;
             const fileId = fileEl.dataset.fileId;
@@ -1323,11 +1388,15 @@ const CodePreviewer = {
      * @param {boolean} multiple - Whether multiple files are allowed
      * @param {Function} onFiles - Async callback receiving the FileList
      */
-    _openFilePicker(accept, multiple, onFiles) {
+    _openFilePicker(accept, multiple, onFiles, options = {}) {
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
         fileInput.accept = accept;
         fileInput.multiple = multiple;
+        if (options.directory) {
+            fileInput.setAttribute('webkitdirectory', '');
+            fileInput.setAttribute('directory', '');
+        }
         fileInput.style.display = 'none';
         
         const cleanup = () => {
@@ -1853,6 +1922,7 @@ const CodePreviewer = {
             this.state.modifiedFiles.add(fileId);
         } else {
             this.state.modifiedFiles.delete(fileId);
+        this.state.selectedFileIds.delete(fileId);
         }
 
         // Update the file tree to show modified indicator
@@ -2011,6 +2081,7 @@ const CodePreviewer = {
         // Clean up saved state
         delete this.state.savedFileStates[fileId];
         this.state.modifiedFiles.delete(fileId);
+        this.state.selectedFileIds.delete(fileId);
         
         if (fileId === 'default-html') {
             this.state.editors.html = null;
@@ -2061,6 +2132,7 @@ const CodePreviewer = {
         this.state.openPanels.clear();
         this.state.savedFileStates = {};
         this.state.modifiedFiles.clear();
+        this.state.selectedFileIds.clear();
 
         // Clear default editors
         this.state.editors.html = null;
