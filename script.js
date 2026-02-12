@@ -420,6 +420,7 @@ const CodePreviewer = {
         this.bindFileTreeEvents();
         this.initExistingFilePanels();
         this.console.init(this.dom.consoleOutput, this.dom.clearConsoleBtn, this.dom.previewFrame);
+        this.updatePreviewActionButtons();
     },
 
     cacheDOMElements() {
@@ -477,6 +478,24 @@ const CodePreviewer = {
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
+    },
+
+    hasHtmlFiles() {
+        return this.state.files.some(file => file.type === 'html');
+    },
+
+    updatePreviewActionButtons() {
+        const hasHtml = this.hasHtmlFiles();
+        if (this.dom.modalBtn) {
+            this.dom.modalBtn.disabled = !hasHtml;
+            this.dom.modalBtn.setAttribute('aria-disabled', String(!hasHtml));
+            this.dom.modalBtn.title = hasHtml ? 'Open preview in modal' : 'Add at least one HTML file to preview';
+        }
+        if (this.dom.tabBtn) {
+            this.dom.tabBtn.disabled = !hasHtml;
+            this.dom.tabBtn.setAttribute('aria-disabled', String(!hasHtml));
+            this.dom.tabBtn.title = hasHtml ? 'Open preview in new tab' : 'Add at least one HTML file to preview';
+        }
     },
 
     initEditors() {
@@ -1851,6 +1870,7 @@ const CodePreviewer = {
         this.updateToolbarForFileType(panel, newType);
         this.updateMainHtmlSelector();
         this.renderFileTree();
+        this.updatePreviewActionButtons();
     },
 
     bindFilePanelEvents(panel) {
@@ -2182,6 +2202,7 @@ const CodePreviewer = {
             this.state.openPanels.delete(fileId);
             this.renderFileTree();
             this.updatePanelMoveButtonsVisibility();
+            this.updatePreviewActionButtons();
         }
     },
 
@@ -2209,6 +2230,7 @@ const CodePreviewer = {
         }
         this.renderFileTree();
         this.updatePanelMoveButtonsVisibility();
+        this.updatePreviewActionButtons();
     },
 
     /**
@@ -2246,6 +2268,7 @@ const CodePreviewer = {
         this.updateMainHtmlSelector();
         this.renderFileTree();
         this.updatePanelMoveButtonsVisibility();
+        this.updatePreviewActionButtons();
     },
 
     async clearAllFiles() {
@@ -3258,6 +3281,12 @@ const CodePreviewer = {
     },
 
     renderPreview(target) {
+        if (!this.hasHtmlFiles()) {
+            this.showNotification('Add at least one HTML file to use preview.', 'info');
+            this.updatePreviewActionButtons();
+            return;
+        }
+
         const content = this.generatePreviewContent();
         
         if (target === 'modal') {
