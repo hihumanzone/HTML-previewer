@@ -41,6 +41,7 @@ const CodePreviewer = {
         openPanels: new Set(), // Track which file panels are currently open/visible
         savedFileStates: {}, // Track saved states for files: { fileId: { content: string, fileName: string } }
         modifiedFiles: new Set(),
+        sidebarShowModifiedOnly: false,
         codeModalEditor: null,
         mainHtmlFile: '',
     },
@@ -787,11 +788,33 @@ const CodePreviewer = {
      */
     renderFileTree() {
         if (!this.dom.fileTreeContainer) return;
-        
+
         const tree = this.buildFolderTree();
-        const html = this.renderFolderContents(tree, '');
-        this.dom.fileTreeContainer.innerHTML = html;
-        
+        const treeHtml = this.renderFolderContents(tree, '');
+        const totalFiles = this.state.files.length;
+        const modifiedCount = this.state.modifiedFiles.size;
+        const openCount = this.state.openPanels.size;
+
+        this.dom.fileTreeContainer.innerHTML = `
+            <div class="file-tree-toolbar">
+                <div class="file-tree-stats">
+                    <span>${totalFiles} files</span>
+                    <span>•</span>
+                    <span>${openCount} open</span>
+                    <span>•</span>
+                    <span>${modifiedCount} modified</span>
+                </div>
+                <div class="file-tree-toolbar-actions">
+                    <button class="tree-toolbar-btn expand-all-folders-btn" title="Expand all folders">Expand</button>
+                    <button class="tree-toolbar-btn collapse-all-folders-btn" title="Collapse all folders">Collapse</button>
+                    <button class="tree-toolbar-btn toggle-modified-filter-btn ${this.state.sidebarShowModifiedOnly ? 'active' : ''}" title="Show only modified files">Modified</button>
+                </div>
+            </div>
+            <div class="file-tree-content">
+                ${treeHtml || '<div class="file-tree-empty">No files to show.</div>'}
+            </div>
+        `;
+
         // Event delegation is set up once in init, no need to rebind here
     },
 
@@ -803,14 +826,19 @@ const CodePreviewer = {
      */
     renderFolderContents(node, currentPath) {
         let html = '';
-        
+
         // Render subfolders first
         const sortedFolders = Object.keys(node.children).sort();
         sortedFolders.forEach(folderName => {
             const folder = node.children[folderName];
             const folderPath = currentPath ? `${currentPath}/${folderName}` : folderName;
             const isExpanded = this.state.expandedFolders.has(folderPath);
-            
+            const childHtml = this.renderFolderContents(folder, folderPath);
+
+            if (!childHtml.trim()) {
+                return;
+            }
+
             html += `
                 <div class="tree-folder ${isExpanded ? 'expanded' : ''}" data-folder-path="${folderPath}">
                     <div class="tree-folder-header">
@@ -823,18 +851,23 @@ const CodePreviewer = {
                         </div>
                     </div>
                     <div class="tree-folder-contents" style="display: ${isExpanded ? 'block' : 'none'}">
-                        ${this.renderFolderContents(folder, folderPath)}
+                        ${childHtml}
                     </div>
                 </div>
             `;
         });
-        
+
         // Render files
         node.files.forEach(file => {
+            const isModified = this.state.modifiedFiles.has(file.id);
+            if (this.state.sidebarShowModifiedOnly && !isModified) {
+                return;
+            }
+
             const fileIcon = this.getFileIcon(file.type);
             const isOpen = this.state.openPanels.has(file.id);
             const openClass = isOpen ? 'file-open' : '';
-            const modifiedClass = this.state.modifiedFiles.has(file.id) ? 'file-modified' : '';
+            const modifiedClass = isModified ? 'file-modified' : '';
             html += `
                 <div class="tree-file ${openClass} ${modifiedClass}" data-file-id="${file.id}">
                     <span class="file-icon">${fileIcon}</span>
@@ -846,7 +879,7 @@ const CodePreviewer = {
                 </div>
             `;
         });
-        
+
         return html;
     },
 
@@ -885,6 +918,24 @@ const CodePreviewer = {
         // Use a single delegated listener on the container
         this.dom.fileTreeContainer.addEventListener('click', async (e) => {
             const target = e.target;
+
+            if (target.closest('.expand-all-folders-btn')) {
+                this.state.folders.forEach(folder => this.state.expandedFolders.add(folder.path));
+                this.renderFileTree();
+                return;
+            }
+
+            if (target.closest('.collapse-all-folders-btn')) {
+                this.state.expandedFolders.clear();
+                this.renderFileTree();
+                return;
+            }
+
+            if (target.closest('.toggle-modified-filter-btn')) {
+                this.state.sidebarShowModifiedOnly = !this.state.sidebarShowModifiedOnly;
+                this.renderFileTree();
+                return;
+            }
             
             // Add file to folder
             if (target.closest('.add-file-to-folder-btn')) {
