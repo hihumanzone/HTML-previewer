@@ -743,30 +743,38 @@ const CodePreviewer = {
     },
 
     /**
+     * Create a folder path after validating/sanitizing folder name
+     * @param {string} folderName - The raw folder name
+     * @param {string} [parentPath=''] - Optional parent path
+     * @returns {string|null} The created path or null if invalid/duplicate
+     */
+    createFolderPath(folderName, parentPath = '') {
+        const sanitizedName = (folderName || '').trim().replace(/[<>:"|?*]/g, '');
+        if (!sanitizedName) return null;
+
+        const fullPath = parentPath ? `${parentPath}/${sanitizedName}` : sanitizedName;
+        const existingFolder = this.state.folders.find(f => f.path === fullPath);
+        if (existingFolder) {
+            this.showNotification(`Folder "${fullPath}" already exists.`, 'error');
+            return null;
+        }
+
+        const folderId = `folder-${this.state.nextFolderId++}`;
+        this.state.folders.push({ id: folderId, path: fullPath });
+        this.state.expandedFolders.add(fullPath);
+        this.renderFileTree();
+        this.showNotification(`Folder "${fullPath}" created.`, 'success');
+
+        return fullPath;
+    },
+
+    /**
      * Add a new folder
      */
-    addNewFolder() {
-        const folderName = prompt('Enter folder name:');
-        if (!folderName || folderName.trim() === '') return;
-        
-        const sanitizedName = folderName.trim().replace(/[<>:"|?*]/g, '');
-        
-        // Check if folder already exists
-        const existingFolder = this.state.folders.find(f => f.path === sanitizedName);
-        if (existingFolder) {
-            this.showNotification(`Folder "${sanitizedName}" already exists.`, 'error');
-            return;
-        }
-        
-        const folderId = `folder-${this.state.nextFolderId++}`;
-        this.state.folders.push({
-            id: folderId,
-            path: sanitizedName
-        });
-        
-        this.state.expandedFolders.add(sanitizedName);
-        this.renderFileTree();
-        this.showNotification(`Folder "${sanitizedName}" created.`, 'success');
+    async addNewFolder() {
+        const folderName = await this.showPromptDialog('New Folder', 'Enter folder name:');
+        if (!folderName) return;
+        this.createFolderPath(folderName);
     },
 
     /**
@@ -890,7 +898,7 @@ const CodePreviewer = {
         if (!this.dom.fileTreeContainer) return;
         
         // Use a single delegated listener on the container
-        this.dom.fileTreeContainer.addEventListener('click', (e) => {
+        this.dom.fileTreeContainer.addEventListener('click', async (e) => {
             const target = e.target;
             
             // Add file to folder
@@ -905,13 +913,9 @@ const CodePreviewer = {
             if (target.closest('.add-subfolder-btn')) {
                 e.stopPropagation();
                 const parentPath = target.closest('.tree-folder').dataset.folderPath;
-                const folderName = prompt('Enter folder name:');
-                if (folderName && folderName.trim()) {
-                    const newPath = `${parentPath}/${folderName.trim().replace(/[<>:"|?*]/g, '')}`;
-                    const folderId = `folder-${this.state.nextFolderId++}`;
-                    this.state.folders.push({ id: folderId, path: newPath });
-                    this.state.expandedFolders.add(newPath);
-                    this.renderFileTree();
+                const folderName = await this.showPromptDialog('New Subfolder', 'Enter folder name:');
+                if (folderName) {
+                    this.createFolderPath(folderName, parentPath);
                 }
                 return;
             }
@@ -920,7 +924,8 @@ const CodePreviewer = {
             if (target.closest('.delete-folder-btn')) {
                 e.stopPropagation();
                 const folderPath = target.closest('.tree-folder').dataset.folderPath;
-                if (confirm(`Delete folder "${folderPath}" and all its contents?`)) {
+                const confirmed = await this.showConfirmDialog(`Delete folder "${folderPath}" and all its contents?`);
+                if (confirmed) {
                     this.deleteFolder(folderPath);
                 }
                 return;
@@ -950,7 +955,8 @@ const CodePreviewer = {
             if (target.closest('.delete-file-btn')) {
                 e.stopPropagation();
                 const fileName = this.getFileNameFromPanel(fileId) || 'this file';
-                if (confirm(`Delete "${fileName}"? This cannot be undone.`)) {
+                const confirmed = await this.showConfirmDialog(`Delete "${fileName}"? This cannot be undone.`);
+                if (confirmed) {
                     this.deleteFile(fileId);
                 }
                 return;
@@ -1131,6 +1137,98 @@ const CodePreviewer = {
             ]
         });
         return action === 'confirm';
+    },
+
+
+    /**
+     * Show an input dialog (custom replacement for browser prompt)
+     * @param {string} title - Dialog title
+     * @param {string} message - Prompt message
+     * @param {string} [defaultValue=''] - Initial input value
+     * @returns {Promise<string|null>} Entered value, or null if cancelled
+     */
+    async showPromptDialog(title, message, defaultValue = '') {
+        const bodyContent = document.createElement('div');
+
+        const messageEl = document.createElement('p');
+        messageEl.textContent = message;
+        bodyContent.appendChild(messageEl);
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'conflict-input';
+        input.value = defaultValue;
+        input.setAttribute('aria-label', message);
+        bodyContent.appendChild(input);
+
+        let resolveResult = null;
+        const action = await new Promise((resolve) => {
+            const overlay = document.createElement('div');
+            overlay.className = 'conflict-dialog-overlay';
+
+            const dialog = document.createElement('div');
+            dialog.className = 'conflict-dialog';
+
+            const header = document.createElement('div');
+            header.className = 'conflict-dialog-header';
+            const h3 = document.createElement('h3');
+            h3.textContent = title;
+            header.appendChild(h3);
+
+            const body = document.createElement('div');
+            body.className = 'conflict-dialog-body';
+            body.appendChild(bodyContent);
+
+            const buttons = document.createElement('div');
+            buttons.className = 'conflict-dialog-buttons';
+
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'conflict-btn conflict-skip';
+            cancelBtn.textContent = 'Cancel';
+            cancelBtn.addEventListener('click', () => {
+                document.body.removeChild(overlay);
+                resolve('cancel');
+            });
+
+            const submitBtn = document.createElement('button');
+            submitBtn.className = 'conflict-btn conflict-replace';
+            submitBtn.textContent = 'Create';
+            submitBtn.addEventListener('click', () => {
+                resolveResult = input.value;
+                document.body.removeChild(overlay);
+                resolve('submit');
+            });
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    submitBtn.click();
+                }
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancelBtn.click();
+                }
+            });
+
+            buttons.appendChild(cancelBtn);
+            buttons.appendChild(submitBtn);
+            dialog.appendChild(header);
+            dialog.appendChild(body);
+            dialog.appendChild(buttons);
+            overlay.appendChild(dialog);
+            document.body.appendChild(overlay);
+
+            setTimeout(() => {
+                input.focus();
+                input.select();
+            }, 0);
+        });
+
+        if (action !== 'submit') {
+            return null;
+        }
+
+        return resolveResult;
     },
 
     /**

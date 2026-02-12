@@ -1466,6 +1466,23 @@ body {
     font-weight: 600;
 }
 
+.conflict-input {
+    width: 100%;
+    margin-top: 0.75rem;
+    padding: 0.6rem 0.7rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-color);
+    color: var(--primary-color);
+    font-size: 0.9rem;
+}
+
+.conflict-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px rgba(137, 180, 250, 0.15);
+}
+
 .conflict-dialog-buttons {
     padding: 1rem 1.5rem 1.5rem;
     display: flex;
