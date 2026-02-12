@@ -484,17 +484,27 @@ const CodePreviewer = {
         return this.state.files.some(file => file.type === 'html');
     },
 
-    updatePreviewActionButtons() {
+    getPreviewAvailability() {
         const hasHtml = this.hasHtmlFiles();
+        return {
+            allowed: hasHtml,
+            reason: hasHtml ? '' : 'Add at least one HTML file to preview.'
+        };
+    },
+
+    updatePreviewActionButtons() {
+        const availability = this.getPreviewAvailability();
+        const disabled = !availability.allowed;
+
         if (this.dom.modalBtn) {
-            this.dom.modalBtn.disabled = !hasHtml;
-            this.dom.modalBtn.setAttribute('aria-disabled', String(!hasHtml));
-            this.dom.modalBtn.title = hasHtml ? 'Open preview in modal' : 'Add at least one HTML file to preview';
+            this.dom.modalBtn.disabled = disabled;
+            this.dom.modalBtn.setAttribute('aria-disabled', String(disabled));
+            this.dom.modalBtn.title = disabled ? availability.reason : 'Open preview in modal';
         }
         if (this.dom.tabBtn) {
-            this.dom.tabBtn.disabled = !hasHtml;
-            this.dom.tabBtn.setAttribute('aria-disabled', String(!hasHtml));
-            this.dom.tabBtn.title = hasHtml ? 'Open preview in new tab' : 'Add at least one HTML file to preview';
+            this.dom.tabBtn.disabled = disabled;
+            this.dom.tabBtn.setAttribute('aria-disabled', String(disabled));
+            this.dom.tabBtn.title = disabled ? availability.reason : 'Open preview in new tab';
         }
     },
 
@@ -3281,8 +3291,9 @@ const CodePreviewer = {
     },
 
     renderPreview(target) {
-        if (!this.hasHtmlFiles()) {
-            this.showNotification('Add at least one HTML file to use preview.', 'info');
+        const availability = this.getPreviewAvailability();
+        if (!availability.allowed) {
+            this.showNotification(availability.reason, 'info');
             this.updatePreviewActionButtons();
             return;
         }
