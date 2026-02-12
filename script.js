@@ -4,7 +4,7 @@
  * Main application object containing all functionality for the HTML/CSS/JS previewer.
  * 
  * STRUCTURE:
- * - state: Application state (editors, files, mode, drag state)
+ * - state: Application state (editors, files, mode, panel/order state)
  * - dom: Cached DOM elements
  * - constants: Configuration constants (IDs, file types, MIME types)
  * - fileTypeUtils: File type detection and handling utilities
@@ -42,11 +42,6 @@ const CodePreviewer = {
         savedFileStates: {}, // Track saved states for files: { fileId: { content: string, fileName: string } }
         codeModalEditor: null,
         mainHtmlFile: '',
-        dragState: {
-            draggedElement: null,
-            draggedFileId: null,
-            dropIndicator: null,
-        },
     },
 
     // ============================================================================
@@ -543,18 +538,6 @@ const CodePreviewer = {
             if (e.target === this.dom.modalOverlay) this.toggleModal(false);
         });
         
-        // Enable drag-and-drop for the editor grid container
-        if (this.dom.editorGrid) {
-            this.dom.editorGrid.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'move';
-            });
-            
-            this.dom.editorGrid.addEventListener('drop', (e) => {
-                e.preventDefault();
-            });
-        }
-        
         document.addEventListener('keydown', (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                 e.preventDefault();
@@ -1028,7 +1011,6 @@ const CodePreviewer = {
         
         const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
         this.bindFilePanelEvents(panel);
-        this.bindDragAndDropEvents(panel);
         
         this.updateRemoveButtonsVisibility();
         this.updateMainHtmlSelector();
@@ -1418,7 +1400,6 @@ const CodePreviewer = {
         this.state.openPanels.add(fileId);
         
         this.bindFilePanelEvents(document.querySelector(`.editor-panel[data-file-id="${fileId}"]`));
-        this.bindDragAndDropEvents(document.querySelector(`.editor-panel[data-file-id="${fileId}"]`));
         
         this.updateRemoveButtonsVisibility();
         this.updateMainHtmlSelector();
@@ -1475,9 +1456,12 @@ const CodePreviewer = {
         const escapedFileName = this.escapeHtmlAttribute(fileName);
         
         const panelHTML = `
-            <div class="editor-panel" data-file-type="${fileType}" data-file-id="${fileId}" draggable="true">
+            <div class="editor-panel" data-file-type="${fileType}" data-file-id="${fileId}">
                 <div class="panel-header">
-                    <div class="drag-handle" aria-label="Drag to reorder">⋮⋮</div>
+                    <div class="panel-move-controls" aria-label="Move panel">
+                    <button class="move-panel-btn" data-direction="left" aria-label="Move panel left" title="Move left">←</button>
+                    <button class="move-panel-btn" data-direction="right" aria-label="Move panel right" title="Move right">→</button>
+                </div>
                     <input type="text" class="file-name-input" value="${escapedFileName}" aria-label="File name">
                     <select class="file-type-selector" aria-label="File type">
                         ${fileTypeOptions}
@@ -1686,6 +1670,13 @@ const CodePreviewer = {
                 this.closePanel(fileId);
             });
         }
+
+        const moveButtons = panel.querySelectorAll('.move-panel-btn');
+        moveButtons.forEach((button) => {
+            button.addEventListener('click', () => {
+                this.movePanel(panel, button.dataset.direction);
+            });
+        });
 
         this.bindToolbarEvents(panel);
     },
@@ -2039,7 +2030,7 @@ const CodePreviewer = {
 
     updateRemoveButtonsVisibility() {
         const allPanels = document.querySelectorAll('.editor-panel[data-file-id]');
-        const actualPanels = Array.from(allPanels).filter(panel => !panel.classList.contains('drag-clone'));
+        const actualPanels = Array.from(allPanels);
         
         actualPanels.forEach(panel => {
             const removeBtn = panel.querySelector('.remove-file-btn');
@@ -2086,8 +2077,7 @@ const CodePreviewer = {
             }
             
             this.bindFilePanelEvents(panel);
-            this.bindDragAndDropEvents(panel);
-        });
+            });
         this.updateRemoveButtonsVisibility();
         this.updateMainHtmlSelector();
         this.renderFileTree();
@@ -3028,195 +3018,33 @@ const CodePreviewer = {
         }
     },
 
-    bindDragAndDropEvents(panel) {
-        const dragHandle = panel.querySelector('.drag-handle');
-        const fileId = panel.dataset.fileId;
-        
-        let touchStartY = 0;
-        let touchStartX = 0;
-        let isDragging = false;
-        let dragClone = null;
-        let lastTargetPanel = null;
-        
-        if (dragHandle) {
-            dragHandle.addEventListener('mousedown', (e) => {
-                panel.draggable = true;
-            });
-            
-            dragHandle.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                const touch = e.touches[0];
-                touchStartY = touch.clientY;
-                touchStartX = touch.clientX;
-                isDragging = false;
-                lastTargetPanel = null;
-                
-                const startDragThreshold = 10;
-                let startDrag = false;
-                
-                const touchMoveHandler = (e) => {
-                    e.preventDefault();
-                    const touch = e.touches[0];
-                    const deltaY = Math.abs(touch.clientY - touchStartY);
-                    const deltaX = Math.abs(touch.clientX - touchStartX);
-                    
-                    if (!startDrag && (deltaY > startDragThreshold || deltaX > startDragThreshold)) {
-                        startDrag = true;
-                        isDragging = true;
-                        
-                        panel.classList.add('dragging');
-                        this.state.dragState.draggedElement = panel;
-                        this.state.dragState.draggedFileId = fileId;
-                        
-                        dragClone = panel.cloneNode(true);
-                        dragClone.removeAttribute('data-file-id');
-                        dragClone.style.position = 'fixed';
-                        dragClone.style.pointerEvents = 'none';
-                        dragClone.style.zIndex = '10000';
-                        dragClone.style.opacity = '0.8';
-                        dragClone.style.transform = 'rotate(5deg)';
-                        dragClone.classList.add('drag-clone');
-                        document.body.appendChild(dragClone);
-                    }
-                    
-                    if (isDragging && dragClone) {
-                        dragClone.style.left = (touch.clientX - 50) + 'px';
-                        dragClone.style.top = (touch.clientY - 50) + 'px';
-                        
-                        const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
-                        const targetPanel = elementBelow?.closest('.editor-panel[data-file-id]');
-                        
-                        if (targetPanel !== lastTargetPanel) {
-                            if (targetPanel && targetPanel !== panel) {
-                                this.showDropIndicator(targetPanel, { clientY: touch.clientY });
-                            } else {
-                                this.removeDragIndicators();
-                            }
-                            lastTargetPanel = targetPanel;
-                        }
-                    }
-                };
-                
-                const touchEndHandler = (e) => {
-                    e.preventDefault();
-                    
-                    if (isDragging) {
-                        const touch = e.changedTouches[0];
-                        const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
-                        const targetPanel = elementBelow?.closest('.editor-panel[data-file-id]');
-                        
-                        if (targetPanel && targetPanel !== panel) {
-                            this.reorderPanels(panel, targetPanel, { clientY: touch.clientY });
-                        }
-                        
-                        panel.classList.remove('dragging');
-                        this.removeDragIndicators();
-                        this.state.dragState.draggedElement = null;
-                        this.state.dragState.draggedFileId = null;
-                        
-                        if (dragClone) {
-                            document.body.removeChild(dragClone);
-                            dragClone = null;
-                        }
-                        
-                        this.cleanupOrphanedDragClones();
-                    }
-                    
-                    isDragging = false;
-                    document.removeEventListener('touchmove', touchMoveHandler);
-                    document.removeEventListener('touchend', touchEndHandler);
-                };
-                
-                document.addEventListener('touchmove', touchMoveHandler, { passive: false });
-                document.addEventListener('touchend', touchEndHandler, { passive: false });
-            }, { passive: false });
-        }
-        
-        panel.addEventListener('dragstart', (e) => {
-            this.state.dragState.draggedElement = panel;
-            this.state.dragState.draggedFileId = fileId;
-            panel.classList.add('dragging');
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/html', panel.outerHTML);
-        });
-        
-        panel.addEventListener('dragend', (e) => {
-            panel.classList.remove('dragging');
-            this.removeDragIndicators();
-            this.state.dragState.draggedElement = null;
-            this.state.dragState.draggedFileId = null;
-            this.cleanupOrphanedDragClones();
-        });
-        
-        panel.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-            
-            if (this.state.dragState.draggedElement && this.state.dragState.draggedElement !== panel) {
-                this.showDropIndicator(panel, e);
-            }
-        });
-        
-        panel.addEventListener('drop', (e) => {
-            e.preventDefault();
-            
-            if (this.state.dragState.draggedElement && this.state.dragState.draggedElement !== panel) {
-                this.reorderPanels(this.state.dragState.draggedElement, panel, e);
-            }
-            
-            this.removeDragIndicators();
-        });
-    },
-    
-    showDropIndicator(targetPanel, event) {
-        this.removeDragIndicators();
-        
-        const indicator = document.createElement('div');
-        indicator.className = 'drop-indicator';
-        this.state.dragState.dropIndicator = indicator;
-        
-        const rect = targetPanel.getBoundingClientRect();
-        const midY = rect.top + rect.height / 2;
-        
-        if (event.clientY < midY) {
-            targetPanel.parentNode.insertBefore(indicator, targetPanel);
-        } else {
-            targetPanel.parentNode.insertBefore(indicator, targetPanel.nextSibling);
-        }
-    },
-    
-    removeDragIndicators() {
-        const indicators = document.querySelectorAll('.drop-indicator');
-        indicators.forEach(indicator => indicator.remove());
-        this.state.dragState.dropIndicator = null;
-    },
-    
-    cleanupOrphanedDragClones() {
-        const orphanedClones = document.querySelectorAll('.drag-clone');
-        orphanedClones.forEach(clone => {
-            if (clone.parentNode) {
-                clone.parentNode.removeChild(clone);
-            }
-        });
-    },
+    movePanel(panel, direction) {
+        const parent = panel?.parentNode;
+        if (!parent) return;
 
-    reorderPanels(draggedPanel, targetPanel, event) {
-        const rect = targetPanel.getBoundingClientRect();
-        const midY = rect.top + rect.height / 2;
-        const insertBefore = event.clientY < midY;
-        
-        if (insertBefore) {
-            targetPanel.parentNode.insertBefore(draggedPanel, targetPanel);
-        } else {
-            targetPanel.parentNode.insertBefore(draggedPanel, targetPanel.nextSibling);
+        const panels = Array.from(parent.querySelectorAll('.editor-panel[data-file-id]'));
+        const currentIndex = panels.indexOf(panel);
+        if (currentIndex === -1) return;
+
+        const targetIndex = direction === 'left' ? currentIndex - 1 : currentIndex + 1;
+        if (targetIndex < 0 || targetIndex >= panels.length) {
+            return;
         }
-        
+
+        const targetPanel = panels[targetIndex];
+        if (!targetPanel) return;
+
+        if (direction === 'left') {
+            parent.insertBefore(panel, targetPanel);
+        } else {
+            parent.insertBefore(targetPanel, panel);
+        }
+
         this.updateFilesOrder();
     },
-    
+
     updateFilesOrder() {
-        const panels = Array.from(document.querySelectorAll('.editor-panel[data-file-id]'))
-            .filter(panel => !panel.classList.contains('drag-clone'));
+        const panels = Array.from(document.querySelectorAll('.editor-panel[data-file-id]'));
         const newFilesOrder = [];
         
         panels.forEach(panel => {

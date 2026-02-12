@@ -968,85 +968,42 @@ body {
     border: 1px solid var(--border-color);
 }
 
-/* Drag and Drop Styles */
-.drag-handle {
-    cursor: grab;
-    color: rgba(137, 180, 250, 0.4);
-    font-size: 1.1rem;
-    padding: 0.25rem 0.35rem;
-    user-select: none;
-    line-height: 1;
-    transition: all 0.2s ease;
-    border-radius: 4px;
+/* Panel Move Controls */
+.panel-move-controls {
+    display: flex;
+    gap: 0.25rem;
+    align-items: center;
 }
 
-.drag-handle:hover {
+.move-panel-btn {
+    background: rgba(49, 50, 68, 0.7);
+    border: 1px solid rgba(137, 180, 250, 0.25);
     color: var(--accent-color);
-    background: rgba(137, 180, 250, 0.1);
-    transform: scale(1.1);
-}
-
-.drag-handle:active {
-    cursor: grabbing;
-    transform: scale(0.95);
-}
-
-.editor-panel.dragging {
-    opacity: 0.5;
-    transform: rotate(2deg);
-}
-
-/* Disable hover effects while dragging */
-.editor-panel.dragging:hover {
-    transform: rotate(2deg);
-}
-
-.editor-panel.dragging::before {
-    opacity: 0;
-}
-
-.editor-panel.drag-over {
-    border: 2px dashed var(--accent-color);
-}
-
-.drop-indicator {
-    height: 3px;
-    background-color: var(--accent-color);
-    border-radius: 2px;
-    margin: 0.5rem 0;
+    border-radius: 6px;
+    width: 1.75rem;
+    height: 1.75rem;
+    font-size: 0.8rem;
+    line-height: 1;
+    cursor: pointer;
     transition: all 0.2s ease;
 }
 
-/* Drag clone for touch devices */
-.drag-clone {
-    pointer-events: none;
-    width: 300px;
-    z-index: 10000;
-    border: 2px solid var(--accent-color);
-    background: var(--bg-color);
-    border-radius: 8px;
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+.move-panel-btn:hover {
+    background: rgba(137, 180, 250, 0.15);
+    border-color: rgba(137, 180, 250, 0.7);
+    color: var(--primary-color);
 }
 
-.drag-clone .editor-wrapper {
-    max-height: 100px;
-    overflow: hidden;
+.move-panel-btn:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 1px;
 }
 
-/* Touch improvements */
 @media (pointer: coarse) {
-    .drag-handle {
-        padding: 0.5rem;
-        font-size: 1.2rem;
-        min-width: 44px;
-        min-height: 44px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    
-    .editor-panel {
-        margin-bottom: 0.5rem;
+    .move-panel-btn {
+        width: 2.1rem;
+        height: 2.1rem;
+        font-size: 0.9rem;
     }
 }
 
