@@ -2025,6 +2025,7 @@ const CodePreviewer = {
         }
         
         if (collapseBtn) {
+            collapseBtn.setAttribute('aria-expanded', 'true');
             collapseBtn.addEventListener('click', () => this.toggleEditorCollapse(panel));
         }
 
@@ -2431,28 +2432,27 @@ const CodePreviewer = {
     },
 
     toggleEditorCollapse(panel) {
-        const editorWrapper = panel.querySelector('.editor-wrapper');
         const collapseBtn = panel.querySelector('.collapse-btn');
-        
-        if (editorWrapper && collapseBtn) {
-            const isCollapsed = editorWrapper.classList.contains('collapsed');
-            
-            if (isCollapsed) {
-                editorWrapper.classList.remove('collapsed');
-                collapseBtn.classList.remove('collapsed');
-                collapseBtn.innerHTML = '<span class="btn-icon">📁</span> Collapse';
-                
-                setTimeout(() => {
-                    const editor = this.getEditorFromPanel(panel);
-                    if (editor && editor.refresh) {
-                        editor.refresh();
-                    }
-                }, 100);
-            } else {
-                editorWrapper.classList.add('collapsed');
-                collapseBtn.classList.add('collapsed');
-                collapseBtn.innerHTML = '<span class="btn-icon">📂</span> Expand';
-            }
+        const toolbarButtons = panel.querySelectorAll('.editor-toolbar .toolbar-btn:not(.collapse-btn)');
+
+        if (!collapseBtn) return;
+
+        const isCollapsed = panel.classList.contains('toolbar-collapsed');
+        const willCollapse = !isCollapsed;
+
+        panel.classList.toggle('toolbar-collapsed', willCollapse);
+        collapseBtn.classList.toggle('collapsed', willCollapse);
+        collapseBtn.setAttribute('aria-expanded', willCollapse ? 'false' : 'true');
+        collapseBtn.innerHTML = willCollapse
+            ? '<span class="btn-icon">📂</span> Actions'
+            : '<span class="btn-icon">📁</span> Collapse';
+
+        toolbarButtons.forEach((btn) => {
+            btn.hidden = willCollapse;
+        });
+
+        if (willCollapse) {
+            this.closePanelSearch(panel);
         }
     },
 

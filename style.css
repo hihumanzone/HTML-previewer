@@ -179,6 +179,19 @@ body {
     box-shadow: 0 2px 6px rgba(250, 179, 135, 0.3);
 }
 
+
+.editor-panel.toolbar-collapsed .editor-toolbar {
+    justify-content: flex-end;
+}
+
+.editor-panel.toolbar-collapsed .editor-toolbar .toolbar-btn:not(.collapse-btn) {
+    display: none;
+}
+
+.editor-panel.toolbar-collapsed .panel-search {
+    display: none !important;
+}
+
 .toolbar-btn .btn-icon {
     font-size: 0.85rem;
 }
@@ -260,7 +273,7 @@ body {
 }
 
 .editor-grid {
-    --panel-size: 340px;
+    --panel-size: 420px;
     display: grid;
     grid-template-columns: repeat(auto-fill, var(--panel-size));
     gap: 1rem;
@@ -322,11 +335,6 @@ body {
 
 .editor-panel:hover::before {
     opacity: 1;
-}
-
-/* Prevent collapsed panels from stretching */
-.editor-panel:has(.editor-wrapper.collapsed) {
-    align-self: start;
 }
 
 .panel-header {
@@ -490,10 +498,6 @@ body {
     flex-direction: column;
     transition: max-height 0.3s ease, opacity 0.3s ease;
     background: linear-gradient(180deg, rgba(30, 30, 46, 0.5) 0%, rgba(30, 30, 46, 0.8) 100%);
-}
-
-.editor-wrapper.collapsed {
-    display: none;
 }
 
 .controls { 
@@ -1628,7 +1632,7 @@ body {
 
 @media (max-width: 900px) {
     .editor-grid {
-        --panel-size: min(92vw, 340px);
+        --panel-size: min(92vw, 420px);
         justify-content: center;
     }
 }
