@@ -1015,6 +1015,7 @@ const CodePreviewer = {
         this.updateRemoveButtonsVisibility();
         this.updateMainHtmlSelector();
         this.renderFileTree();
+        this.updatePanelMoveButtonsVisibility();
     },
 
     /**
@@ -1404,6 +1405,7 @@ const CodePreviewer = {
         this.updateRemoveButtonsVisibility();
         this.updateMainHtmlSelector();
         this.renderFileTree();
+        this.updatePanelMoveButtonsVisibility();
     },
 
     /**
@@ -1919,6 +1921,7 @@ const CodePreviewer = {
             panel.style.display = 'none';
             this.state.openPanels.delete(fileId);
             this.renderFileTree();
+            this.updatePanelMoveButtonsVisibility();
         }
     },
 
@@ -1945,6 +1948,7 @@ const CodePreviewer = {
             setTimeout(() => panel.classList.remove('file-selected'), 2000);
         }
         this.renderFileTree();
+        this.updatePanelMoveButtonsVisibility();
     },
 
     /**
@@ -1975,6 +1979,7 @@ const CodePreviewer = {
         this.updateRemoveButtonsVisibility();
         this.updateMainHtmlSelector();
         this.renderFileTree();
+        this.updatePanelMoveButtonsVisibility();
     },
 
     async clearAllFiles() {
@@ -2024,8 +2029,34 @@ const CodePreviewer = {
         this.updateRemoveButtonsVisibility();
         this.updateMainHtmlSelector();
         this.renderFileTree();
+        this.updatePanelMoveButtonsVisibility();
 
         this.showNotification('All files cleared successfully', 'success');
+    },
+
+    updatePanelMoveButtonsVisibility() {
+        const allPanels = Array.from(document.querySelectorAll('.editor-panel[data-file-id]'));
+        const visiblePanels = allPanels.filter(panel => window.getComputedStyle(panel).display !== 'none');
+
+        allPanels.forEach((panel) => {
+            const leftBtn = panel.querySelector('.move-panel-btn[data-direction="left"]');
+            const rightBtn = panel.querySelector('.move-panel-btn[data-direction="right"]');
+
+            if (leftBtn) leftBtn.hidden = true;
+            if (rightBtn) rightBtn.hidden = true;
+        });
+
+        visiblePanels.forEach((panel, index) => {
+            const leftBtn = panel.querySelector('.move-panel-btn[data-direction="left"]');
+            const rightBtn = panel.querySelector('.move-panel-btn[data-direction="right"]');
+
+            if (leftBtn) {
+                leftBtn.hidden = index === 0;
+            }
+            if (rightBtn) {
+                rightBtn.hidden = index === visiblePanels.length - 1;
+            }
+        });
     },
 
     updateRemoveButtonsVisibility() {
@@ -2081,6 +2112,7 @@ const CodePreviewer = {
         this.updateRemoveButtonsVisibility();
         this.updateMainHtmlSelector();
         this.renderFileTree();
+        this.updatePanelMoveButtonsVisibility();
     },
 
     bindToolbarEvents(panel) {
@@ -3056,6 +3088,7 @@ const CodePreviewer = {
         });
         
         this.state.files = newFilesOrder;
+        this.updatePanelMoveButtonsVisibility();
     },
 
     async exportZip() {
