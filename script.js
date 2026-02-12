@@ -1,5 +1,5 @@
 /**
- * HTML Live Code Previewer
+ * HTML Code Previewer
  * 
  * Main application object containing all functionality for the HTML/CSS/JS previewer.
  * 
@@ -514,7 +514,7 @@ const CodePreviewer = {
     },
     
     setDefaultContent() {
-        const initialHTML = `<h1>Hello, World!</h1>\n<p>This is a test of the live previewer.</p>\n<button onclick="testFunction()">Run JS</button>`;
+        const initialHTML = `<h1>Hello, World!</h1>\n<p>This is a test of the code previewer.</p>\n<button onclick="testFunction()">Run JS</button>`;
         const initialCSS = `body { \n  font-family: sans-serif; \n  padding: 2rem;\n  color: #333;\n}\nbutton {\n  padding: 8px 16px;\n  border-radius: 4px;\n  cursor: pointer;\n}`;
         const initialJS = `console.log("Preview initialized.");\n\nfunction testFunction() {\n  console.log("Button was clicked!");\n  try {\n    undefinedFunction();\n  } catch(e) {\n    console.error("Caught an error:", e.message);\n  }\n}`;
         
@@ -2968,7 +2968,7 @@ const CodePreviewer = {
             '<head>\n' +
             '    <meta charset="UTF-8">\n' +
             '    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
-            '    <title>Live Preview</title>\n' +
+            '    <title>Preview</title>\n' +
             '    ' + this.console.getCaptureScript(fileSystem, mainHtmlPath) + '\n' +
             '    ' + workerScript + '\n' +
             '    <style>' + css + '</style>\n' +

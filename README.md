@@ -2,7 +2,7 @@
 
 A lightweight, browser-based playground for HTML, CSS, and JavaScript. Write code and see the output instantly, all locally in your browser.
 
-- Live demo: https://html-previewer-tawny.vercel.app
+- Online demo: https://html-previewer-tawny.vercel.app
 - Status: Public, static site (no server required)
 - Tech stack: Vanilla HTML, CSS, and JavaScript
 
@@ -18,7 +18,7 @@ Note: Exact UI and capabilities depend on the current implementation of `index.h
 ## Getting Started
 
 ### Option 1: Use the hosted app
-1. Open the live demo: https://html-previewer-tawny.vercel.app
+1. Open the online demo: https://html-previewer-tawny.vercel.app
 2. Start typing HTML, CSS, and JavaScript. The preview updates in real time.
 
 ### Option 2: Run locally
