@@ -512,6 +512,8 @@ const CodePreviewer = {
                     if (fileData) {
                         isVirtualRequest = true;
                         virtualFileData = fileData;
+                        xhr.setRequestHeader = function() {};
+                        xhr.overrideMimeType = function() {};
                         return;
                     }
                 }
@@ -544,6 +546,16 @@ const CodePreviewer = {
                                         byteNumbers[i] = byteCharacters.charCodeAt(i);
                                     }
                                     Object.defineProperty(xhr, "response", { value: new Uint8Array(byteNumbers).buffer, configurable: true });
+                                } else if (xhr.responseType === "blob") {
+                                    const [header, base64] = virtualFileData.content.split(",");
+                                    const mimeType = header.match(/data:([^;]+)/)[1];
+                                    const byteCharacters = atob(base64);
+                                    const byteNumbers = new Array(byteCharacters.length);
+                                    for (let i = 0; i < byteCharacters.length; i++) {
+                                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                                    }
+                                    const byteArray = new Uint8Array(byteNumbers);
+                                    Object.defineProperty(xhr, "response", { value: new Blob([byteArray], { type: mimeType }), configurable: true });
                                 } else {
                                     Object.defineProperty(xhr, "response", { value: virtualFileData.content, configurable: true });
                                     Object.defineProperty(xhr, "responseText", { value: virtualFileData.content, configurable: true });
