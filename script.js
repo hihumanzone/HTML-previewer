@@ -622,6 +622,12 @@ const CodePreviewer = {
         this.dom.exportZipBtn.addEventListener('click', () => this.exportZip());
         this.setupMainHtmlDropdownEvents();
 
+        document.addEventListener('click', (event) => {
+            if (!event.target.closest('.file-type-dropdown')) {
+                this.closeAllFileTypeDropdowns();
+            }
+        });
+
     },
 
     isModuleFile(content, filename) {
@@ -1556,8 +1562,8 @@ const CodePreviewer = {
         });
     },
 
-    generateFileTypeOptions(selectedType) {
-        const fileTypes = [
+    getFileTypeChoices() {
+        return [
             { value: 'html', label: 'HTML' },
             { value: 'css', label: 'CSS' },
             { value: 'javascript', label: 'JavaScript' },
@@ -1574,14 +1580,30 @@ const CodePreviewer = {
             { value: 'pdf', label: 'PDF' },
             { value: 'binary', label: 'Binary' }
         ];
-        
-        return fileTypes.map(type => 
+    },
+
+    getFileTypeChoiceLabel(fileType) {
+        const choice = this.getFileTypeChoices().find(type => type.value === fileType);
+        return choice ? choice.label : 'Text';
+    },
+
+    generateFileTypeOptions(selectedType) {
+        return this.getFileTypeChoices().map(type =>
             `<option value="${type.value}" ${selectedType === type.value ? 'selected' : ''}>${type.label}</option>`
         ).join('');
     },
 
+    generateFileTypeDropdownOptions(selectedType) {
+        return this.getFileTypeChoices().map(type => {
+            const selectedClass = selectedType === type.value ? ' is-selected' : '';
+            const selectedState = selectedType === type.value ? 'true' : 'false';
+            return `<li role="option" aria-selected="${selectedState}"><button type="button" class="file-type-dropdown-option${selectedClass}" data-value="${this.escapeHtmlAttribute(type.value)}">${this.escapeHtml(type.label)}</button></li>`;
+        }).join('');
+    },
+
     createFilePanel(fileId, fileName, fileType, content, isBinary) {
         const fileTypeOptions = this.generateFileTypeOptions(fileType);
+        const fileTypeDropdownOptions = this.generateFileTypeDropdownOptions(fileType);
         const escapedFileName = this.escapeHtmlAttribute(fileName);
         
         const panelHTML = `
@@ -1592,9 +1614,15 @@ const CodePreviewer = {
                     <button class="move-panel-btn" data-direction="right" aria-label="Move panel right" title="Move right">→</button>
                 </div>
                     <input type="text" class="file-name-input" value="${escapedFileName}" aria-label="File name">
-                    <select class="file-type-selector" aria-label="File type">
-                        ${fileTypeOptions}
-                    </select>
+                    <div class="file-type-dropdown" data-file-type-dropdown>
+                        <button type="button" class="file-type-dropdown-trigger" aria-haspopup="listbox" aria-expanded="false">${this.escapeHtml(this.getFileTypeChoiceLabel(fileType))}</button>
+                        <ul class="file-type-dropdown-list" role="listbox" tabindex="-1" hidden>
+                            ${fileTypeDropdownOptions}
+                        </ul>
+                        <select class="file-type-selector visually-hidden-select" aria-label="File type">
+                            ${fileTypeOptions}
+                        </select>
+                    </div>
                     <button class="remove-file-btn" aria-label="Close panel" title="Close panel (file stays in sidebar)">&times;</button>
                 </div>
                 ${this.generateToolbarHTML(fileType)}
@@ -1718,6 +1746,73 @@ const CodePreviewer = {
         this.bindToolbarEvents(panel);
     },
 
+    closeAllFileTypeDropdowns(exceptPanel = null) {
+        document.querySelectorAll('.editor-panel .file-type-dropdown').forEach((dropdown) => {
+            if (exceptPanel && exceptPanel.contains(dropdown)) {
+                return;
+            }
+            const trigger = dropdown.querySelector('.file-type-dropdown-trigger');
+            const list = dropdown.querySelector('.file-type-dropdown-list');
+            if (trigger && list) {
+                trigger.setAttribute('aria-expanded', 'false');
+                list.hidden = true;
+            }
+        });
+    },
+
+    updatePanelFileTypeDropdownUI(panel, fileType) {
+        const typeSelector = panel.querySelector('.file-type-selector');
+        const trigger = panel.querySelector('.file-type-dropdown-trigger');
+        const options = panel.querySelectorAll('.file-type-dropdown-option');
+        if (typeSelector) {
+            typeSelector.value = fileType;
+        }
+        if (trigger) {
+            trigger.textContent = this.getFileTypeChoiceLabel(fileType);
+        }
+        options.forEach((option) => {
+            const isSelected = option.dataset.value === fileType;
+            option.classList.toggle('is-selected', isSelected);
+            const listItem = option.closest('li');
+            if (listItem) {
+                listItem.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+            }
+        });
+    },
+
+    applyFileTypeChange(panel, fileId, newType) {
+        panel.dataset.fileType = newType;
+
+        const fileInfo = this.state.files.find(f => f.id === fileId);
+        if (fileInfo) {
+            const oldType = fileInfo.type;
+            fileInfo.type = newType;
+
+            const oldIsEditable = this.isEditableFileType(oldType);
+            const newIsEditable = this.isEditableFileType(newType);
+
+            if (oldIsEditable !== newIsEditable) {
+                const editorWrapper = panel.querySelector('.editor-wrapper');
+                if (editorWrapper) {
+                    const currentContent = fileInfo.editor ? fileInfo.editor.getValue() : '';
+                    const newContent = this.generateFileContentDisplay(fileId, newType, currentContent, false);
+                    editorWrapper.innerHTML = newContent;
+
+                    this.createEditorForFileType(fileInfo, fileId, newType, currentContent);
+                }
+            } else if (newIsEditable && typeof window.CodeMirror !== 'undefined' && fileInfo.editor.setOption) {
+                const mode = this.getCodeMirrorMode(newType);
+                fileInfo.editor.setOption('mode', mode);
+                fileInfo.editor.setOption('autoCloseTags', newType === 'html');
+            }
+        }
+
+        this.updatePanelFileTypeDropdownUI(panel, newType);
+        this.updateToolbarForFileType(panel, newType);
+        this.updateMainHtmlSelector();
+        this.renderFileTree();
+    },
+
     bindFilePanelEvents(panel) {
         const typeSelector = panel.querySelector('.file-type-selector');
         const removeBtn = panel.querySelector('.remove-file-btn');
@@ -1734,21 +1829,12 @@ const CodePreviewer = {
                     const suggestedType = this.autoDetectFileType(filename, currentContent);
                     
                     if (suggestedType !== typeSelector.value) {
-                        typeSelector.value = suggestedType;
-                        panel.dataset.fileType = suggestedType;
-                        fileInfo.type = suggestedType;
-                        
-                        if (typeof window.CodeMirror !== 'undefined' && fileInfo.editor.setOption) {
-                            const mode = suggestedType === 'html' ? 'htmlmixed' : 
-                                       suggestedType === 'css' ? 'css' : 'javascript';
-                            fileInfo.editor.setOption('mode', mode);
-                            fileInfo.editor.setOption('autoCloseTags', suggestedType === 'html');
-                        }
+                        this.applyFileTypeChange(panel, fileId, suggestedType);
+                    } else {
+                        // Update file tree and main HTML selector when filename changes
+                        this.renderFileTree();
+                        this.updateMainHtmlSelector();
                     }
-                    
-                    // Update file tree and main HTML selector when filename changes
-                    this.renderFileTree();
-                    this.updateMainHtmlSelector();
                     
                     // Check for unsaved changes and update UI
                     this.checkFileModified(fileId, panel);
@@ -1761,37 +1847,45 @@ const CodePreviewer = {
             });
         }
         
+        const fileTypeDropdown = panel.querySelector('.file-type-dropdown');
+        const fileTypeTrigger = panel.querySelector('.file-type-dropdown-trigger');
+        const fileTypeDropdownList = panel.querySelector('.file-type-dropdown-list');
+
         if (typeSelector) {
             typeSelector.addEventListener('change', (e) => {
-                const newType = e.target.value;
-                panel.dataset.fileType = newType;
-                
-                const fileInfo = this.state.files.find(f => f.id === fileId);
-                if (fileInfo) {
-                    const oldType = fileInfo.type;
-                    fileInfo.type = newType;
-                    
-                    const oldIsEditable = this.isEditableFileType(oldType);
-                    const newIsEditable = this.isEditableFileType(newType);
-                    
-                    if (oldIsEditable !== newIsEditable) {
-                        const editorWrapper = panel.querySelector('.editor-wrapper');
-                        if (editorWrapper) {
-                            const currentContent = fileInfo.editor ? fileInfo.editor.getValue() : '';
-                            const newContent = this.generateFileContentDisplay(fileId, newType, currentContent, false);
-                            editorWrapper.innerHTML = newContent;
-                            
-                            this.createEditorForFileType(fileInfo, fileId, newType, currentContent);
-                        }
-                    } else if (newIsEditable && typeof window.CodeMirror !== 'undefined' && fileInfo.editor.setOption) {
-                        const mode = this.getCodeMirrorMode(newType);
-                        fileInfo.editor.setOption('mode', mode);
-                        fileInfo.editor.setOption('autoCloseTags', newType === 'html');
-                    }
-                }
-                
-                this.updateToolbarForFileType(panel, newType);
+                this.applyFileTypeChange(panel, fileId, e.target.value);
             });
+        }
+
+        if (fileTypeDropdown && fileTypeTrigger && fileTypeDropdownList) {
+            fileTypeTrigger.addEventListener('click', () => {
+                const isOpen = fileTypeTrigger.getAttribute('aria-expanded') === 'true';
+                this.closeAllFileTypeDropdowns(panel);
+                fileTypeTrigger.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+                fileTypeDropdownList.hidden = isOpen;
+            });
+
+            fileTypeDropdownList.addEventListener('click', (event) => {
+                const option = event.target.closest('.file-type-dropdown-option');
+                if (!option) return;
+                this.applyFileTypeChange(panel, fileId, option.dataset.value);
+                this.closeAllFileTypeDropdowns();
+            });
+
+            fileTypeTrigger.addEventListener('keydown', (event) => {
+                if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    this.closeAllFileTypeDropdowns(panel);
+                    fileTypeTrigger.setAttribute('aria-expanded', 'true');
+                    fileTypeDropdownList.hidden = false;
+                }
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    this.closeAllFileTypeDropdowns();
+                }
+            });
+
+            this.updatePanelFileTypeDropdownUI(panel, panel.dataset.fileType || typeSelector?.value || 'text');
         }
         
         if (removeBtn) {

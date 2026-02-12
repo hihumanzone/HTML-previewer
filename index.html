@@ -47,7 +47,28 @@
                             <button class="move-panel-btn" data-direction="right" aria-label="Move panel right" title="Move right">→</button>
                         </div>
                             <input type="text" class="file-name-input" value="index.html" aria-label="HTML file name">
-                            <select class="file-type-selector" aria-label="File type">
+                            <div class="file-type-dropdown" data-file-type-dropdown>
+                            <button type="button" class="file-type-dropdown-trigger" aria-haspopup="listbox" aria-expanded="false">HTML</button>
+                            <ul class="file-type-dropdown-list" role="listbox" tabindex="-1" hidden>
+                                
+                                <li role="option" aria-selected="true"><button type="button" class="file-type-dropdown-option is-selected" data-value="html">HTML</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="css">CSS</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="javascript">JavaScript</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="javascript-module">JavaScript Module</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="json">JSON</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="xml">XML</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="markdown">Markdown</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="text">Text</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="svg">SVG</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="image">Image</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="audio">Audio</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="video">Video</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="font">Font</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="pdf">PDF</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="binary">Binary</button></li>
+                            
+                            </ul>
+                            <select class="file-type-selector visually-hidden-select" aria-label="File type">
                                 <option value="html" selected>HTML</option>
                                 <option value="css">CSS</option>
                                 <option value="javascript">JavaScript</option>
@@ -64,6 +85,7 @@
                                 <option value="pdf">PDF</option>
                                 <option value="binary">Binary</option>
                             </select>
+                        </div>
                             <button class="remove-file-btn" aria-label="Close panel" title="Close panel (file stays in sidebar)">&times;</button>
                         </div>
                         <div class="editor-toolbar">
@@ -106,7 +128,28 @@
                             <button class="move-panel-btn" data-direction="right" aria-label="Move panel right" title="Move right">→</button>
                         </div>
                             <input type="text" class="file-name-input" value="styles.css" aria-label="CSS file name">
-                            <select class="file-type-selector" aria-label="File type">
+                            <div class="file-type-dropdown" data-file-type-dropdown>
+                            <button type="button" class="file-type-dropdown-trigger" aria-haspopup="listbox" aria-expanded="false">CSS</button>
+                            <ul class="file-type-dropdown-list" role="listbox" tabindex="-1" hidden>
+                                
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="html">HTML</button></li>
+                                <li role="option" aria-selected="true"><button type="button" class="file-type-dropdown-option is-selected" data-value="css">CSS</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="javascript">JavaScript</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="javascript-module">JavaScript Module</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="json">JSON</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="xml">XML</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="markdown">Markdown</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="text">Text</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="svg">SVG</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="image">Image</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="audio">Audio</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="video">Video</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="font">Font</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="pdf">PDF</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="binary">Binary</button></li>
+                            
+                            </ul>
+                            <select class="file-type-selector visually-hidden-select" aria-label="File type">
                                 <option value="html">HTML</option>
                                 <option value="css" selected>CSS</option>
                                 <option value="javascript">JavaScript</option>
@@ -123,6 +166,7 @@
                                 <option value="pdf">PDF</option>
                                 <option value="binary">Binary</option>
                             </select>
+                        </div>
                             <button class="remove-file-btn" aria-label="Close panel" title="Close panel (file stays in sidebar)">&times;</button>
                         </div>
                         <div class="editor-toolbar">
@@ -165,7 +209,28 @@
                             <button class="move-panel-btn" data-direction="right" aria-label="Move panel right" title="Move right">→</button>
                         </div>
                             <input type="text" class="file-name-input" value="script.js" aria-label="JavaScript file name">
-                            <select class="file-type-selector" aria-label="File type">
+                            <div class="file-type-dropdown" data-file-type-dropdown>
+                            <button type="button" class="file-type-dropdown-trigger" aria-haspopup="listbox" aria-expanded="false">JavaScript</button>
+                            <ul class="file-type-dropdown-list" role="listbox" tabindex="-1" hidden>
+                                
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="html">HTML</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="css">CSS</button></li>
+                                <li role="option" aria-selected="true"><button type="button" class="file-type-dropdown-option is-selected" data-value="javascript">JavaScript</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="javascript-module">JavaScript Module</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="json">JSON</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="xml">XML</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="markdown">Markdown</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="text">Text</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="svg">SVG</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="image">Image</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="audio">Audio</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="video">Video</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="font">Font</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="pdf">PDF</button></li>
+                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="binary">Binary</button></li>
+                            
+                            </ul>
+                            <select class="file-type-selector visually-hidden-select" aria-label="File type">
                                 <option value="html">HTML</option>
                                 <option value="css">CSS</option>
                                 <option value="javascript" selected>JavaScript</option>
@@ -182,6 +247,7 @@
                                 <option value="pdf">PDF</option>
                                 <option value="binary">Binary</option>
                             </select>
+                        </div>
                             <button class="remove-file-btn" aria-label="Close panel" title="Close panel (file stays in sidebar)">&times;</button>
                         </div>
                         <div class="editor-toolbar">
