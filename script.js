@@ -1,10 +1,10 @@
 /**
- * HTML Live Code Previewer
+ * HTML Code Previewer
  * 
  * Main application object containing all functionality for the HTML/CSS/JS previewer.
  * 
  * STRUCTURE:
- * - state: Application state (editors, files, mode, drag state)
+ * - state: Application state (editors, files, mode, panel/order state)
  * - dom: Cached DOM elements
  * - constants: Configuration constants (IDs, file types, MIME types)
  * - fileTypeUtils: File type detection and handling utilities
@@ -40,13 +40,12 @@ const CodePreviewer = {
         expandedFolders: new Set(),
         openPanels: new Set(), // Track which file panels are currently open/visible
         savedFileStates: {}, // Track saved states for files: { fileId: { content: string, fileName: string } }
+        modifiedFiles: new Set(),
+        sidebarShowModifiedOnly: false,
+        sidebarSearchQuery: '',
+        selectedFileIds: new Set(),
         codeModalEditor: null,
         mainHtmlFile: '',
-        dragState: {
-            draggedElement: null,
-            draggedFileId: null,
-            dropIndicator: null,
-        },
     },
 
     // ============================================================================
@@ -72,6 +71,7 @@ const CodePreviewer = {
             ADD_FOLDER_BTN: 'add-folder-btn',
             CLEAR_ALL_FILES_BTN: 'clear-all-files-btn',
             IMPORT_FILE_BTN: 'import-file-btn',
+            IMPORT_FOLDER_BTN: 'import-folder-btn',
             IMPORT_ZIP_BTN: 'import-zip-btn',
             EXPORT_ZIP_BTN: 'export-zip-btn',
             MAIN_HTML_SELECT: 'main-html-select',
@@ -420,6 +420,7 @@ const CodePreviewer = {
         this.bindFileTreeEvents();
         this.initExistingFilePanels();
         this.console.init(this.dom.consoleOutput, this.dom.clearConsoleBtn, this.dom.previewFrame);
+        this.updatePreviewActionButtons();
     },
 
     cacheDOMElements() {
@@ -436,10 +437,14 @@ const CodePreviewer = {
             addFolderBtn: document.getElementById(CONTROL_IDS.ADD_FOLDER_BTN),
             clearAllFilesBtn: document.getElementById(CONTROL_IDS.CLEAR_ALL_FILES_BTN),
             importFileBtn: document.getElementById(CONTROL_IDS.IMPORT_FILE_BTN),
+            importFolderBtn: document.getElementById(CONTROL_IDS.IMPORT_FOLDER_BTN),
             importZipBtn: document.getElementById(CONTROL_IDS.IMPORT_ZIP_BTN),
             exportZipBtn: document.getElementById(CONTROL_IDS.EXPORT_ZIP_BTN),
             mainHtmlSelect: document.getElementById(CONTROL_IDS.MAIN_HTML_SELECT),
             mainHtmlSelector: document.getElementById('main-html-selector'),
+            mainHtmlDropdown: document.getElementById('main-html-dropdown'),
+            mainHtmlDropdownTrigger: document.getElementById('main-html-dropdown-trigger'),
+            mainHtmlDropdownList: document.getElementById('main-html-dropdown-list'),
             multiFileContainer: document.getElementById(CONTAINER_IDS.MULTI_FILE),
             fileTreeContainer: document.getElementById(CONTAINER_IDS.FILE_TREE),
             modalOverlay: document.getElementById(MODAL_IDS.OVERLAY),
@@ -463,6 +468,44 @@ const CodePreviewer = {
     escapeHtmlAttribute(str) {
         if (!str) return '';
         return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    },
+
+    escapeHtml(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    },
+
+    hasHtmlFiles() {
+        return this.state.files.some(file => file.type === 'html');
+    },
+
+    getPreviewAvailability() {
+        const hasHtml = this.hasHtmlFiles();
+        return {
+            allowed: hasHtml,
+            reason: hasHtml ? '' : 'Add at least one HTML file to preview.'
+        };
+    },
+
+    updatePreviewActionButtons() {
+        const availability = this.getPreviewAvailability();
+        const disabled = !availability.allowed;
+
+        if (this.dom.modalBtn) {
+            this.dom.modalBtn.disabled = disabled;
+            this.dom.modalBtn.setAttribute('aria-disabled', String(disabled));
+            this.dom.modalBtn.title = disabled ? availability.reason : 'Open preview in modal';
+        }
+        if (this.dom.tabBtn) {
+            this.dom.tabBtn.disabled = disabled;
+            this.dom.tabBtn.setAttribute('aria-disabled', String(disabled));
+            this.dom.tabBtn.title = disabled ? availability.reason : 'Open preview in new tab';
+        }
     },
 
     initEditors() {
@@ -519,7 +562,7 @@ const CodePreviewer = {
     },
     
     setDefaultContent() {
-        const initialHTML = `<h1>Hello, World!</h1>\n<p>This is a test of the live previewer.</p>\n<button onclick="testFunction()">Run JS</button>`;
+        const initialHTML = `<h1>Hello, World!</h1>\n<p>This is a test of the code previewer.</p>\n<button onclick="testFunction()">Run JS</button>`;
         const initialCSS = `body { \n  font-family: sans-serif; \n  padding: 2rem;\n  color: #333;\n}\nbutton {\n  padding: 8px 16px;\n  border-radius: 4px;\n  cursor: pointer;\n}`;
         const initialJS = `console.log("Preview initialized.");\n\nfunction testFunction() {\n  console.log("Button was clicked!");\n  try {\n    undefinedFunction();\n  } catch(e) {\n    console.error("Caught an error:", e.message);\n  }\n}`;
         
@@ -542,18 +585,6 @@ const CodePreviewer = {
         this.dom.modalOverlay.addEventListener('click', (e) => {
             if (e.target === this.dom.modalOverlay) this.toggleModal(false);
         });
-        
-        // Enable drag-and-drop for the editor grid container
-        if (this.dom.editorGrid) {
-            this.dom.editorGrid.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'move';
-            });
-            
-            this.dom.editorGrid.addEventListener('drop', (e) => {
-                e.preventDefault();
-            });
-        }
         
         document.addEventListener('keydown', (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -613,11 +644,19 @@ const CodePreviewer = {
             this.dom.clearAllFilesBtn.addEventListener('click', () => this.clearAllFiles());
         }
         this.dom.importFileBtn.addEventListener('click', () => this.importFile());
+        if (this.dom.importFolderBtn) {
+            this.dom.importFolderBtn.addEventListener('click', () => this.importFolder());
+        }
         this.dom.importZipBtn.addEventListener('click', () => this.importZip());
         this.dom.exportZipBtn.addEventListener('click', () => this.exportZip());
-        this.dom.mainHtmlSelect.addEventListener('change', (e) => {
-            this.state.mainHtmlFile = e.target.value;
+        this.setupMainHtmlDropdownEvents();
+
+        document.addEventListener('click', (event) => {
+            if (!event.target.closest('.file-type-dropdown')) {
+                this.closeAllFileTypeDropdowns();
+            }
         });
+
     },
 
     isModuleFile(content, filename) {
@@ -742,30 +781,38 @@ const CodePreviewer = {
     },
 
     /**
+     * Create a folder path after validating/sanitizing folder name
+     * @param {string} folderName - The raw folder name
+     * @param {string} [parentPath=''] - Optional parent path
+     * @returns {string|null} The created path or null if invalid/duplicate
+     */
+    createFolderPath(folderName, parentPath = '') {
+        const sanitizedName = (folderName || '').trim().replace(/[<>:"|?*]/g, '');
+        if (!sanitizedName) return null;
+
+        const fullPath = parentPath ? `${parentPath}/${sanitizedName}` : sanitizedName;
+        const existingFolder = this.state.folders.find(f => f.path === fullPath);
+        if (existingFolder) {
+            this.showNotification(`Folder "${fullPath}" already exists.`, 'error');
+            return null;
+        }
+
+        const folderId = `folder-${this.state.nextFolderId++}`;
+        this.state.folders.push({ id: folderId, path: fullPath });
+        this.state.expandedFolders.add(fullPath);
+        this.renderFileTree();
+        this.showNotification(`Folder "${fullPath}" created.`, 'success');
+
+        return fullPath;
+    },
+
+    /**
      * Add a new folder
      */
-    addNewFolder() {
-        const folderName = prompt('Enter folder name:');
-        if (!folderName || folderName.trim() === '') return;
-        
-        const sanitizedName = folderName.trim().replace(/[<>:"|?*]/g, '');
-        
-        // Check if folder already exists
-        const existingFolder = this.state.folders.find(f => f.path === sanitizedName);
-        if (existingFolder) {
-            this.showNotification(`Folder "${sanitizedName}" already exists.`, 'error');
-            return;
-        }
-        
-        const folderId = `folder-${this.state.nextFolderId++}`;
-        this.state.folders.push({
-            id: folderId,
-            path: sanitizedName
-        });
-        
-        this.state.expandedFolders.add(sanitizedName);
-        this.renderFileTree();
-        this.showNotification(`Folder "${sanitizedName}" created.`, 'success');
+    async addNewFolder() {
+        const folderName = await this.showPromptDialog('New Folder', 'Enter folder name:');
+        if (!folderName) return;
+        this.createFolderPath(folderName);
     },
 
     /**
@@ -794,12 +841,31 @@ const CodePreviewer = {
      */
     renderFileTree() {
         if (!this.dom.fileTreeContainer) return;
-        
+
         const tree = this.buildFolderTree();
-        const html = this.renderFolderContents(tree, '');
-        this.dom.fileTreeContainer.innerHTML = html;
-        
-        // Event delegation is set up once in init, no need to rebind here
+
+        // Prune selections for files that no longer exist
+        const existingIds = new Set(this.state.files.map(f => f.id));
+        this.state.selectedFileIds.forEach((id) => {
+            if (!existingIds.has(id)) this.state.selectedFileIds.delete(id);
+        });
+
+        const treeHtml = this.renderFolderContents(tree, '');
+        const hasSelection = this.state.selectedFileIds.size > 0;
+
+        this.dom.fileTreeContainer.innerHTML = `
+            <div class="file-tree-toolbar">
+                <input type="search" class="file-tree-search-input" placeholder="Search files..." value="${this.escapeHtmlAttribute(this.state.sidebarSearchQuery)}" aria-label="Search files in sidebar">
+                <div class="file-tree-toolbar-actions">
+                    <button class="tree-toolbar-btn clear-selection-btn" title="Clear selection" ${hasSelection ? '' : 'disabled'}>Clear</button>
+                    <button class="tree-toolbar-btn open-selected-btn" title="Open selected files" ${hasSelection ? '' : 'disabled'}>Open</button>
+                    <button class="tree-toolbar-btn delete-selected-btn" title="Delete selected files" ${hasSelection ? '' : 'disabled'}>Delete</button>
+                </div>
+            </div>
+            <div class="file-tree-content">
+                ${treeHtml || '<div class="file-tree-empty">No files to show.</div>'}
+            </div>
+        `;
     },
 
     /**
@@ -810,14 +876,16 @@ const CodePreviewer = {
      */
     renderFolderContents(node, currentPath) {
         let html = '';
-        
+        const query = this.state.sidebarSearchQuery;
+
         // Render subfolders first
         const sortedFolders = Object.keys(node.children).sort();
         sortedFolders.forEach(folderName => {
             const folder = node.children[folderName];
             const folderPath = currentPath ? `${currentPath}/${folderName}` : folderName;
             const isExpanded = this.state.expandedFolders.has(folderPath);
-            
+            const childHtml = this.renderFolderContents(folder, folderPath);
+
             html += `
                 <div class="tree-folder ${isExpanded ? 'expanded' : ''}" data-folder-path="${folderPath}">
                     <div class="tree-folder-header">
@@ -830,19 +898,29 @@ const CodePreviewer = {
                         </div>
                     </div>
                     <div class="tree-folder-contents" style="display: ${isExpanded ? 'block' : 'none'}">
-                        ${this.renderFolderContents(folder, folderPath)}
+                        ${childHtml}
                     </div>
                 </div>
             `;
         });
-        
+
         // Render files
         node.files.forEach(file => {
+            const isModified = this.state.modifiedFiles.has(file.id);
+            const isSelected = this.state.selectedFileIds.has(file.id);
+            const filename = (file.displayName || '').toLowerCase();
+            if (query && !filename.includes(query)) {
+                return;
+            }
+
             const fileIcon = this.getFileIcon(file.type);
             const isOpen = this.state.openPanels.has(file.id);
             const openClass = isOpen ? 'file-open' : '';
+            const modifiedClass = isModified ? 'file-modified' : '';
+            const selectedClass = isSelected ? 'file-selected-in-sidebar' : '';
             html += `
-                <div class="tree-file ${openClass}" data-file-id="${file.id}">
+                <div class="tree-file ${openClass} ${modifiedClass} ${selectedClass}" data-file-id="${file.id}">
+                    <input type="checkbox" class="tree-file-checkbox" aria-label="Select file ${this.escapeHtmlAttribute(file.displayName)}" ${isSelected ? 'checked' : ''}>
                     <span class="file-icon">${fileIcon}</span>
                     <span class="file-name">${file.displayName}</span>
                     <div class="file-actions">
@@ -852,7 +930,7 @@ const CodePreviewer = {
                 </div>
             `;
         });
-        
+
         return html;
     },
 
@@ -889,8 +967,63 @@ const CodePreviewer = {
         if (!this.dom.fileTreeContainer) return;
         
         // Use a single delegated listener on the container
-        this.dom.fileTreeContainer.addEventListener('click', (e) => {
+        this.dom.fileTreeContainer.addEventListener('input', (e) => {
             const target = e.target;
+            if (target.classList.contains('file-tree-search-input')) {
+                this.state.sidebarSearchQuery = target.value.trim().toLowerCase();
+                this.renderFileTree();
+                return;
+            }
+
+            if (target.classList.contains('tree-file-checkbox')) {
+                const fileEl = target.closest('.tree-file');
+                if (!fileEl) return;
+                const fileId = fileEl.dataset.fileId;
+                if (target.checked) {
+                    this.state.selectedFileIds.add(fileId);
+                } else {
+                    this.state.selectedFileIds.delete(fileId);
+                }
+                this.renderFileTree();
+            }
+        });
+
+        this.dom.fileTreeContainer.addEventListener('click', async (e) => {
+            const target = e.target;
+
+            if (target.closest('.file-tree-search-input')) {
+                return;
+            }
+
+
+            if (target.closest('.clear-selection-btn')) {
+                this.state.selectedFileIds.clear();
+                this.renderFileTree();
+                return;
+            }
+
+            if (target.closest('.open-selected-btn')) {
+                this.state.selectedFileIds.forEach((id) => this.openPanel(id));
+                return;
+            }
+
+            if (target.closest('.delete-selected-btn')) {
+                const ids = Array.from(this.state.selectedFileIds);
+                if (ids.length === 0) return;
+                const confirmed = await this.showConfirmDialog(`Delete ${ids.length} selected file(s)? This cannot be undone.`);
+                if (confirmed) {
+                    ids.forEach((id) => this.deleteFile(id));
+                    this.state.selectedFileIds.clear();
+                    this.renderFileTree();
+                }
+                return;
+            }
+
+            if (target.closest('.toggle-modified-filter-btn')) {
+                this.state.sidebarShowModifiedOnly = !this.state.sidebarShowModifiedOnly;
+                this.renderFileTree();
+                return;
+            }
             
             // Add file to folder
             if (target.closest('.add-file-to-folder-btn')) {
@@ -904,13 +1037,9 @@ const CodePreviewer = {
             if (target.closest('.add-subfolder-btn')) {
                 e.stopPropagation();
                 const parentPath = target.closest('.tree-folder').dataset.folderPath;
-                const folderName = prompt('Enter folder name:');
-                if (folderName && folderName.trim()) {
-                    const newPath = `${parentPath}/${folderName.trim().replace(/[<>:"|?*]/g, '')}`;
-                    const folderId = `folder-${this.state.nextFolderId++}`;
-                    this.state.folders.push({ id: folderId, path: newPath });
-                    this.state.expandedFolders.add(newPath);
-                    this.renderFileTree();
+                const folderName = await this.showPromptDialog('New Subfolder', 'Enter folder name:');
+                if (folderName) {
+                    this.createFolderPath(folderName, parentPath);
                 }
                 return;
             }
@@ -919,7 +1048,8 @@ const CodePreviewer = {
             if (target.closest('.delete-folder-btn')) {
                 e.stopPropagation();
                 const folderPath = target.closest('.tree-folder').dataset.folderPath;
-                if (confirm(`Delete folder "${folderPath}" and all its contents?`)) {
+                const confirmed = await this.showConfirmDialog(`Delete folder "${folderPath}" and all its contents?`);
+                if (confirmed) {
                     this.deleteFolder(folderPath);
                 }
                 return;
@@ -934,6 +1064,11 @@ const CodePreviewer = {
             }
             
             // File actions
+            if (target.closest('.tree-file-checkbox')) {
+                e.stopPropagation();
+                return;
+            }
+
             const fileEl = target.closest('.tree-file');
             if (!fileEl) return;
             const fileId = fileEl.dataset.fileId;
@@ -949,7 +1084,8 @@ const CodePreviewer = {
             if (target.closest('.delete-file-btn')) {
                 e.stopPropagation();
                 const fileName = this.getFileNameFromPanel(fileId) || 'this file';
-                if (confirm(`Delete "${fileName}"? This cannot be undone.`)) {
+                const confirmed = await this.showConfirmDialog(`Delete "${fileName}"? This cannot be undone.`);
+                if (confirmed) {
                     this.deleteFile(fileId);
                 }
                 return;
@@ -990,9 +1126,7 @@ const CodePreviewer = {
         });
         
         this.state.expandedFolders.delete(folderPath);
-        this.renderFileTree();
-        this.updateRemoveButtonsVisibility();
-        this.updateMainHtmlSelector();
+        this.refreshPanelAndFileTreeUI();
     },
 
     addNewFile(folderPath) {
@@ -1021,11 +1155,8 @@ const CodePreviewer = {
         
         const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
         this.bindFilePanelEvents(panel);
-        this.bindDragAndDropEvents(panel);
         
-        this.updateRemoveButtonsVisibility();
-        this.updateMainHtmlSelector();
-        this.renderFileTree();
+        this.refreshPanelAndFileTreeUI();
     },
 
     /**
@@ -1046,6 +1177,9 @@ const CodePreviewer = {
             // Create dialog container
             const dialog = document.createElement('div');
             dialog.className = 'conflict-dialog';
+            dialog.setAttribute('role', 'dialog');
+            dialog.setAttribute('aria-modal', 'true');
+            dialog.setAttribute('tabindex', '-1');
             
             // Create header
             const header = document.createElement('div');
@@ -1070,21 +1204,58 @@ const CodePreviewer = {
             // Create buttons
             const buttonsContainer = document.createElement('div');
             buttonsContainer.className = 'conflict-dialog-buttons';
+            const buttonElements = [];
+            const closeDialog = (action) => {
+                if (document.body.contains(overlay)) {
+                    document.body.removeChild(overlay);
+                }
+                resolve(action);
+            };
+
             buttons.forEach(btn => {
                 const button = document.createElement('button');
                 button.className = `conflict-btn ${btn.className}`;
                 button.textContent = btn.text;
                 button.dataset.action = btn.action;
-                button.addEventListener('click', () => {
-                    document.body.removeChild(overlay);
-                    resolve(btn.action);
-                });
+                button.addEventListener('click', () => closeDialog(btn.action));
                 buttonsContainer.appendChild(button);
+                buttonElements.push(button);
             });
+
+            const getConfirmAction = () => {
+                const preferred = ['confirm', 'replace', 'replace-all', 'submit'];
+                const found = preferred.find(action => buttonElements.some(button => button.dataset.action === action));
+                return found || buttonElements[0]?.dataset.action || 'cancel';
+            };
+
+            const getCancelAction = () => {
+                const preferred = ['cancel', 'skip', 'skip-all'];
+                const found = preferred.find(action => buttonElements.some(button => button.dataset.action === action));
+                return found || buttonElements[buttonElements.length - 1]?.dataset.action || 'cancel';
+            };
+
+            dialog.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    closeDialog(getConfirmAction());
+                }
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    closeDialog(getCancelAction());
+                }
+            });
+
             dialog.appendChild(buttonsContainer);
             
             overlay.appendChild(dialog);
             document.body.appendChild(overlay);
+
+            const preferredFocusButton = buttonElements.find(button => ['confirm', 'replace', 'replace-all'].includes(button.dataset.action)) || buttonElements[0];
+            if (preferredFocusButton) {
+                preferredFocusButton.focus();
+            } else {
+                dialog.focus();
+            }
         });
     },
 
@@ -1130,6 +1301,98 @@ const CodePreviewer = {
             ]
         });
         return action === 'confirm';
+    },
+
+
+    /**
+     * Show an input dialog (custom replacement for browser prompt)
+     * @param {string} title - Dialog title
+     * @param {string} message - Prompt message
+     * @param {string} [defaultValue=''] - Initial input value
+     * @returns {Promise<string|null>} Entered value, or null if cancelled
+     */
+    async showPromptDialog(title, message, defaultValue = '') {
+        const bodyContent = document.createElement('div');
+
+        const messageEl = document.createElement('p');
+        messageEl.textContent = message;
+        bodyContent.appendChild(messageEl);
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'conflict-input';
+        input.value = defaultValue;
+        input.setAttribute('aria-label', message);
+        bodyContent.appendChild(input);
+
+        let resolveResult = null;
+        const action = await new Promise((resolve) => {
+            const overlay = document.createElement('div');
+            overlay.className = 'conflict-dialog-overlay';
+
+            const dialog = document.createElement('div');
+            dialog.className = 'conflict-dialog';
+
+            const header = document.createElement('div');
+            header.className = 'conflict-dialog-header';
+            const h3 = document.createElement('h3');
+            h3.textContent = title;
+            header.appendChild(h3);
+
+            const body = document.createElement('div');
+            body.className = 'conflict-dialog-body';
+            body.appendChild(bodyContent);
+
+            const buttons = document.createElement('div');
+            buttons.className = 'conflict-dialog-buttons';
+
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'conflict-btn conflict-skip';
+            cancelBtn.textContent = 'Cancel';
+            cancelBtn.addEventListener('click', () => {
+                document.body.removeChild(overlay);
+                resolve('cancel');
+            });
+
+            const submitBtn = document.createElement('button');
+            submitBtn.className = 'conflict-btn conflict-replace';
+            submitBtn.textContent = 'Create';
+            submitBtn.addEventListener('click', () => {
+                resolveResult = input.value;
+                document.body.removeChild(overlay);
+                resolve('submit');
+            });
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    submitBtn.click();
+                }
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancelBtn.click();
+                }
+            });
+
+            buttons.appendChild(cancelBtn);
+            buttons.appendChild(submitBtn);
+            dialog.appendChild(header);
+            dialog.appendChild(body);
+            dialog.appendChild(buttons);
+            overlay.appendChild(dialog);
+            document.body.appendChild(overlay);
+
+            setTimeout(() => {
+                input.focus();
+                input.select();
+            }, 0);
+        });
+
+        if (action !== 'submit') {
+            return null;
+        }
+
+        return resolveResult;
     },
 
     /**
@@ -1193,11 +1456,15 @@ const CodePreviewer = {
      * @param {boolean} multiple - Whether multiple files are allowed
      * @param {Function} onFiles - Async callback receiving the FileList
      */
-    _openFilePicker(accept, multiple, onFiles) {
+    _openFilePicker(accept, multiple, onFiles, options = {}) {
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
         fileInput.accept = accept;
         fileInput.multiple = multiple;
+        if (options.directory) {
+            fileInput.setAttribute('webkitdirectory', '');
+            fileInput.setAttribute('directory', '');
+        }
         fileInput.style.display = 'none';
         
         const cleanup = () => {
@@ -1230,30 +1497,50 @@ const CodePreviewer = {
         fileInput.click();
     },
 
+    async _importFiles(fileList, getFileName, successMessage) {
+        const files = Array.from(fileList);
+        if (files.length === 0) return;
+
+        const resolution = { action: null };
+        let importedCount = 0;
+        let skippedCount = 0;
+
+        for (const file of files) {
+            const targetFileName = getFileName(file);
+            if (!targetFileName) {
+                skippedCount++;
+                continue;
+            }
+
+            const result = await this._resolveImportConflict(targetFileName, resolution);
+            if (result === 'skipped') {
+                skippedCount++;
+                continue;
+            }
+
+            const fileData = await this.readFileContent(file);
+            const detectedType = this.autoDetectFileType(targetFileName, fileData.isBinary ? null : fileData.content, file.type);
+            this.addNewFileWithContent(targetFileName, detectedType, fileData.content, fileData.isBinary);
+            importedCount++;
+        }
+
+        this._showImportSummary(importedCount, skippedCount, successMessage);
+    },
+
     importFile() {
         this._openFilePicker('*/*', true, async (fileList) => {
-            const files = Array.from(fileList);
-            if (files.length === 0) return;
-            
-            const resolution = { action: null };
-            let importedCount = 0;
-            let skippedCount = 0;
-
-            for (const file of files) {
-                const result = await this._resolveImportConflict(file.name, resolution);
-                if (result === 'skipped') {
-                    skippedCount++;
-                    continue;
-                }
-                
-                const fileData = await this.readFileContent(file);
-                const detectedType = this.autoDetectFileType(file.name, fileData.isBinary ? null : fileData.content, file.type);
-                this.addNewFileWithContent(file.name, detectedType, fileData.content, fileData.isBinary);
-                importedCount++;
-            }
-            
-            this._showImportSummary(importedCount, skippedCount);
+            await this._importFiles(fileList, (file) => file.name);
         });
+    },
+
+    importFolder() {
+        this._openFilePicker('*/*', true, async (fileList) => {
+            await this._importFiles(
+                fileList,
+                (file) => file.webkitRelativePath || file.name,
+                'Successfully imported folder files'
+            );
+        }, { directory: true });
     },
 
     readFileContent(file) {
@@ -1319,11 +1606,8 @@ const CodePreviewer = {
         this.state.openPanels.add(fileId);
         
         this.bindFilePanelEvents(document.querySelector(`.editor-panel[data-file-id="${fileId}"]`));
-        this.bindDragAndDropEvents(document.querySelector(`.editor-panel[data-file-id="${fileId}"]`));
         
-        this.updateRemoveButtonsVisibility();
-        this.updateMainHtmlSelector();
-        this.renderFileTree();
+        this.refreshPanelAndFileTreeUI();
     },
 
     /**
@@ -1347,8 +1631,8 @@ const CodePreviewer = {
         });
     },
 
-    generateFileTypeOptions(selectedType) {
-        const fileTypes = [
+    getFileTypeChoices() {
+        return [
             { value: 'html', label: 'HTML' },
             { value: 'css', label: 'CSS' },
             { value: 'javascript', label: 'JavaScript' },
@@ -1365,24 +1649,49 @@ const CodePreviewer = {
             { value: 'pdf', label: 'PDF' },
             { value: 'binary', label: 'Binary' }
         ];
-        
-        return fileTypes.map(type => 
+    },
+
+    getFileTypeChoiceLabel(fileType) {
+        const choice = this.getFileTypeChoices().find(type => type.value === fileType);
+        return choice ? choice.label : 'Text';
+    },
+
+    generateFileTypeOptions(selectedType) {
+        return this.getFileTypeChoices().map(type =>
             `<option value="${type.value}" ${selectedType === type.value ? 'selected' : ''}>${type.label}</option>`
         ).join('');
     },
 
+    generateFileTypeDropdownOptions(selectedType) {
+        return this.getFileTypeChoices().map(type => {
+            const selectedClass = selectedType === type.value ? ' is-selected' : '';
+            const selectedState = selectedType === type.value ? 'true' : 'false';
+            return `<li role="option" aria-selected="${selectedState}"><button type="button" class="file-type-dropdown-option${selectedClass}" data-value="${this.escapeHtmlAttribute(type.value)}">${this.escapeHtml(type.label)}</button></li>`;
+        }).join('');
+    },
+
     createFilePanel(fileId, fileName, fileType, content, isBinary) {
         const fileTypeOptions = this.generateFileTypeOptions(fileType);
+        const fileTypeDropdownOptions = this.generateFileTypeDropdownOptions(fileType);
         const escapedFileName = this.escapeHtmlAttribute(fileName);
         
         const panelHTML = `
-            <div class="editor-panel" data-file-type="${fileType}" data-file-id="${fileId}" draggable="true">
+            <div class="editor-panel" data-file-type="${fileType}" data-file-id="${fileId}">
                 <div class="panel-header">
-                    <div class="drag-handle" aria-label="Drag to reorder">⋮⋮</div>
+                    <div class="panel-move-controls" aria-label="Move panel">
+                    <button class="move-panel-btn" data-direction="left" aria-label="Move panel left" title="Move left">←</button>
+                    <button class="move-panel-btn" data-direction="right" aria-label="Move panel right" title="Move right">→</button>
+                </div>
                     <input type="text" class="file-name-input" value="${escapedFileName}" aria-label="File name">
-                    <select class="file-type-selector" aria-label="File type">
-                        ${fileTypeOptions}
-                    </select>
+                    <div class="file-type-dropdown" data-file-type-dropdown>
+                        <button type="button" class="file-type-dropdown-trigger" aria-haspopup="listbox" aria-expanded="false">${this.escapeHtml(this.getFileTypeChoiceLabel(fileType))}</button>
+                        <ul class="file-type-dropdown-list" role="listbox" tabindex="-1" hidden>
+                            ${fileTypeDropdownOptions}
+                        </ul>
+                        <select class="file-type-selector visually-hidden-select" aria-label="File type">
+                            ${fileTypeOptions}
+                        </select>
+                    </div>
                     <button class="remove-file-btn" aria-label="Close panel" title="Close panel (file stays in sidebar)">&times;</button>
                 </div>
                 ${this.generateToolbarHTML(fileType)}
@@ -1437,6 +1746,7 @@ const CodePreviewer = {
             toolbarHTML += this.htmlGenerators.toolbarButton('🗑️', 'Clear', 'clear-btn', 'Clear content', 'Clear');
             toolbarHTML += this.htmlGenerators.toolbarButton('📋', 'Paste', 'paste-btn', 'Paste from clipboard', 'Paste');
             toolbarHTML += this.htmlGenerators.toolbarButton('📄', 'Copy', 'copy-btn', 'Copy to clipboard', 'Copy');
+            toolbarHTML += this.htmlGenerators.toolbarButton('🔎', 'Search', 'search-btn', 'Search in file', 'Search in file');
         }
         
         if (hasExpandPreview) {
@@ -1447,8 +1757,19 @@ const CodePreviewer = {
         
         toolbarHTML += this.htmlGenerators.toolbarButton('💾', 'Export', 'export-btn', 'Export file', 'Export');
         toolbarHTML += this.htmlGenerators.toolbarButton('📁', 'Collapse', 'collapse-btn', 'Collapse/Expand editor', 'Collapse/Expand');
-        
+
         toolbarHTML += '</div>';
+
+        if (isEditable) {
+            toolbarHTML += `
+                <div class="panel-search" hidden>
+                    <input type="search" class="panel-search-input" placeholder="Search in this file" aria-label="Search in this file">
+                    <button class="panel-search-next-btn" aria-label="Find next match" title="Find next">Next</button>
+                    <button class="panel-search-close-btn" aria-label="Close search" title="Close search">✕</button>
+                </div>
+            `;
+        }
+
         return toolbarHTML;
     },
 
@@ -1481,12 +1802,85 @@ const CodePreviewer = {
         if (existingToolbar) {
             existingToolbar.remove();
         }
+
+        const existingSearch = panel.querySelector('.panel-search');
+        if (existingSearch) {
+            existingSearch.remove();
+        }
         
         const panelHeader = panel.querySelector('.panel-header');
         const newToolbarHTML = this.generateToolbarHTML(newType);
         panelHeader.insertAdjacentHTML('afterend', newToolbarHTML);
         
         this.bindToolbarEvents(panel);
+    },
+
+    closeAllFileTypeDropdowns(exceptPanel = null) {
+        document.querySelectorAll('.editor-panel .file-type-dropdown').forEach((dropdown) => {
+            if (exceptPanel && exceptPanel.contains(dropdown)) {
+                return;
+            }
+            const trigger = dropdown.querySelector('.file-type-dropdown-trigger');
+            const list = dropdown.querySelector('.file-type-dropdown-list');
+            if (trigger && list) {
+                trigger.setAttribute('aria-expanded', 'false');
+                list.hidden = true;
+            }
+        });
+    },
+
+    updatePanelFileTypeDropdownUI(panel, fileType) {
+        const typeSelector = panel.querySelector('.file-type-selector');
+        const trigger = panel.querySelector('.file-type-dropdown-trigger');
+        const options = panel.querySelectorAll('.file-type-dropdown-option');
+        if (typeSelector) {
+            typeSelector.value = fileType;
+        }
+        if (trigger) {
+            trigger.textContent = this.getFileTypeChoiceLabel(fileType);
+        }
+        options.forEach((option) => {
+            const isSelected = option.dataset.value === fileType;
+            option.classList.toggle('is-selected', isSelected);
+            const listItem = option.closest('li');
+            if (listItem) {
+                listItem.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+            }
+        });
+    },
+
+    applyFileTypeChange(panel, fileId, newType) {
+        panel.dataset.fileType = newType;
+
+        const fileInfo = this.state.files.find(f => f.id === fileId);
+        if (fileInfo) {
+            const oldType = fileInfo.type;
+            fileInfo.type = newType;
+
+            const oldIsEditable = this.isEditableFileType(oldType);
+            const newIsEditable = this.isEditableFileType(newType);
+
+            if (oldIsEditable !== newIsEditable) {
+                const editorWrapper = panel.querySelector('.editor-wrapper');
+                if (editorWrapper) {
+                    const currentContent = fileInfo.editor ? fileInfo.editor.getValue() : '';
+                    const newContent = this.generateFileContentDisplay(fileId, newType, currentContent, false);
+                    editorWrapper.innerHTML = newContent;
+
+                    this.createEditorForFileType(fileInfo, fileId, newType, currentContent);
+                }
+            } else if (newIsEditable && typeof window.CodeMirror !== 'undefined' && fileInfo.editor.setOption) {
+                const mode = this.getCodeMirrorMode(newType);
+                fileInfo.editor.setOption('mode', mode);
+                fileInfo.editor.setOption('autoCloseTags', newType === 'html');
+            }
+        }
+
+        this.updatePanelFileTypeDropdownUI(panel, newType);
+        this.updateToolbarForFileType(panel, newType);
+        this.updateMainHtmlSelector();
+        this.renderFileTree();
+        this.updatePreviewActionButtons();
     },
 
     bindFilePanelEvents(panel) {
@@ -1505,21 +1899,12 @@ const CodePreviewer = {
                     const suggestedType = this.autoDetectFileType(filename, currentContent);
                     
                     if (suggestedType !== typeSelector.value) {
-                        typeSelector.value = suggestedType;
-                        panel.dataset.fileType = suggestedType;
-                        fileInfo.type = suggestedType;
-                        
-                        if (typeof window.CodeMirror !== 'undefined' && fileInfo.editor.setOption) {
-                            const mode = suggestedType === 'html' ? 'htmlmixed' : 
-                                       suggestedType === 'css' ? 'css' : 'javascript';
-                            fileInfo.editor.setOption('mode', mode);
-                            fileInfo.editor.setOption('autoCloseTags', suggestedType === 'html');
-                        }
+                        this.applyFileTypeChange(panel, fileId, suggestedType);
+                    } else {
+                        // Update file tree and main HTML selector when filename changes
+                        this.renderFileTree();
+                        this.updateMainHtmlSelector();
                     }
-                    
-                    // Update file tree and main HTML selector when filename changes
-                    this.renderFileTree();
-                    this.updateMainHtmlSelector();
                     
                     // Check for unsaved changes and update UI
                     this.checkFileModified(fileId, panel);
@@ -1532,37 +1917,45 @@ const CodePreviewer = {
             });
         }
         
+        const fileTypeDropdown = panel.querySelector('.file-type-dropdown');
+        const fileTypeTrigger = panel.querySelector('.file-type-dropdown-trigger');
+        const fileTypeDropdownList = panel.querySelector('.file-type-dropdown-list');
+
         if (typeSelector) {
             typeSelector.addEventListener('change', (e) => {
-                const newType = e.target.value;
-                panel.dataset.fileType = newType;
-                
-                const fileInfo = this.state.files.find(f => f.id === fileId);
-                if (fileInfo) {
-                    const oldType = fileInfo.type;
-                    fileInfo.type = newType;
-                    
-                    const oldIsEditable = this.isEditableFileType(oldType);
-                    const newIsEditable = this.isEditableFileType(newType);
-                    
-                    if (oldIsEditable !== newIsEditable) {
-                        const editorWrapper = panel.querySelector('.editor-wrapper');
-                        if (editorWrapper) {
-                            const currentContent = fileInfo.editor ? fileInfo.editor.getValue() : '';
-                            const newContent = this.generateFileContentDisplay(fileId, newType, currentContent, false);
-                            editorWrapper.innerHTML = newContent;
-                            
-                            this.createEditorForFileType(fileInfo, fileId, newType, currentContent);
-                        }
-                    } else if (newIsEditable && typeof window.CodeMirror !== 'undefined' && fileInfo.editor.setOption) {
-                        const mode = this.getCodeMirrorMode(newType);
-                        fileInfo.editor.setOption('mode', mode);
-                        fileInfo.editor.setOption('autoCloseTags', newType === 'html');
-                    }
-                }
-                
-                this.updateToolbarForFileType(panel, newType);
+                this.applyFileTypeChange(panel, fileId, e.target.value);
             });
+        }
+
+        if (fileTypeDropdown && fileTypeTrigger && fileTypeDropdownList) {
+            fileTypeTrigger.addEventListener('click', () => {
+                const isOpen = fileTypeTrigger.getAttribute('aria-expanded') === 'true';
+                this.closeAllFileTypeDropdowns(panel);
+                fileTypeTrigger.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+                fileTypeDropdownList.hidden = isOpen;
+            });
+
+            fileTypeDropdownList.addEventListener('click', (event) => {
+                const option = event.target.closest('.file-type-dropdown-option');
+                if (!option) return;
+                this.applyFileTypeChange(panel, fileId, option.dataset.value);
+                this.closeAllFileTypeDropdowns();
+            });
+
+            fileTypeTrigger.addEventListener('keydown', (event) => {
+                if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    this.closeAllFileTypeDropdowns(panel);
+                    fileTypeTrigger.setAttribute('aria-expanded', 'true');
+                    fileTypeDropdownList.hidden = false;
+                }
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    this.closeAllFileTypeDropdowns();
+                }
+            });
+
+            this.updatePanelFileTypeDropdownUI(panel, panel.dataset.fileType || typeSelector?.value || 'text');
         }
         
         if (removeBtn) {
@@ -1570,6 +1963,13 @@ const CodePreviewer = {
                 this.closePanel(fileId);
             });
         }
+
+        const moveButtons = panel.querySelectorAll('.move-panel-btn');
+        moveButtons.forEach((button) => {
+            button.addEventListener('click', () => {
+                this.movePanel(panel, button.dataset.direction);
+            });
+        });
 
         this.bindToolbarEvents(panel);
     },
@@ -1695,6 +2095,13 @@ const CodePreviewer = {
             if (discardBtn) discardBtn.style.display = 'none';
         }
         
+        if (isModified) {
+            this.state.modifiedFiles.add(fileId);
+        } else {
+            this.state.modifiedFiles.delete(fileId);
+        this.state.selectedFileIds.delete(fileId);
+        }
+
         // Update the file tree to show modified indicator
         this.updateFileTreeModifiedState(fileId, isModified);
     },
@@ -1708,14 +2115,6 @@ const CodePreviewer = {
         const treeFile = this.dom.fileTreeContainer?.querySelector(`.tree-file[data-file-id="${fileId}"]`);
         if (treeFile) {
             treeFile.classList.toggle('file-modified', isModified);
-            
-            // Update file name with modified indicator
-            const fileName = treeFile.querySelector('.file-name');
-            if (fileName) {
-                // Use consistent bullet character: • (U+2022)
-                const originalName = fileName.textContent.replace(/^• /, '');
-                fileName.textContent = isModified ? '• ' + originalName : originalName;
-            }
         }
     },
 
@@ -1812,6 +2211,8 @@ const CodePreviewer = {
             panel.style.display = 'none';
             this.state.openPanels.delete(fileId);
             this.renderFileTree();
+            this.updatePanelMoveButtonsVisibility();
+            this.updatePreviewActionButtons();
         }
     },
 
@@ -1838,6 +2239,8 @@ const CodePreviewer = {
             setTimeout(() => panel.classList.remove('file-selected'), 2000);
         }
         this.renderFileTree();
+        this.updatePanelMoveButtonsVisibility();
+        this.updatePreviewActionButtons();
     },
 
     /**
@@ -1856,6 +2259,8 @@ const CodePreviewer = {
         
         // Clean up saved state
         delete this.state.savedFileStates[fileId];
+        this.state.modifiedFiles.delete(fileId);
+        this.state.selectedFileIds.delete(fileId);
         
         if (fileId === 'default-html') {
             this.state.editors.html = null;
@@ -1865,9 +2270,15 @@ const CodePreviewer = {
             this.state.editors.js = null;
         }
         
+        this.refreshPanelAndFileTreeUI();
+    },
+
+    refreshPanelAndFileTreeUI() {
         this.updateRemoveButtonsVisibility();
         this.updateMainHtmlSelector();
         this.renderFileTree();
+        this.updatePanelMoveButtonsVisibility();
+        this.updatePreviewActionButtons();
     },
 
     async clearAllFiles() {
@@ -1900,6 +2311,8 @@ const CodePreviewer = {
         this.state.files = [];
         this.state.openPanels.clear();
         this.state.savedFileStates = {};
+        this.state.modifiedFiles.clear();
+        this.state.selectedFileIds.clear();
 
         // Clear default editors
         this.state.editors.html = null;
@@ -1914,16 +2327,39 @@ const CodePreviewer = {
         this.state.nextFileId = 1;
 
         // Update UI
-        this.updateRemoveButtonsVisibility();
-        this.updateMainHtmlSelector();
-        this.renderFileTree();
+        this.refreshPanelAndFileTreeUI();
 
         this.showNotification('All files cleared successfully', 'success');
     },
 
+    updatePanelMoveButtonsVisibility() {
+        const allPanels = Array.from(document.querySelectorAll('.editor-panel[data-file-id]'));
+        const visiblePanels = allPanels.filter(panel => window.getComputedStyle(panel).display !== 'none');
+
+        allPanels.forEach((panel) => {
+            const leftBtn = panel.querySelector('.move-panel-btn[data-direction="left"]');
+            const rightBtn = panel.querySelector('.move-panel-btn[data-direction="right"]');
+
+            if (leftBtn) leftBtn.hidden = true;
+            if (rightBtn) rightBtn.hidden = true;
+        });
+
+        visiblePanels.forEach((panel, index) => {
+            const leftBtn = panel.querySelector('.move-panel-btn[data-direction="left"]');
+            const rightBtn = panel.querySelector('.move-panel-btn[data-direction="right"]');
+
+            if (leftBtn) {
+                leftBtn.hidden = index === 0;
+            }
+            if (rightBtn) {
+                rightBtn.hidden = index === visiblePanels.length - 1;
+            }
+        });
+    },
+
     updateRemoveButtonsVisibility() {
         const allPanels = document.querySelectorAll('.editor-panel[data-file-id]');
-        const actualPanels = Array.from(allPanels).filter(panel => !panel.classList.contains('drag-clone'));
+        const actualPanels = Array.from(allPanels);
         
         actualPanels.forEach(panel => {
             const removeBtn = panel.querySelector('.remove-file-btn');
@@ -1970,11 +2406,8 @@ const CodePreviewer = {
             }
             
             this.bindFilePanelEvents(panel);
-            this.bindDragAndDropEvents(panel);
-        });
-        this.updateRemoveButtonsVisibility();
-        this.updateMainHtmlSelector();
-        this.renderFileTree();
+            });
+        this.refreshPanelAndFileTreeUI();
     },
 
     bindToolbarEvents(panel) {
@@ -1984,6 +2417,7 @@ const CodePreviewer = {
         const expandBtn = panel.querySelector('.expand-btn');
         const exportBtn = panel.querySelector('.export-btn');
         const collapseBtn = panel.querySelector('.collapse-btn');
+        const { searchBtn, searchInput, searchNextBtn, searchCloseBtn } = this.getPanelSearchElements(panel);
         
         if (clearBtn) {
             clearBtn.addEventListener('click', () => this.clearEditor(panel));
@@ -2006,8 +2440,153 @@ const CodePreviewer = {
         }
         
         if (collapseBtn) {
+            collapseBtn.setAttribute('aria-expanded', 'true');
             collapseBtn.addEventListener('click', () => this.toggleEditorCollapse(panel));
         }
+
+        if (searchBtn) {
+            searchBtn.setAttribute('aria-expanded', 'false');
+            searchBtn.addEventListener('click', () => this.togglePanelSearch(panel));
+        }
+
+        if (searchInput) {
+            searchInput.addEventListener('input', () => this.searchInPanel(panel, searchInput.value, false));
+            searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.searchInPanel(panel, searchInput.value, true);
+                }
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    this.closePanelSearch(panel);
+                }
+            });
+        }
+
+        if (searchNextBtn && searchInput) {
+            searchNextBtn.addEventListener('click', () => this.searchInPanel(panel, searchInput.value, true));
+        }
+
+        if (searchCloseBtn) {
+            searchCloseBtn.addEventListener('click', () => this.closePanelSearch(panel));
+        }
+    },
+
+    getPanelSearchElements(panel) {
+        return {
+            searchContainer: panel.querySelector('.panel-search'),
+            searchBtn: panel.querySelector('.search-btn'),
+            searchInput: panel.querySelector('.panel-search-input'),
+            searchNextBtn: panel.querySelector('.panel-search-next-btn'),
+            searchCloseBtn: panel.querySelector('.panel-search-close-btn'),
+        };
+    },
+
+    setPanelSearchActive(panel, isActive) {
+        const { searchContainer, searchBtn, searchInput } = this.getPanelSearchElements(panel);
+        if (!searchContainer || !searchInput) return;
+
+        if (isActive) {
+            searchContainer.removeAttribute('hidden');
+            panel.classList.add('search-active');
+            if (searchBtn) {
+                searchBtn.classList.add('active');
+                searchBtn.setAttribute('aria-expanded', 'true');
+            }
+            searchInput.focus();
+            searchInput.select();
+            return;
+        }
+
+        searchInput.value = '';
+        searchInput.classList.remove('no-match');
+        searchContainer.setAttribute('hidden', 'hidden');
+        panel.classList.remove('search-active');
+        if (searchBtn) {
+            searchBtn.classList.remove('active');
+            searchBtn.setAttribute('aria-expanded', 'false');
+        }
+    },
+
+    togglePanelSearch(panel) {
+        const { searchContainer } = this.getPanelSearchElements(panel);
+        if (!searchContainer) return;
+
+        const willOpen = searchContainer.hasAttribute('hidden');
+        this.setPanelSearchActive(panel, willOpen);
+    },
+
+    closePanelSearch(panel) {
+        this.setPanelSearchActive(panel, false);
+    },
+
+    getSearchStartIndex(editor, findNext) {
+        if (!findNext || !editor?.getCursor || !editor?.indexFromPos) {
+            return 0;
+        }
+
+        try {
+            return editor.indexFromPos(editor.getCursor()) + 1;
+        } catch (_e) {
+            return 0;
+        }
+    },
+
+    selectEditorSearchMatch(editor, matchIndex, queryLength) {
+        if (editor.posFromIndex && editor.setSelection) {
+            const from = editor.posFromIndex(matchIndex);
+            const to = editor.posFromIndex(matchIndex + queryLength);
+            editor.setSelection(from, to);
+            if (editor.scrollIntoView) {
+                editor.scrollIntoView({ from, to }, 100);
+            }
+            if (editor.focus) {
+                editor.focus();
+            }
+            return true;
+        }
+
+        if (typeof editor.selectionStart === 'number' && typeof editor.setSelectionRange === 'function') {
+            editor.focus();
+            editor.setSelectionRange(matchIndex, matchIndex + queryLength);
+            return true;
+        }
+
+        return false;
+    },
+
+    searchInPanel(panel, query, findNext = false) {
+        const editor = this.getEditorFromPanel(panel);
+        const { searchInput } = this.getPanelSearchElements(panel);
+        const trimmedQuery = (query || '').trim();
+
+        if (searchInput) {
+            searchInput.classList.remove('no-match');
+        }
+
+        if (!editor || !trimmedQuery) return;
+
+        const content = editor.getValue ? editor.getValue() : '';
+        if (!content) return;
+
+        const lowerContent = content.toLowerCase();
+        const lowerQuery = trimmedQuery.toLowerCase();
+        const startIndex = this.getSearchStartIndex(editor, findNext);
+
+        let matchIndex = lowerContent.indexOf(lowerQuery, startIndex);
+        if (matchIndex === -1 && startIndex > 0) {
+            matchIndex = lowerContent.indexOf(lowerQuery);
+        }
+
+        if (matchIndex === -1) {
+            if (searchInput) {
+                searchInput.classList.add('no-match');
+            }
+            this.showNotification(`No match found for "${trimmedQuery}"`, 'info');
+            return;
+        }
+
+        this.selectEditorSearchMatch(editor, matchIndex, trimmedQuery.length);
     },
 
     clearEditor(panel) {
@@ -2268,28 +2847,27 @@ const CodePreviewer = {
     },
 
     toggleEditorCollapse(panel) {
-        const editorWrapper = panel.querySelector('.editor-wrapper');
         const collapseBtn = panel.querySelector('.collapse-btn');
-        
-        if (editorWrapper && collapseBtn) {
-            const isCollapsed = editorWrapper.classList.contains('collapsed');
-            
-            if (isCollapsed) {
-                editorWrapper.classList.remove('collapsed');
-                collapseBtn.classList.remove('collapsed');
-                collapseBtn.innerHTML = '<span class="btn-icon">📁</span> Collapse';
-                
-                setTimeout(() => {
-                    const editor = this.getEditorFromPanel(panel);
-                    if (editor && editor.refresh) {
-                        editor.refresh();
-                    }
-                }, 100);
-            } else {
-                editorWrapper.classList.add('collapsed');
-                collapseBtn.classList.add('collapsed');
-                collapseBtn.innerHTML = '<span class="btn-icon">📂</span> Expand';
-            }
+        const toolbarButtons = panel.querySelectorAll('.editor-toolbar .toolbar-btn:not(.collapse-btn)');
+
+        if (!collapseBtn) return;
+
+        const isCollapsed = panel.classList.contains('toolbar-collapsed');
+        const willCollapse = !isCollapsed;
+
+        panel.classList.toggle('toolbar-collapsed', willCollapse);
+        collapseBtn.classList.toggle('collapsed', willCollapse);
+        collapseBtn.setAttribute('aria-expanded', willCollapse ? 'false' : 'true');
+        collapseBtn.innerHTML = willCollapse
+            ? '<span class="btn-icon">📂</span> Actions'
+            : '<span class="btn-icon">📁</span> Collapse';
+
+        toolbarButtons.forEach((btn) => {
+            btn.hidden = willCollapse;
+        });
+
+        if (willCollapse) {
+            this.closePanelSearch(panel);
         }
     },
 
@@ -2695,7 +3273,7 @@ const CodePreviewer = {
             '<head>\n' +
             '    <meta charset="UTF-8">\n' +
             '    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
-            '    <title>Live Preview</title>\n' +
+            '    <title>Preview</title>\n' +
             '    ' + this.console.getCaptureScript(fileSystem, mainHtmlPath) + '\n' +
             '    ' + workerScript + '\n' +
             '    <style>' + css + '</style>\n' +
@@ -2713,6 +3291,13 @@ const CodePreviewer = {
     },
 
     renderPreview(target) {
+        const availability = this.getPreviewAvailability();
+        if (!availability.allowed) {
+            this.showNotification(availability.reason, 'info');
+            this.updatePreviewActionButtons();
+            return;
+        }
+
         const content = this.generatePreviewContent();
         
         if (target === 'modal') {
@@ -2767,195 +3352,33 @@ const CodePreviewer = {
         }
     },
 
-    bindDragAndDropEvents(panel) {
-        const dragHandle = panel.querySelector('.drag-handle');
-        const fileId = panel.dataset.fileId;
-        
-        let touchStartY = 0;
-        let touchStartX = 0;
-        let isDragging = false;
-        let dragClone = null;
-        let lastTargetPanel = null;
-        
-        if (dragHandle) {
-            dragHandle.addEventListener('mousedown', (e) => {
-                panel.draggable = true;
-            });
-            
-            dragHandle.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                const touch = e.touches[0];
-                touchStartY = touch.clientY;
-                touchStartX = touch.clientX;
-                isDragging = false;
-                lastTargetPanel = null;
-                
-                const startDragThreshold = 10;
-                let startDrag = false;
-                
-                const touchMoveHandler = (e) => {
-                    e.preventDefault();
-                    const touch = e.touches[0];
-                    const deltaY = Math.abs(touch.clientY - touchStartY);
-                    const deltaX = Math.abs(touch.clientX - touchStartX);
-                    
-                    if (!startDrag && (deltaY > startDragThreshold || deltaX > startDragThreshold)) {
-                        startDrag = true;
-                        isDragging = true;
-                        
-                        panel.classList.add('dragging');
-                        this.state.dragState.draggedElement = panel;
-                        this.state.dragState.draggedFileId = fileId;
-                        
-                        dragClone = panel.cloneNode(true);
-                        dragClone.removeAttribute('data-file-id');
-                        dragClone.style.position = 'fixed';
-                        dragClone.style.pointerEvents = 'none';
-                        dragClone.style.zIndex = '10000';
-                        dragClone.style.opacity = '0.8';
-                        dragClone.style.transform = 'rotate(5deg)';
-                        dragClone.classList.add('drag-clone');
-                        document.body.appendChild(dragClone);
-                    }
-                    
-                    if (isDragging && dragClone) {
-                        dragClone.style.left = (touch.clientX - 50) + 'px';
-                        dragClone.style.top = (touch.clientY - 50) + 'px';
-                        
-                        const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
-                        const targetPanel = elementBelow?.closest('.editor-panel[data-file-id]');
-                        
-                        if (targetPanel !== lastTargetPanel) {
-                            if (targetPanel && targetPanel !== panel) {
-                                this.showDropIndicator(targetPanel, { clientY: touch.clientY });
-                            } else {
-                                this.removeDragIndicators();
-                            }
-                            lastTargetPanel = targetPanel;
-                        }
-                    }
-                };
-                
-                const touchEndHandler = (e) => {
-                    e.preventDefault();
-                    
-                    if (isDragging) {
-                        const touch = e.changedTouches[0];
-                        const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
-                        const targetPanel = elementBelow?.closest('.editor-panel[data-file-id]');
-                        
-                        if (targetPanel && targetPanel !== panel) {
-                            this.reorderPanels(panel, targetPanel, { clientY: touch.clientY });
-                        }
-                        
-                        panel.classList.remove('dragging');
-                        this.removeDragIndicators();
-                        this.state.dragState.draggedElement = null;
-                        this.state.dragState.draggedFileId = null;
-                        
-                        if (dragClone) {
-                            document.body.removeChild(dragClone);
-                            dragClone = null;
-                        }
-                        
-                        this.cleanupOrphanedDragClones();
-                    }
-                    
-                    isDragging = false;
-                    document.removeEventListener('touchmove', touchMoveHandler);
-                    document.removeEventListener('touchend', touchEndHandler);
-                };
-                
-                document.addEventListener('touchmove', touchMoveHandler, { passive: false });
-                document.addEventListener('touchend', touchEndHandler, { passive: false });
-            }, { passive: false });
-        }
-        
-        panel.addEventListener('dragstart', (e) => {
-            this.state.dragState.draggedElement = panel;
-            this.state.dragState.draggedFileId = fileId;
-            panel.classList.add('dragging');
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/html', panel.outerHTML);
-        });
-        
-        panel.addEventListener('dragend', (e) => {
-            panel.classList.remove('dragging');
-            this.removeDragIndicators();
-            this.state.dragState.draggedElement = null;
-            this.state.dragState.draggedFileId = null;
-            this.cleanupOrphanedDragClones();
-        });
-        
-        panel.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-            
-            if (this.state.dragState.draggedElement && this.state.dragState.draggedElement !== panel) {
-                this.showDropIndicator(panel, e);
-            }
-        });
-        
-        panel.addEventListener('drop', (e) => {
-            e.preventDefault();
-            
-            if (this.state.dragState.draggedElement && this.state.dragState.draggedElement !== panel) {
-                this.reorderPanels(this.state.dragState.draggedElement, panel, e);
-            }
-            
-            this.removeDragIndicators();
-        });
-    },
-    
-    showDropIndicator(targetPanel, event) {
-        this.removeDragIndicators();
-        
-        const indicator = document.createElement('div');
-        indicator.className = 'drop-indicator';
-        this.state.dragState.dropIndicator = indicator;
-        
-        const rect = targetPanel.getBoundingClientRect();
-        const midY = rect.top + rect.height / 2;
-        
-        if (event.clientY < midY) {
-            targetPanel.parentNode.insertBefore(indicator, targetPanel);
-        } else {
-            targetPanel.parentNode.insertBefore(indicator, targetPanel.nextSibling);
-        }
-    },
-    
-    removeDragIndicators() {
-        const indicators = document.querySelectorAll('.drop-indicator');
-        indicators.forEach(indicator => indicator.remove());
-        this.state.dragState.dropIndicator = null;
-    },
-    
-    cleanupOrphanedDragClones() {
-        const orphanedClones = document.querySelectorAll('.drag-clone');
-        orphanedClones.forEach(clone => {
-            if (clone.parentNode) {
-                clone.parentNode.removeChild(clone);
-            }
-        });
-    },
+    movePanel(panel, direction) {
+        const parent = panel?.parentNode;
+        if (!parent) return;
 
-    reorderPanels(draggedPanel, targetPanel, event) {
-        const rect = targetPanel.getBoundingClientRect();
-        const midY = rect.top + rect.height / 2;
-        const insertBefore = event.clientY < midY;
-        
-        if (insertBefore) {
-            targetPanel.parentNode.insertBefore(draggedPanel, targetPanel);
-        } else {
-            targetPanel.parentNode.insertBefore(draggedPanel, targetPanel.nextSibling);
+        const panels = Array.from(parent.querySelectorAll('.editor-panel[data-file-id]'));
+        const currentIndex = panels.indexOf(panel);
+        if (currentIndex === -1) return;
+
+        const targetIndex = direction === 'left' ? currentIndex - 1 : currentIndex + 1;
+        if (targetIndex < 0 || targetIndex >= panels.length) {
+            return;
         }
-        
+
+        const targetPanel = panels[targetIndex];
+        if (!targetPanel) return;
+
+        if (direction === 'left') {
+            parent.insertBefore(panel, targetPanel);
+        } else {
+            parent.insertBefore(targetPanel, panel);
+        }
+
         this.updateFilesOrder();
     },
-    
+
     updateFilesOrder() {
-        const panels = Array.from(document.querySelectorAll('.editor-panel[data-file-id]'))
-            .filter(panel => !panel.classList.contains('drag-clone'));
+        const panels = Array.from(document.querySelectorAll('.editor-panel[data-file-id]'));
         const newFilesOrder = [];
         
         panels.forEach(panel => {
@@ -2967,6 +3390,7 @@ const CodePreviewer = {
         });
         
         this.state.files = newFilesOrder;
+        this.updatePanelMoveButtonsVisibility();
     },
 
     async exportZip() {
@@ -3337,30 +3761,113 @@ const CodePreviewer = {
         }
     },
 
+    setupMainHtmlDropdownEvents() {
+        if (!this.dom.mainHtmlDropdownTrigger || !this.dom.mainHtmlDropdownList || !this.dom.mainHtmlDropdown) return;
+
+        this.dom.mainHtmlDropdownTrigger.addEventListener('click', () => {
+            this.toggleMainHtmlDropdown();
+        });
+
+        this.dom.mainHtmlDropdownList.addEventListener('click', (event) => {
+            const optionButton = event.target.closest('.main-html-dropdown-option');
+            if (!optionButton) return;
+            this.selectMainHtmlOption(optionButton.dataset.value || '');
+        });
+
+        document.addEventListener('click', (event) => {
+            if (!this.dom.mainHtmlDropdown.contains(event.target)) {
+                this.closeMainHtmlDropdown();
+            }
+        });
+
+        this.dom.mainHtmlDropdownTrigger.addEventListener('keydown', (event) => {
+            if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                this.openMainHtmlDropdown();
+            }
+        });
+
+        this.dom.mainHtmlDropdownList.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                this.closeMainHtmlDropdown(true);
+            }
+        });
+    },
+
+    toggleMainHtmlDropdown() {
+        if (!this.dom.mainHtmlDropdownList || !this.dom.mainHtmlDropdownTrigger) return;
+        const isOpen = this.dom.mainHtmlDropdownTrigger.getAttribute('aria-expanded') === 'true';
+        if (isOpen) {
+            this.closeMainHtmlDropdown(true);
+        } else {
+            this.openMainHtmlDropdown();
+        }
+    },
+
+    openMainHtmlDropdown() {
+        if (!this.dom.mainHtmlDropdownList || !this.dom.mainHtmlDropdownTrigger) return;
+        this.dom.mainHtmlDropdownList.hidden = false;
+        this.dom.mainHtmlDropdownTrigger.setAttribute('aria-expanded', 'true');
+    },
+
+    closeMainHtmlDropdown(focusTrigger = false) {
+        if (!this.dom.mainHtmlDropdownList || !this.dom.mainHtmlDropdownTrigger) return;
+        this.dom.mainHtmlDropdownList.hidden = true;
+        this.dom.mainHtmlDropdownTrigger.setAttribute('aria-expanded', 'false');
+        if (focusTrigger) {
+            this.dom.mainHtmlDropdownTrigger.focus();
+        }
+    },
+
+    selectMainHtmlOption(fileId) {
+        this.state.mainHtmlFile = fileId;
+        if (this.dom.mainHtmlSelect) {
+            this.dom.mainHtmlSelect.value = fileId;
+        }
+        this.updateMainHtmlSelector();
+        this.closeMainHtmlDropdown(true);
+    },
+
     updateMainHtmlSelector() {
         const htmlFiles = this.state.files.filter(f => f.type === 'html');
-        
+
         if (htmlFiles.length <= 1) {
             this.dom.mainHtmlSelector.style.display = 'none';
+            this.closeMainHtmlDropdown();
             return;
         }
-        
+
         this.dom.mainHtmlSelector.style.display = 'flex';
-        
         this.dom.mainHtmlSelect.innerHTML = '<option value="">Auto-detect</option>';
-        
+
+        const options = [{ value: '', label: 'Auto-detect' }];
+
         htmlFiles.forEach(file => {
             const fileName = this.getFileNameFromPanel(file.id) || `file_${file.id}`;
             const option = document.createElement('option');
             option.value = file.id;
             option.textContent = fileName;
-            
-            if (this.state.mainHtmlFile === file.id) {
-                option.selected = true;
-            }
-            
             this.dom.mainHtmlSelect.appendChild(option);
+            options.push({ value: file.id, label: fileName });
         });
+
+        const selectedValue = options.some(o => o.value === this.state.mainHtmlFile) ? this.state.mainHtmlFile : '';
+        this.state.mainHtmlFile = selectedValue;
+        this.dom.mainHtmlSelect.value = selectedValue;
+
+        if (this.dom.mainHtmlDropdownList) {
+            this.dom.mainHtmlDropdownList.innerHTML = options.map((option) => {
+                const selectedClass = option.value === selectedValue ? ' is-selected' : '';
+                const checked = option.value === selectedValue ? 'true' : 'false';
+                return `<li role="option" aria-selected="${checked}"><button type="button" class="main-html-dropdown-option${selectedClass}" data-value="${this.escapeHtmlAttribute(option.value)}">${this.escapeHtml(option.label)}</button></li>`;
+            }).join('');
+        }
+
+        if (this.dom.mainHtmlDropdownTrigger) {
+            const selectedOption = options.find(option => option.value === selectedValue) || options[0];
+            this.dom.mainHtmlDropdownTrigger.textContent = selectedOption.label;
+        }
     },
     
     getMainHtmlFile() {
