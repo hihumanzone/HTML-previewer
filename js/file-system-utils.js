@@ -545,7 +545,8 @@ export function generateConsoleOverrideCode(messageType) {
         };
     });
     window.onerror = (message, source, lineno, colno, error) => {
-        postLog('error', [message, 'at ' + source.split('/').pop() + ':' + lineno + ':' + colno]);
+        if (message === 'Script error.' && !source) return true;
+        postLog('error', [message, 'at ' + (source ? source.split('/').pop() : '(unknown)') + ':' + lineno + ':' + colno]);
         return true;
     };
     window.addEventListener('unhandledrejection', e => {
