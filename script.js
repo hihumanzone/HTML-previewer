@@ -980,9 +980,7 @@ const CodePreviewer = {
         });
         
         this.state.expandedFolders.delete(folderPath);
-        this.renderFileTree();
-        this.updateRemoveButtonsVisibility();
-        this.updateMainHtmlSelector();
+        this.refreshPanelAndFileTreeUI();
     },
 
     addNewFile(folderPath) {
@@ -1012,10 +1010,7 @@ const CodePreviewer = {
         const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
         this.bindFilePanelEvents(panel);
         
-        this.updateRemoveButtonsVisibility();
-        this.updateMainHtmlSelector();
-        this.renderFileTree();
-        this.updatePanelMoveButtonsVisibility();
+        this.refreshPanelAndFileTreeUI();
     },
 
     /**
@@ -1402,10 +1397,7 @@ const CodePreviewer = {
         
         this.bindFilePanelEvents(document.querySelector(`.editor-panel[data-file-id="${fileId}"]`));
         
-        this.updateRemoveButtonsVisibility();
-        this.updateMainHtmlSelector();
-        this.renderFileTree();
-        this.updatePanelMoveButtonsVisibility();
+        this.refreshPanelAndFileTreeUI();
     },
 
     /**
@@ -1976,6 +1968,10 @@ const CodePreviewer = {
             this.state.editors.js = null;
         }
         
+        this.refreshPanelAndFileTreeUI();
+    },
+
+    refreshPanelAndFileTreeUI() {
         this.updateRemoveButtonsVisibility();
         this.updateMainHtmlSelector();
         this.renderFileTree();
@@ -2026,10 +2022,7 @@ const CodePreviewer = {
         this.state.nextFileId = 1;
 
         // Update UI
-        this.updateRemoveButtonsVisibility();
-        this.updateMainHtmlSelector();
-        this.renderFileTree();
-        this.updatePanelMoveButtonsVisibility();
+        this.refreshPanelAndFileTreeUI();
 
         this.showNotification('All files cleared successfully', 'success');
     },
@@ -2109,10 +2102,7 @@ const CodePreviewer = {
             
             this.bindFilePanelEvents(panel);
             });
-        this.updateRemoveButtonsVisibility();
-        this.updateMainHtmlSelector();
-        this.renderFileTree();
-        this.updatePanelMoveButtonsVisibility();
+        this.refreshPanelAndFileTreeUI();
     },
 
     bindToolbarEvents(panel) {
