@@ -705,39 +705,60 @@ const CodePreviewer = {
         generateCSSURLOverrideCode() {
             return `
     (function() {
-        const cssUrlProps = ['backgroundImage', 'background', 'listStyleImage', 'borderImage', 'borderImageSource', 'cursor', 'content'];
-        const styleProto = CSSStyleDeclaration.prototype;
-        cssUrlProps.forEach(prop => {
-            const descriptor = Object.getOwnPropertyDescriptor(styleProto, prop);
-            if (descriptor && descriptor.set) {
-                const origSet = descriptor.set;
-                const origGet = descriptor.get;
-                Object.defineProperty(styleProto, prop, {
-                    set: function(value) {
-                        if (typeof value === 'string' && value.includes('url(')) {
-                            value = value.replace(/url\\(["']?([^"')]+)["']?\\)/g, function(match, url) {
-                                if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('//')) {
-                                    return match;
-                                }
-                                const currentFilePath = getCurrentFilePath();
-                                const targetPath = url.replace(/^\\.\\//,"");
-                                const fileData = findFileInSystem(targetPath, currentFilePath);
-                                if (fileData && (fileData.type === "image" || fileData.type === "svg")) {
-                                    const dataUrl = fileData.isBinary ? fileData.content :
-                                        "data:image/svg+xml;charset=utf-8," + encodeURIComponent(fileData.content);
-                                    return 'url("' + dataUrl + '")';
-                                }
-                                return match;
-                            });
+        function resolveUrlsInValue(value) {
+            if (typeof value !== 'string' || !value.includes('url(')) return value;
+            return value.replace(/url\\(["']?([^"')]+)["']?\\)/g, function(match, url) {
+                if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('//')) {
+                    return match;
+                }
+                var currentFilePath = getCurrentFilePath();
+                var targetPath = url.replace(/^\\.\\//,"");
+                var fileData = findFileInSystem(targetPath, currentFilePath);
+                if (fileData && (fileData.type === "image" || fileData.type === "svg")) {
+                    var dataUrl = fileData.isBinary ? fileData.content :
+                        "data:image/svg+xml;charset=utf-8," + encodeURIComponent(fileData.content);
+                    return 'url("' + dataUrl + '")';
+                }
+                return match;
+            });
+        }
+        var urlProps = new Set(['backgroundImage', 'background', 'listStyleImage', 'borderImage', 'borderImageSource', 'cursor', 'content',
+            'background-image', 'list-style-image', 'border-image', 'border-image-source']);
+        var origSetProperty = CSSStyleDeclaration.prototype.setProperty;
+        CSSStyleDeclaration.prototype.setProperty = function(prop, value, priority) {
+            if (urlProps.has(prop)) value = resolveUrlsInValue(value);
+            return origSetProperty.call(this, prop, value, priority);
+        };
+        var styleDesc = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'style');
+        if (styleDesc && styleDesc.get) {
+            var origStyleGet = styleDesc.get;
+            var proxyCache = new WeakMap();
+            Object.defineProperty(HTMLElement.prototype, 'style', {
+                get: function() {
+                    var realStyle = origStyleGet.call(this);
+                    if (proxyCache.has(realStyle)) return proxyCache.get(realStyle);
+                    var proxy = new Proxy(realStyle, {
+                        set: function(target, prop, value) {
+                            if (typeof prop === 'string' && urlProps.has(prop)) {
+                                value = resolveUrlsInValue(value);
+                            }
+                            target[prop] = value;
+                            return true;
+                        },
+                        get: function(target, prop) {
+                            var val = target[prop];
+                            if (typeof val === 'function') return val.bind(target);
+                            return val;
                         }
-                        origSet.call(this, value);
-                    },
-                    get: origGet ? function() { return origGet.call(this); } : undefined,
-                    enumerable: descriptor.enumerable,
-                    configurable: true
-                });
-            }
-        });
+                    });
+                    proxyCache.set(realStyle, proxy);
+                    return proxy;
+                },
+                set: styleDesc.set,
+                enumerable: styleDesc.enumerable,
+                configurable: true
+            });
+        }
     })();`;
         },
 
