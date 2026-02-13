@@ -3876,6 +3876,7 @@ const CodePreviewer = {
             
             // Update the reference to the new iframe
             this.dom.previewFrame = newIframe;
+            this.console.previewFrame = newIframe;
             
             // Clear console
             this.console.clear();
