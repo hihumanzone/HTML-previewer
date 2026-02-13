@@ -2471,7 +2471,6 @@ This content is loaded from a markdown file.
 
     generateToolbarHTML(fileType) {
         const isEditable = this.isEditableFileType(fileType);
-        const supportsFormatting = this.supportsFormattingForType(fileType);
         const hasExpandPreview = this.hasExpandPreview(fileType);
         
         let toolbarHTML = '<div class="editor-toolbar">';
@@ -2481,9 +2480,7 @@ This content is loaded from a markdown file.
             toolbarHTML += this.htmlGenerators.toolbarButton('📋', 'Paste', 'paste-btn', 'Paste from clipboard', 'Paste');
             toolbarHTML += this.htmlGenerators.toolbarButton('📄', 'Copy', 'copy-btn', 'Copy to clipboard', 'Copy');
             toolbarHTML += this.htmlGenerators.toolbarButton('🔎', 'Search', 'search-btn', 'Search in file', 'Search in file');
-            if (supportsFormatting) {
-                toolbarHTML += this.htmlGenerators.toolbarButton('✨', 'Format', 'format-btn', 'Format code', 'Format code');
-            }
+            toolbarHTML += this.htmlGenerators.toolbarButton('✨', 'Format', 'format-btn', 'Format code', 'Format code');
         }
         
         if (hasExpandPreview) {
@@ -2528,10 +2525,6 @@ This content is loaded from a markdown file.
 
     isEditableFileType(fileType) {
         return this.fileTypeUtils.isEditableType(fileType);
-    },
-
-    supportsFormattingForType(fileType) {
-        return ['html', 'css', 'javascript', 'javascript-module', 'json', 'xml', 'svg'].includes(fileType);
     },
 
     getCodeMirrorMode(fileType) {
@@ -3309,7 +3302,7 @@ This content is loaded from a markdown file.
         const fileId = panel.dataset.fileId;
         const fileType = panel.dataset.fileType;
         const editor = this.getEditorFromPanel(panel);
-        if (!fileId || !editor || !this.isEditableFileType(fileType) || !this.supportsFormattingForType(fileType)) return false;
+        if (!fileId || !editor || !this.isEditableFileType(fileType)) return false;
 
         return this.formatEditorContent(fileId, editor, fileType, {
             isAutomatic,
@@ -3319,7 +3312,7 @@ This content is loaded from a markdown file.
     },
 
     scheduleAutoFormat(fileId, editor, fileType) {
-        if (!fileId || !editor || !this.isEditableFileType(fileType) || !this.supportsFormattingForType(fileType)) return;
+        if (!fileId || !editor || !this.isEditableFileType(fileType)) return;
 
         const existingTimer = this.state.autoFormatTimers.get(fileId);
         if (existingTimer) clearTimeout(existingTimer);
