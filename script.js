@@ -4329,7 +4329,11 @@ This content is loaded from a markdown file.
             // This stops all scripts, event listeners, and timers running in the iframe
             const iframe = this.dom.previewFrame;
             const parent = iframe.parentNode;
+            iframe.removeAttribute('srcdoc');
+            iframe.src = 'about:blank';
             const newIframe = iframe.cloneNode(false);
+            newIframe.removeAttribute('srcdoc');
+            newIframe.src = 'about:blank';
             parent.replaceChild(newIframe, iframe);
             
             // Update the reference to the new iframe
