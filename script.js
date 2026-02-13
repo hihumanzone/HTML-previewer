@@ -2222,6 +2222,49 @@ const CodePreviewer = {
         return `${parts[0]}/${parts[1]}`;
     },
 
+    async fetchGithubJson(url) {
+        const response = await fetch(url, {
+            headers: {
+                'Accept': 'application/vnd.github+json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`GitHub API request failed (${response.status}) for ${url}`);
+        }
+
+        return response.json();
+    },
+
+    decodeBase64ToText(base64Content) {
+        const binaryString = atob(base64Content.replace(/\n/g, ''));
+        const bytes = Uint8Array.from(binaryString, char => char.charCodeAt(0));
+        return new TextDecoder('utf-8').decode(bytes);
+    },
+
+    async fetchGithubRepositoryTree(repoPath) {
+        const repoInfo = await this.fetchGithubJson(`https://api.github.com/repos/${repoPath}`);
+        const branchCandidates = [repoInfo.default_branch, 'main', 'master'].filter(Boolean);
+        const uniqueBranches = [...new Set(branchCandidates)];
+
+        for (const branch of uniqueBranches) {
+            try {
+                const treeData = await this.fetchGithubJson(`https://api.github.com/repos/${repoPath}/git/trees/${encodeURIComponent(branch)}?recursive=1`);
+                const files = Array.isArray(treeData.tree)
+                    ? treeData.tree.filter(entry => entry.type === 'blob' && entry.path)
+                    : [];
+
+                if (files.length > 0) {
+                    return { branch, files };
+                }
+            } catch (error) {
+                console.warn(`Unable to fetch Git tree for branch ${branch}:`, error);
+            }
+        }
+
+        throw new Error('Could not load repository tree for main/master/default branch');
+    },
+
     async importGithubRepository() {
         const input = window.prompt(this.getGithubImportPromptMessage(), this.state.githubImportHistory[0] || '');
         if (input === null) return;
@@ -2232,55 +2275,34 @@ const CodePreviewer = {
             return;
         }
 
-        const archiveUrl = `https://codeload.github.com/${repoPath}/zip/refs/heads/main`;
-        const fallbackArchiveUrl = `https://codeload.github.com/${repoPath}/zip/refs/heads/master`;
-
-        let progress = this.showProgressNotification(`Downloading ${repoPath}…`, {
+        const progress = this.showProgressNotification(`Importing ${repoPath} from GitHub…`, {
             type: 'info',
-            total: 3
+            total: 1
         });
 
         try {
-            if (typeof JSZip === 'undefined') {
-                progress.fail('GitHub import failed: JSZip library not available.');
-                this.showNotification('JSZip library not available', 'error');
+            progress.update({ current: 1, message: `Loading repository metadata for ${repoPath}…` });
+            const { branch, files } = await this.fetchGithubRepositoryTree(repoPath);
+
+            if (!files.length) {
+                progress.complete(`Repository ${repoPath} has no files to import.`);
+                this.showNotification('Repository contains no importable files', 'info');
                 return;
             }
-
-            progress.update({ current: 1, message: `Downloading ${repoPath} from GitHub…` });
-            let response = await fetch(archiveUrl);
-            if (!response.ok) {
-                response = await fetch(fallbackArchiveUrl);
-            }
-
-            if (!response.ok) {
-                throw new Error(`GitHub download failed with status ${response.status}`);
-            }
-
-            const archiveBlob = await response.blob();
-            progress.update({ current: 2, message: 'Extracting repository archive…' });
-
-            const zip = await JSZip.loadAsync(archiveBlob);
-            const zipEntries = Object.entries(zip.files).filter(([, zipEntry]) => !zipEntry.dir);
 
             const resolution = { action: null };
             let importedCount = 0;
             let skippedCount = 0;
             let processedCount = 0;
+            const totalSteps = files.length + 1;
 
-            for (const [entryPath, zipEntry] of zipEntries) {
+            for (const fileEntry of files) {
                 processedCount++;
-                const pathParts = entryPath.split('/');
-                pathParts.shift(); // strip top-level repo folder
-                const relativePath = pathParts.join('/');
-
-                if (!relativePath) {
-                    continue;
-                }
-
+                const relativePath = fileEntry.path;
                 progress.update({
-                    current: 3,
-                    message: `Importing ${processedCount}/${zipEntries.length}: ${relativePath}`
+                    current: Math.min(processedCount, totalSteps),
+                    total: totalSteps,
+                    message: `Importing ${processedCount}/${files.length}: ${relativePath}`
                 });
 
                 const result = await this._resolveImportConflict(relativePath, resolution);
@@ -2289,16 +2311,17 @@ const CodePreviewer = {
                     continue;
                 }
 
+                const blobData = await this.fetchGithubJson(`https://api.github.com/repos/${repoPath}/git/blobs/${fileEntry.sha}`);
                 const extension = relativePath.split('.').pop().toLowerCase();
                 const isBinary = this.fileTypeUtils.isBinaryFile(relativePath, '');
-                let content;
+                const base64Content = (blobData.content || '').replace(/\n/g, '');
 
+                let content;
                 if (isBinary) {
-                    const base64Content = await zipEntry.async('base64');
                     const mimeType = this.fileTypeUtils.getMimeTypeFromExtension(extension);
                     content = `data:${mimeType};base64,${base64Content}`;
                 } else {
-                    content = await zipEntry.async('string');
+                    content = this.decodeBase64ToText(base64Content);
                 }
 
                 const fileType = this.fileTypeUtils.getTypeFromExtension(extension);
@@ -2306,13 +2329,13 @@ const CodePreviewer = {
                 importedCount++;
             }
 
-            progress.complete(`GitHub import complete for ${repoPath}.`);
+            progress.complete(`GitHub import complete for ${repoPath} (${branch}).`);
             this.addGithubHistoryEntry(repoPath);
-            this._showImportSummary(importedCount, skippedCount, `GitHub repository "${repoPath}" imported successfully!`);
+            this._showImportSummary(importedCount, skippedCount, `GitHub repository "${repoPath}" imported successfully from ${branch}.`);
         } catch (error) {
             console.error('Error importing GitHub repository:', error);
             progress.fail('GitHub import failed.');
-            this.showNotification('Failed to import GitHub repository', 'error');
+            this.showNotification('Failed to import GitHub repository (API/CORS/rate-limit issue)', 'error');
         }
     },
 
