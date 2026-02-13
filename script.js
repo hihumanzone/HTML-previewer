@@ -2534,6 +2534,14 @@ This content is loaded from a markdown file.
         return ['html', 'css', 'javascript', 'javascript-module', 'json', 'xml', 'svg'].includes(fileType);
     },
 
+    updateCodeModalFormattingAction(fileType) {
+        if (!this.dom.formatCodeBtn) return;
+
+        const supportsFormatting = this.supportsFormattingForType(fileType);
+        this.dom.formatCodeBtn.hidden = !supportsFormatting;
+        this.dom.formatCodeBtn.disabled = !supportsFormatting;
+    },
+
     getCodeMirrorMode(fileType) {
         return this.fileTypeUtils.getCodeMirrorMode(fileType);
     },
@@ -3695,6 +3703,7 @@ This content is loaded from a markdown file.
 
             this.state.currentCodeModalSource = sourcePanel;
             this.setActiveEditorPanel(sourcePanel);
+            this.updateCodeModalFormattingAction(sourcePanel?.dataset.fileType || 'text');
 
             modalTitle.textContent = `Code View - ${fileName}`;
 
@@ -3765,6 +3774,7 @@ This content is loaded from a markdown file.
             if (!this.state.currentCodeModalSource) return;
 
             const sourceFileType = this.state.currentCodeModalSource.dataset.fileType || 'text';
+            if (!this.supportsFormattingForType(sourceFileType)) return;
             let currentContent = '';
 
             if (window.CodeMirror && this.state.codeModalEditor) {
