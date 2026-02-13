@@ -184,6 +184,8 @@ const CodePreviewer = {
     // FILE TYPE UTILITIES
     // ============================================================================
     fileTypeUtils: {
+        BINARY_MIME_PREFIXES: ['image/', 'audio/', 'video/', 'application/', 'font/'],
+
         getExtension(filename) {
             return filename ? filename.split('.').pop().toLowerCase() : '';
         },
@@ -194,7 +196,8 @@ const CodePreviewer = {
         },
 
         getMimeTypeFromExtension(extension) {
-            return CodePreviewer.constants.FILE_TYPES.EXTENSION_MIME_MAP[extension] || 'application/octet-stream';
+            const normalizedExtension = extension?.toLowerCase();
+            return CodePreviewer.constants.FILE_TYPES.EXTENSION_MIME_MAP[normalizedExtension] || 'application/octet-stream';
         },
 
         getMimeTypeFromFileType(fileType) {
@@ -202,7 +205,11 @@ const CodePreviewer = {
         },
 
         isBinaryExtension(extension) {
-            return CodePreviewer.constants.FILE_TYPES.BINARY_EXTENSIONS.has(extension);
+            return CodePreviewer.constants.FILE_TYPES.BINARY_EXTENSIONS.has(extension?.toLowerCase());
+        },
+
+        hasBinaryMimePrefix(mimeType) {
+            return this.BINARY_MIME_PREFIXES.some(prefix => mimeType.startsWith(prefix));
         },
 
         isBinaryFile(filename, mimeType) {
@@ -218,12 +225,8 @@ const CodePreviewer = {
                 if (mimeType === 'image/svg+xml') {
                     return false;
                 }
-                
-                return mimeType.startsWith('image/') || 
-                       mimeType.startsWith('audio/') || 
-                       mimeType.startsWith('video/') || 
-                       mimeType.startsWith('application/') ||
-                       mimeType.startsWith('font/');
+
+                return this.hasBinaryMimePrefix(mimeType);
             }
             
             return false;
