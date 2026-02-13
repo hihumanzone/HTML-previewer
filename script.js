@@ -48,6 +48,7 @@ const CodePreviewer = {
         codeModalEditor: null,
         mainHtmlFile: '',
         githubImportHistory: [],
+        githubApiToken: '',
     },
 
     // ============================================================================
@@ -850,6 +851,7 @@ const CodePreviewer = {
         this.initExistingFilePanels();
         this.console.init(this.dom.consoleOutput, this.dom.clearConsoleBtn, this.dom.previewFrame);
         this.loadGithubImportHistory();
+        this.loadGithubApiToken();
         this.updatePreviewActionButtons();
     },
 
@@ -2168,6 +2170,50 @@ const CodePreviewer = {
         }
     },
 
+    getGithubTokenStorageKey() {
+        return 'code-previewer-github-api-token';
+    },
+
+    loadGithubApiToken() {
+        try {
+            const token = localStorage.getItem(this.getGithubTokenStorageKey()) || '';
+            this.state.githubApiToken = token.trim();
+        } catch (error) {
+            console.warn('Unable to load GitHub API token:', error);
+            this.state.githubApiToken = '';
+        }
+    },
+
+    saveGithubApiToken(token) {
+        try {
+            const normalizedToken = (token || '').trim();
+            if (!normalizedToken) {
+                localStorage.removeItem(this.getGithubTokenStorageKey());
+                this.state.githubApiToken = '';
+                return;
+            }
+            localStorage.setItem(this.getGithubTokenStorageKey(), normalizedToken);
+            this.state.githubApiToken = normalizedToken;
+        } catch (error) {
+            console.warn('Unable to save GitHub API token:', error);
+        }
+    },
+
+    promptForGithubApiToken() {
+        const token = window.prompt(
+            'GitHub API returned 403 (likely rate limited). Optional: paste a GitHub Personal Access Token to retry with a higher limit. Leave blank to continue without a token.',
+            this.state.githubApiToken || ''
+        );
+
+        if (token === null) {
+            return null;
+        }
+
+        const normalized = token.trim();
+        this.saveGithubApiToken(normalized);
+        return normalized;
+    },
+
     addGithubHistoryEntry(repoPath) {
         const trimmed = (repoPath || '').trim();
         if (!trimmed) return;
@@ -2223,14 +2269,42 @@ const CodePreviewer = {
     },
 
     async fetchGithubJson(url) {
-        const response = await fetch(url, {
-            headers: {
-                'Accept': 'application/vnd.github+json'
-            }
-        });
+        const headers = {
+            'Accept': 'application/vnd.github+json'
+        };
+
+        if (this.state.githubApiToken) {
+            headers.Authorization = `Bearer ${this.state.githubApiToken}`;
+        }
+
+        const response = await fetch(url, { headers });
 
         if (!response.ok) {
-            throw new Error(`GitHub API request failed (${response.status}) for ${url}`);
+            let errorDetails = '';
+            let resetAt = null;
+
+            try {
+                const body = await response.json();
+                errorDetails = body?.message || '';
+            } catch (error) {
+                errorDetails = '';
+            }
+
+            const rateRemaining = response.headers.get('x-ratelimit-remaining');
+            const rateReset = response.headers.get('x-ratelimit-reset');
+            if (rateReset) {
+                const ts = Number(rateReset) * 1000;
+                if (!Number.isNaN(ts)) {
+                    resetAt = new Date(ts).toLocaleString();
+                }
+            }
+
+            const enrichedError = new Error(errorDetails || `GitHub API request failed (${response.status}) for ${url}`);
+            enrichedError.status = response.status;
+            enrichedError.rateLimited = response.status === 403 && rateRemaining === '0';
+            enrichedError.resetAt = resetAt;
+            enrichedError.url = url;
+            throw enrichedError;
         }
 
         return response.json();
@@ -2334,8 +2408,27 @@ const CodePreviewer = {
             this._showImportSummary(importedCount, skippedCount, `GitHub repository "${repoPath}" imported successfully from ${branch}.`);
         } catch (error) {
             console.error('Error importing GitHub repository:', error);
+
+            if (error?.status === 403) {
+                const resetNote = error.resetAt ? ` Rate limit resets around ${error.resetAt}.` : '';
+                const shouldRetryWithToken = window.confirm(`GitHub denied API access (403).${resetNote}\n\nClick OK to add/update a GitHub token and retry now, or Cancel to stop.`);
+
+                if (shouldRetryWithToken) {
+                    const token = this.promptForGithubApiToken();
+                    if (token !== null) {
+                        progress.update({ current: 1, message: 'Retrying with token…' });
+                        try {
+                            await this.importGithubRepository();
+                            return;
+                        } catch (retryError) {
+                            console.error('GitHub retry failed:', retryError);
+                        }
+                    }
+                }
+            }
+
             progress.fail('GitHub import failed.');
-            this.showNotification('Failed to import GitHub repository (API/CORS/rate-limit issue)', 'error');
+            this.showNotification('Failed to import GitHub repository. If this is rate limiting, add a GitHub token and retry.', 'error');
         }
     },
 
