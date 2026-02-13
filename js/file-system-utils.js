@@ -517,6 +517,92 @@ export function generateAudioOverrideCode() {
 }
 
 /**
+ * Generates JavaScript code string for intercepting dynamic CSS url() property assignments
+ * Resolves virtual file paths in style properties like backgroundImage
+ * 
+ * @returns {string} JavaScript code as a string
+ */
+export function generateCSSURLOverrideCode() {
+    return `
+    (function() {
+        const cssUrlProps = ['backgroundImage', 'background', 'listStyleImage', 'borderImage', 'borderImageSource', 'cursor', 'content'];
+        const styleProto = CSSStyleDeclaration.prototype;
+        cssUrlProps.forEach(prop => {
+            const descriptor = Object.getOwnPropertyDescriptor(styleProto, prop);
+            if (descriptor && descriptor.set) {
+                const origSet = descriptor.set;
+                const origGet = descriptor.get;
+                Object.defineProperty(styleProto, prop, {
+                    set: function(value) {
+                        if (typeof value === 'string' && value.includes('url(')) {
+                            value = value.replace(/url\\(["']?([^"')]+)["']?\\)/g, function(match, url) {
+                                if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('//')) {
+                                    return match;
+                                }
+                                const currentFilePath = getCurrentFilePath();
+                                const targetPath = url.replace(/^\\.\\//,"");
+                                const fileData = findFileInSystem(targetPath, currentFilePath);
+                                if (fileData && (fileData.type === "image" || fileData.type === "svg")) {
+                                    const dataUrl = fileData.isBinary ? fileData.content :
+                                        "data:image/svg+xml;charset=utf-8," + encodeURIComponent(fileData.content);
+                                    return 'url("' + dataUrl + '")';
+                                }
+                                return match;
+                            });
+                        }
+                        origSet.call(this, value);
+                    },
+                    get: origGet ? function() { return origGet.call(this); } : undefined,
+                    enumerable: descriptor.enumerable,
+                    configurable: true
+                });
+            }
+        });
+    })();`;
+}
+
+/**
+ * Generates JavaScript code string for intercepting .src on existing DOM image/audio elements
+ * Ensures elements created via HTML (not via new Image()/new Audio()) also resolve virtual paths
+ * 
+ * @returns {string} JavaScript code as a string
+ */
+export function generateElementSrcOverrideCode() {
+    return `
+    (function() {
+        function overrideSrcProperty(proto, typeCheck) {
+            const descriptor = Object.getOwnPropertyDescriptor(proto, 'src');
+            if (!descriptor || !descriptor.set) return;
+            const origSet = descriptor.set;
+            const origGet = descriptor.get;
+            Object.defineProperty(proto, 'src', {
+                set: function(value) {
+                    if (typeof value === 'string' && value && !value.startsWith('data:') && !value.startsWith('http://') && !value.startsWith('https://') && !value.startsWith('blob:') && !value.startsWith('//')) {
+                        const currentFilePath = getCurrentFilePath();
+                        const targetPath = value.replace(/^\\.\\//,"");
+                        const fileData = findFileInSystem(targetPath, currentFilePath);
+                        if (fileData && typeCheck(fileData)) {
+                            const resolved = fileData.isBinary ? fileData.content :
+                                (fileData.type === "svg" ? "data:image/svg+xml;charset=utf-8," + encodeURIComponent(fileData.content) : fileData.content);
+                            origSet.call(this, resolved);
+                            return;
+                        }
+                    }
+                    origSet.call(this, value);
+                },
+                get: origGet ? function() { return origGet.call(this); } : undefined,
+                enumerable: descriptor.enumerable,
+                configurable: true
+            });
+        }
+        overrideSrcProperty(HTMLImageElement.prototype, function(f) { return f.type === "image" || f.type === "svg"; });
+        overrideSrcProperty(HTMLAudioElement.prototype, function(f) { return f.type === "audio"; });
+        overrideSrcProperty(HTMLVideoElement.prototype, function(f) { return f.type === "video"; });
+        overrideSrcProperty(HTMLSourceElement.prototype, function(f) { return f.type === "audio" || f.type === "video" || f.type === "image"; });
+    })();`;
+}
+
+/**
  * Generates JavaScript code string for console capture and error handling (for injection into iframes)
  * Overrides console methods to post messages to the parent window and captures errors
  * 
