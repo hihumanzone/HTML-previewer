@@ -9,9 +9,9 @@ import { getCodeMirrorMode } from './file-type-utils.js';
  * Default content for new editors
  */
 const DEFAULT_CONTENT = {
-    html: `<h1>Hello, World!</h1>\n<p>This is a test of the code previewer.</p>\n<button onclick="testFunction()">Run JS</button>`,
-    css: `body { \n  font-family: sans-serif; \n  padding: 2rem;\n  color: #333;\n}\nbutton {\n  padding: 8px 16px;\n  border-radius: 4px;\n  cursor: pointer;\n}`,
-    js: `console.log("Preview initialized.");\n\nfunction testFunction() {\n  console.log("Button was clicked!");\n  try {\n    undefinedFunction();\n  } catch(e) {\n    console.error("Caught an error:", e.message);\n  }\n}`
+    html: `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <title>Hello Site</title>\n  <link rel="stylesheet" href="styles.css" />\n</head>\n<body>\n\n  <h1>Hello World</h1>\n\n  <main id="content">Loading content...</main>\n\n  <button id="logBtn">Test Console Logs</button>\n\n  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>\n  <script src="script.js" defer></script>\n</body>\n</html>`,
+    css: `body {\n  font-family: system-ui, sans-serif;\n  margin: 2rem;\n  background: #f5f5f5;\n}\n\nh1 {\n  margin-bottom: 1rem;\n}\n\n#content {\n  background: #fff;\n  padding: 1rem;\n  border-radius: 6px;\n  margin-bottom: 1rem;\n}\n\nbutton {\n  padding: 0.6rem 1rem;\n  border: none;\n  border-radius: 4px;\n  background: #222;\n  color: white;\n  cursor: pointer;\n}\n\nbutton:hover {\n  opacity: 0.85;\n}`,
+    js: `const contentEl = document.getElementById("content");\nconst logBtn = document.getElementById("logBtn");\n\n// Load markdown\nasync function loadMarkdown() {\n  try {\n    const res = await fetch("content.md");\n    const text = await res.text();\n    contentEl.innerHTML = marked.parse(text);\n  } catch (err) {\n    console.error("Failed to load markdown:", err);\n    contentEl.textContent = "Error loading content.";\n  }\n}\n\n// Console logging test\nfunction testLogs() {\n  console.log("Normal log");\n  console.info("Info log");\n  console.warn("Warning log");\n  console.error("Error log");\n}\n\nlogBtn.addEventListener("click", testLogs);\nloadMarkdown();`
 };
 
 /**
