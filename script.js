@@ -44,6 +44,7 @@ const CodePreviewer = {
         sidebarShowModifiedOnly: false,
         sidebarSearchQuery: '',
         selectedFileIds: new Set(),
+        selectedFolderPaths: new Set(),
         codeModalEditor: null,
         mainHtmlFile: '',
     },
@@ -1263,6 +1264,61 @@ const CodePreviewer = {
     },
 
     /**
+     * Get all file IDs inside a folder path (including nested subfolders)
+     * @param {string} folderPath - The folder path
+     * @returns {string[]} Matching file IDs
+     */
+    getFileIdsInFolder(folderPath) {
+        const folderPrefix = `${folderPath}/`;
+        return this.state.files
+            .filter(file => {
+                const filename = this.getFileNameFromPanel(file.id) || file.fileName || '';
+                return filename.startsWith(folderPrefix);
+            })
+            .map(file => file.id);
+    },
+
+    /**
+     * Toggle open state for all file panels in a folder
+     * @param {string} folderPath - Folder whose files should be toggled
+     */
+    toggleFolderPanels(folderPath) {
+        const fileIds = this.getFileIdsInFolder(folderPath);
+        if (fileIds.length === 0) return;
+
+        const areAllOpen = fileIds.every(fileId => this.state.openPanels.has(fileId));
+
+        if (areAllOpen) {
+            fileIds.forEach(fileId => this.closePanel(fileId));
+            return;
+        }
+
+        fileIds.forEach(fileId => this.openPanel(fileId));
+    },
+
+    /**
+     * Resolve selected files + selected folders to unique file IDs
+     * @returns {string[]} Unique selected file IDs
+     */
+    getSelectedFileIdsIncludingFolders() {
+        const fileIds = new Set(this.state.selectedFileIds);
+
+        this.state.selectedFolderPaths.forEach(folderPath => {
+            this.getFileIdsInFolder(folderPath).forEach(fileId => fileIds.add(fileId));
+        });
+
+        return Array.from(fileIds);
+    },
+
+    /**
+     * Clear sidebar selections for files and folders
+     */
+    clearSidebarSelection() {
+        this.state.selectedFileIds.clear();
+        this.state.selectedFolderPaths.clear();
+    },
+
+    /**
      * Render the file tree sidebar
      */
     renderFileTree() {
@@ -1276,16 +1332,22 @@ const CodePreviewer = {
             if (!existingIds.has(id)) this.state.selectedFileIds.delete(id);
         });
 
+        const existingFolderPaths = new Set(this.state.folders.map(folder => folder.path));
+        this.state.selectedFolderPaths.forEach((folderPath) => {
+            if (!existingFolderPaths.has(folderPath)) this.state.selectedFolderPaths.delete(folderPath);
+        });
+
         const treeHtml = this.renderFolderContents(tree, '');
-        const hasSelection = this.state.selectedFileIds.size > 0;
+        const hasSelection = this.state.selectedFileIds.size > 0 || this.state.selectedFolderPaths.size > 0;
 
         this.dom.fileTreeContainer.innerHTML = `
             <div class="file-tree-toolbar">
                 <input type="search" class="file-tree-search-input" placeholder="Search files..." value="${this.escapeHtmlAttribute(this.state.sidebarSearchQuery)}" aria-label="Search files in sidebar">
                 <div class="file-tree-toolbar-actions">
                     <button class="tree-toolbar-btn clear-selection-btn" title="Clear selection" ${hasSelection ? '' : 'disabled'}>Clear</button>
-                    <button class="tree-toolbar-btn open-selected-btn" title="Open selected files" ${hasSelection ? '' : 'disabled'}>Open</button>
-                    <button class="tree-toolbar-btn delete-selected-btn" title="Delete selected files" ${hasSelection ? '' : 'disabled'}>Delete</button>
+                    <button class="tree-toolbar-btn open-selected-btn" title="Open selected files/folders" ${hasSelection ? '' : 'disabled'}>Open</button>
+                    <button class="tree-toolbar-btn close-selected-btn" title="Close selected files/folders" ${hasSelection ? '' : 'disabled'}>Close</button>
+                    <button class="tree-toolbar-btn delete-selected-btn" title="Delete selected files/folders" ${hasSelection ? '' : 'disabled'}>Delete</button>
                 </div>
             </div>
             <div class="file-tree-content">
@@ -1310,14 +1372,24 @@ const CodePreviewer = {
             const folder = node.children[folderName];
             const folderPath = currentPath ? `${currentPath}/${folderName}` : folderName;
             const isExpanded = this.state.expandedFolders.has(folderPath);
+            const isFolderSelected = this.state.selectedFolderPaths.has(folderPath);
             const childHtml = this.renderFolderContents(folder, folderPath);
+            const folderFileIds = this.getFileIdsInFolder(folderPath);
+            const folderHasFiles = folderFileIds.length > 0;
+            const areAllFolderPanelsOpen = folderHasFiles && folderFileIds.every(fileId => this.state.openPanels.has(fileId));
+            const toggleFolderPanelsLabel = areAllFolderPanelsOpen
+                ? 'Collapse all file panels in folder'
+                : 'Expand all file panels in folder';
+            const toggleFolderPanelsIcon = areAllFolderPanelsOpen ? '📁−' : '📂+';
 
             html += `
-                <div class="tree-folder ${isExpanded ? 'expanded' : ''}" data-folder-path="${folderPath}">
+                <div class="tree-folder ${isExpanded ? 'expanded' : ''} ${isFolderSelected ? 'folder-selected-in-sidebar' : ''}" data-folder-path="${folderPath}">
                     <div class="tree-folder-header">
+                        <input type="checkbox" class="tree-folder-checkbox" aria-label="Select folder ${this.escapeHtmlAttribute(folderPath)}" ${isFolderSelected ? 'checked' : ''}>
                         <span class="folder-icon">${isExpanded ? '📂' : '📁'}</span>
                         <span class="folder-name">${folderName}</span>
                         <div class="folder-actions">
+                            <button class="toggle-folder-panels-btn" title="${toggleFolderPanelsLabel}" aria-label="${toggleFolderPanelsLabel}" ${folderHasFiles ? '' : 'disabled'}>${toggleFolderPanelsIcon}</button>
                             <button class="add-file-to-folder-btn" title="Add file to folder">+</button>
                             <button class="add-subfolder-btn" title="Add subfolder">📁+</button>
                             <button class="delete-folder-btn" title="Delete folder">🗑️</button>
@@ -1411,6 +1483,19 @@ const CodePreviewer = {
                     this.state.selectedFileIds.delete(fileId);
                 }
                 this.renderFileTree();
+                return;
+            }
+
+            if (target.classList.contains('tree-folder-checkbox')) {
+                const folderEl = target.closest('.tree-folder');
+                if (!folderEl) return;
+                const folderPath = folderEl.dataset.folderPath;
+                if (target.checked) {
+                    this.state.selectedFolderPaths.add(folderPath);
+                } else {
+                    this.state.selectedFolderPaths.delete(folderPath);
+                }
+                this.renderFileTree();
             }
         });
 
@@ -1423,23 +1508,41 @@ const CodePreviewer = {
 
 
             if (target.closest('.clear-selection-btn')) {
-                this.state.selectedFileIds.clear();
+                this.clearSidebarSelection();
                 this.renderFileTree();
                 return;
             }
 
             if (target.closest('.open-selected-btn')) {
-                this.state.selectedFileIds.forEach((id) => this.openPanel(id));
+                this.getSelectedFileIdsIncludingFolders().forEach((id) => this.openPanel(id));
+                return;
+            }
+
+            if (target.closest('.close-selected-btn')) {
+                this.getSelectedFileIdsIncludingFolders().forEach((id) => this.closePanel(id));
                 return;
             }
 
             if (target.closest('.delete-selected-btn')) {
-                const ids = Array.from(this.state.selectedFileIds);
-                if (ids.length === 0) return;
-                const confirmed = await this.showConfirmDialog(`Delete ${ids.length} selected file(s)? This cannot be undone.`);
+                const selectedFolderPaths = Array.from(this.state.selectedFolderPaths);
+                const selectedFileIds = this.getSelectedFileIdsIncludingFolders();
+                if (selectedFolderPaths.length === 0 && selectedFileIds.length === 0) return;
+
+                const confirmed = await this.showConfirmDialog(`Delete ${selectedFileIds.length} file(s) and ${selectedFolderPaths.length} folder(s)? This cannot be undone.`);
                 if (confirmed) {
-                    ids.forEach((id) => this.deleteFile(id));
-                    this.state.selectedFileIds.clear();
+                    selectedFolderPaths
+                        .sort((a, b) => b.length - a.length)
+                        .forEach((folderPath) => this.deleteFolder(folderPath));
+
+                    const selectedFolderSet = new Set(selectedFolderPaths);
+                    selectedFileIds
+                        .filter((fileId) => {
+                            const fileName = this.getFileNameFromPanel(fileId) || this.state.files.find(f => f.id === fileId)?.fileName || '';
+                            return !Array.from(selectedFolderSet).some(folderPath => fileName.startsWith(`${folderPath}/`));
+                        })
+                        .forEach((id) => this.deleteFile(id));
+
+                    this.clearSidebarSelection();
                     this.renderFileTree();
                 }
                 return;
@@ -1451,6 +1554,14 @@ const CodePreviewer = {
                 return;
             }
             
+            // Add file to folder
+            if (target.closest('.toggle-folder-panels-btn')) {
+                e.stopPropagation();
+                const folderPath = target.closest('.tree-folder').dataset.folderPath;
+                this.toggleFolderPanels(folderPath);
+                return;
+            }
+
             // Add file to folder
             if (target.closest('.add-file-to-folder-btn')) {
                 e.stopPropagation();
@@ -1483,14 +1594,14 @@ const CodePreviewer = {
             
             // Folder header click (toggle expansion) — only if not clicking an action button
             const folderHeader = target.closest('.tree-folder-header');
-            if (folderHeader && !target.closest('.folder-actions')) {
+            if (folderHeader && !target.closest('.folder-actions') && !target.closest('.tree-folder-checkbox')) {
                 const folderPath = folderHeader.closest('.tree-folder').dataset.folderPath;
                 this.toggleFolder(folderPath);
                 return;
             }
             
             // File actions
-            if (target.closest('.tree-file-checkbox')) {
+            if (target.closest('.tree-file-checkbox') || target.closest('.tree-folder-checkbox')) {
                 e.stopPropagation();
                 return;
             }
@@ -1552,6 +1663,12 @@ const CodePreviewer = {
         });
         
         this.state.expandedFolders.delete(folderPath);
+        this.state.selectedFolderPaths.forEach(selectedPath => {
+            if (selectedPath === folderPath || selectedPath.startsWith(folderPath + '/')) {
+                this.state.selectedFolderPaths.delete(selectedPath);
+            }
+        });
+        filesToRemove.forEach(file => this.state.selectedFileIds.delete(file.id));
         this.refreshPanelAndFileTreeUI();
     },
 
@@ -2739,6 +2856,7 @@ const CodePreviewer = {
         this.state.savedFileStates = {};
         this.state.modifiedFiles.clear();
         this.state.selectedFileIds.clear();
+        this.state.selectedFolderPaths.clear();
 
         // Clear default editors
         this.state.editors.html = null;

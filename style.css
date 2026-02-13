@@ -1235,12 +1235,15 @@ body {
 .file-tree-container {
     width: 250px;
     min-width: 200px;
-    max-width: 300px;
+    min-height: 220px;
+    height: min(60vh, calc(100vh - 300px));
+    resize: both;
+    overflow: hidden;
+    flex: 0 0 auto;
     background-color: var(--secondary-color);
     border: 1px solid var(--border-color);
     border-radius: 6px;
     padding: 0.5rem;
-    max-height: calc(100vh - 300px);
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
@@ -1275,7 +1278,7 @@ body {
 
 .file-tree-toolbar-actions {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0.35rem;
 }
 
@@ -1331,6 +1334,17 @@ body {
 
 .tree-folder.expanded > .tree-folder-header {
     background-color: rgba(137, 180, 250, 0.1);
+}
+
+.tree-folder.folder-selected-in-sidebar > .tree-folder-header {
+    background-color: rgba(166, 227, 161, 0.16);
+    border: 1px solid rgba(166, 227, 161, 0.45);
+}
+
+.tree-folder-checkbox,
+.tree-file-checkbox {
+    margin: 0;
+    cursor: pointer;
 }
 
 .folder-icon {
