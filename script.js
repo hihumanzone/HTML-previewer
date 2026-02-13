@@ -850,6 +850,7 @@ const CodePreviewer = {
         this.bindEvents();
         this.bindFileTreeEvents();
         this.initExistingFilePanels();
+        this.ensureDefaultContentFile();
         this.console.init(this.dom.consoleOutput, this.dom.clearConsoleBtn, this.dom.previewFrame);
         this.updatePreviewActionButtons();
     },
@@ -994,21 +995,147 @@ const CodePreviewer = {
 
         this.setDefaultContent();
     },
-    
+    getDefaultSiteFiles() {
+        return {
+            html: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hello Site</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <h1>Hello World</h1>
+
+  <main id="content">Loading content...</main>
+
+  <button id="logBtn">Test Console Logs</button>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="script.js" defer></script>
+</body>
+</html>`,
+            css: `body {
+  font-family: system-ui, sans-serif;
+  margin: 2rem;
+  background: #f5f5f5;
+}
+
+h1 {
+  margin-bottom: 1rem;
+}
+
+#content {
+  background: #fff;
+  padding: 1rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+}
+
+button {
+  padding: 0.6rem 1rem;
+  border: none;
+  border-radius: 4px;
+  background: #222;
+  color: white;
+  cursor: pointer;
+}
+
+button:hover {
+  opacity: 0.85;
+}`,
+            js: `const contentEl = document.getElementById("content");
+const logBtn = document.getElementById("logBtn");
+
+// Load markdown
+async function loadMarkdown() {
+  try {
+    const res = await fetch("content.md");
+    const text = await res.text();
+    contentEl.innerHTML = marked.parse(text);
+  } catch (err) {
+    console.error("Failed to load markdown:", err);
+    if (contentEl) {
+      contentEl.textContent = "Error loading content.";
+    }
+  }
+}
+
+// Console logging test
+function testLogs() {
+  console.log("Normal log");
+  console.info("Info log");
+  console.warn("Warning log");
+  console.error("Error log");
+}
+
+if (logBtn) {
+  logBtn.addEventListener("click", testLogs);
+}
+if (contentEl && typeof marked !== "undefined") {
+  loadMarkdown();
+}`,
+            markdown: `# Markdown Content
+
+This content is loaded from a markdown file.
+
+- Simple
+- Clean
+- Working`
+        };
+    },
+
     setDefaultContent() {
-        const initialHTML = `<h1>Hello, World!</h1>\n<p>This is a test of the code previewer.</p>\n<button onclick="testFunction()">Run JS</button>`;
-        const initialCSS = `body { \n  font-family: sans-serif; \n  padding: 2rem;\n  color: #333;\n}\nbutton {\n  padding: 8px 16px;\n  border-radius: 4px;\n  cursor: pointer;\n}`;
-        const initialJS = `console.log("Preview initialized.");\n\nfunction testFunction() {\n  console.log("Button was clicked!");\n  try {\n    undefinedFunction();\n  } catch(e) {\n    console.error("Caught an error:", e.message);\n  }\n}`;
-        
+        const defaultSiteFiles = this.getDefaultSiteFiles();
+
         if (this.state.editors.html) {
-            this.state.editors.html.setValue(initialHTML);
+            this.state.editors.html.setValue(defaultSiteFiles.html);
         }
         if (this.state.editors.css) {
-            this.state.editors.css.setValue(initialCSS);
+            this.state.editors.css.setValue(defaultSiteFiles.css);
         }
         if (this.state.editors.js) {
-            this.state.editors.js.setValue(initialJS);
+            this.state.editors.js.setValue(defaultSiteFiles.js);
         }
+    },
+
+    ensureDefaultContentFile() {
+        const hasContentMd = this.state.files.some(file => {
+            const filename = this.getFileNameFromPanel(file.id) || file.fileName;
+            return filename === 'content.md';
+        });
+
+        if (hasContentMd) return;
+
+        const fileId = `file-${this.state.nextFileId++}`;
+        const fileName = 'content.md';
+        const content = this.getDefaultSiteFiles().markdown;
+
+        this.createFilePanel(fileId, fileName, 'markdown', content, false);
+
+        const textarea = document.getElementById(fileId);
+        const editor = this.createEditorForTextarea(textarea, 'markdown');
+        editor.setValue(content);
+
+        this.state.files.push({
+            id: fileId,
+            editor,
+            type: 'markdown',
+            fileName,
+        });
+
+        this.initFileSavedState(fileId, content, fileName);
+        this.setupEditorChangeListener(fileId, editor);
+        this.state.openPanels.add(fileId);
+
+        const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+        if (panel) {
+            this.bindFilePanelEvents(panel);
+        }
+
+        this.refreshPanelAndFileTreeUI();
     },
 
     bindEvents() {
