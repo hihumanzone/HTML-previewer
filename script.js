@@ -46,6 +46,8 @@ const CodePreviewer = {
         selectedFileIds: new Set(),
         selectedFolderPaths: new Set(),
         codeModalEditor: null,
+        currentCodeModalSource: null,
+        activePanelId: 'default-html',
         mainHtmlFile: '',
     },
 
@@ -1016,10 +1018,23 @@ const CodePreviewer = {
         });
         
         document.addEventListener('keydown', (e) => {
+            const activePanel = this.getActiveEditorPanel();
+
             if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                 e.preventDefault();
                 this.renderPreview('modal');
             }
+
+            if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'f' && activePanel) {
+                e.preventDefault();
+                this.openPanelSearch(activePanel);
+            }
+
+            if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'e' && activePanel) {
+                e.preventDefault();
+                this.expandCode(activePanel);
+            }
+
             if (e.key === 'Escape' && this.dom.modalOverlay.getAttribute('aria-hidden') === 'false') {
                 this.toggleModal(false);
             }
@@ -2537,9 +2552,12 @@ const CodePreviewer = {
         const moveButtons = panel.querySelectorAll('.move-panel-btn');
         moveButtons.forEach((button) => {
             button.addEventListener('click', () => {
+                this.setActiveEditorPanel(panel);
                 this.movePanel(panel, button.dataset.direction);
             });
         });
+
+        panel.addEventListener('pointerdown', () => this.setActiveEditorPanel(panel));
 
         this.bindToolbarEvents(panel);
     },
@@ -2979,6 +2997,7 @@ const CodePreviewer = {
             this.bindFilePanelEvents(panel);
             });
         this.refreshPanelAndFileTreeUI();
+        this.getActiveEditorPanel();
     },
 
     bindToolbarEvents(panel) {
@@ -2991,33 +3010,54 @@ const CodePreviewer = {
         const { searchBtn, searchInput, searchNextBtn, searchCloseBtn } = this.getPanelSearchElements(panel);
         
         if (clearBtn) {
-            clearBtn.addEventListener('click', () => this.clearEditor(panel));
+            clearBtn.addEventListener('click', () => {
+                this.setActiveEditorPanel(panel);
+                this.clearEditor(panel);
+            });
         }
         
         if (pasteBtn) {
-            pasteBtn.addEventListener('click', () => this.pasteFromClipboard(panel));
+            pasteBtn.addEventListener('click', () => {
+                this.setActiveEditorPanel(panel);
+                this.pasteFromClipboard(panel);
+            });
         }
         
         if (copyBtn) {
-            copyBtn.addEventListener('click', () => this.copyToClipboard(panel));
+            copyBtn.addEventListener('click', () => {
+                this.setActiveEditorPanel(panel);
+                this.copyToClipboard(panel);
+            });
         }
         
         if (expandBtn) {
-            expandBtn.addEventListener('click', () => this.expandCode(panel));
+            expandBtn.addEventListener('click', () => {
+                this.setActiveEditorPanel(panel);
+                this.expandCode(panel);
+            });
         }
         
         if (exportBtn) {
-            exportBtn.addEventListener('click', () => this.exportFile(panel));
+            exportBtn.addEventListener('click', () => {
+                this.setActiveEditorPanel(panel);
+                this.exportFile(panel);
+            });
         }
         
         if (collapseBtn) {
             collapseBtn.setAttribute('aria-expanded', 'true');
-            collapseBtn.addEventListener('click', () => this.toggleEditorCollapse(panel));
+            collapseBtn.addEventListener('click', () => {
+                this.setActiveEditorPanel(panel);
+                this.toggleEditorCollapse(panel);
+            });
         }
 
         if (searchBtn) {
             searchBtn.setAttribute('aria-expanded', 'false');
-            searchBtn.addEventListener('click', () => this.togglePanelSearch(panel));
+            searchBtn.addEventListener('click', () => {
+                this.setActiveEditorPanel(panel);
+                this.togglePanelSearch(panel);
+            });
         }
 
         if (searchInput) {
@@ -3041,6 +3081,34 @@ const CodePreviewer = {
         if (searchCloseBtn) {
             searchCloseBtn.addEventListener('click', () => this.closePanelSearch(panel));
         }
+    },
+
+    setActiveEditorPanel(panel) {
+        if (!panel || !panel.dataset.fileId) return;
+        this.state.activePanelId = panel.dataset.fileId;
+        document.querySelectorAll('.editor-panel.is-active').forEach((active) => {
+            if (active !== panel) active.classList.remove('is-active');
+        });
+        panel.classList.add('is-active');
+    },
+
+    getActiveEditorPanel() {
+        if (this.state.activePanelId) {
+            const panel = document.querySelector(`.editor-panel[data-file-id="${this.state.activePanelId}"]`);
+            if (panel) return panel;
+        }
+
+        const fallback = document.querySelector('.editor-panel[data-file-id]');
+        if (fallback) {
+            this.setActiveEditorPanel(fallback);
+        }
+        return fallback;
+    },
+
+    openPanelSearch(panel) {
+        const { searchContainer } = this.getPanelSearchElements(panel);
+        if (!searchContainer) return;
+        this.setPanelSearchActive(panel, true);
     },
 
     getPanelSearchElements(panel) {
@@ -3326,6 +3394,7 @@ const CodePreviewer = {
             }
 
             this.state.currentCodeModalSource = sourcePanel;
+            this.setActiveEditorPanel(sourcePanel);
 
             modalTitle.textContent = `Code View - ${fileName}`;
 
@@ -3339,6 +3408,10 @@ const CodePreviewer = {
                         lineWrapping: true,
                         autoCloseTags: true,
                         viewportMargin: Infinity,
+                        extraKeys: {
+                            'Ctrl-S': () => this.saveCodeModal(false),
+                            'Cmd-S': () => this.saveCodeModal(false),
+                        },
                     });
                 } else {
                     this.state.codeModalEditor.setOption('mode', language);
@@ -3346,6 +3419,7 @@ const CodePreviewer = {
                 }
 
                 this.state.codeModalEditor.setValue(content);
+                this.state.codeModalEditor.focus();
             } else {
                 editorTextarea.value = content;
                 editorTextarea.readOnly = false;
@@ -3360,6 +3434,7 @@ const CodePreviewer = {
                 editorTextarea.style.backgroundColor = '#282a36';
                 editorTextarea.style.color = '#f8f8f2';
                 editorTextarea.style.resize = 'none';
+                editorTextarea.focus();
             }
 
             modal.style.display = 'flex';
@@ -3384,7 +3459,7 @@ const CodePreviewer = {
         this.state.currentCodeModalSource = null;
     },
 
-    saveCodeModal() {
+    saveCodeModal(closeAfterSave = true) {
         try {
             if (!this.state.currentCodeModalSource) {
                 console.error('No source panel reference found for saving');
@@ -3411,7 +3486,11 @@ const CodePreviewer = {
                 }
             }
 
-            this.closeCodeModal();
+            if (closeAfterSave) {
+                this.closeCodeModal();
+            } else {
+                this.showNotification('Changes applied', 'success');
+            }
         } catch (error) {
             console.error('Error saving code from modal:', error);
         }
