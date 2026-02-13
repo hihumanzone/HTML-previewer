@@ -224,6 +224,439 @@ export function generateGetCurrentFilePathCode() {
 }
 
 /**
+ * Generates JavaScript code string for the fetch override (for injection into iframes)
+ * Intercepts fetch requests to serve files from the virtual file system
+ * 
+ * @returns {string} JavaScript code as a string
+ */
+export function generateFetchOverrideCode() {
+    return `
+    const originalFetch = window.fetch;
+    window.fetch = function(input, init) {
+        let url = input;
+        if (typeof input === "object" && input.url) {
+            url = input.url;
+        }
+        
+        const currentFilePath = getCurrentFilePath();
+        let targetPath = url.replace(/^\\.\\//,"");
+        const fileData = findFileInSystem(targetPath, currentFilePath);
+        
+        if (fileData) {
+            const response = {
+                ok: true,
+                status: 200,
+                statusText: "OK",
+                headers: new Headers({
+                    "Content-Type": fileData.type === "json" ? "application/json" : 
+                                   fileData.type === "html" ? "text/html" :
+                                   fileData.type === "css" ? "text/css" :
+                                   fileData.type === "javascript" ? "text/javascript" :
+                                   fileData.type === "xml" ? "application/xml" :
+                                   "text/plain"
+                }),
+                url: url,
+                text: () => Promise.resolve(fileData.content),
+                json: () => {
+                    try {
+                        return Promise.resolve(JSON.parse(fileData.content));
+                    } catch (e) {
+                        return Promise.reject(new Error("Invalid JSON"));
+                    }
+                },
+                blob: () => {
+                    if (fileData.isBinary && fileData.content.startsWith("data:")) {
+                        const [header, base64] = fileData.content.split(",");
+                        const mimeType = header.match(/data:([^;]+)/)[1];
+                        const byteCharacters = atob(base64);
+                        const byteNumbers = new Array(byteCharacters.length);
+                        for (let i = 0; i < byteCharacters.length; i++) {
+                            byteNumbers[i] = byteCharacters.charCodeAt(i);
+                        }
+                        const byteArray = new Uint8Array(byteNumbers);
+                        return Promise.resolve(new Blob([byteArray], { type: mimeType }));
+                    } else {
+                        return Promise.resolve(new Blob([fileData.content], { type: "text/plain" }));
+                    }
+                },
+                arrayBuffer: () => {
+                    if (fileData.isBinary && fileData.content.startsWith("data:")) {
+                        const [header, base64] = fileData.content.split(",");
+                        const byteCharacters = atob(base64);
+                        const byteNumbers = new Array(byteCharacters.length);
+                        for (let i = 0; i < byteCharacters.length; i++) {
+                            byteNumbers[i] = byteCharacters.charCodeAt(i);
+                        }
+                        return Promise.resolve(new Uint8Array(byteNumbers).buffer);
+                    } else {
+                        const encoder = new TextEncoder();
+                        return Promise.resolve(encoder.encode(fileData.content).buffer);
+                    }
+                }
+            };
+            
+            return Promise.resolve(response);
+        }
+        
+        return originalFetch.apply(this, arguments);
+    };`;
+}
+
+/**
+ * Generates JavaScript code string for the XMLHttpRequest override (for injection into iframes)
+ * Intercepts XHR requests to serve files from the virtual file system
+ * 
+ * @returns {string} JavaScript code as a string
+ */
+export function generateXHROverrideCode() {
+    return `
+    const OriginalXMLHttpRequest = window.XMLHttpRequest;
+    window.XMLHttpRequest = function() {
+        const xhr = new OriginalXMLHttpRequest();
+        const originalOpen = xhr.open;
+        const originalSend = xhr.send;
+        
+        let isVirtualRequest = false;
+        let virtualFileData = null;
+        
+        xhr.open = function(method, url, async, user, password) {
+            try {
+                if (method.toUpperCase() === "GET") {
+                    const currentFilePath = getCurrentFilePath();
+                    let targetPath = url.replace(/^\\.\\//,"");
+                    const fileData = findFileInSystem(targetPath, currentFilePath);
+                    
+                    if (fileData) {
+                        isVirtualRequest = true;
+                        virtualFileData = fileData;
+                        xhr.setRequestHeader = function() {};
+                        xhr.overrideMimeType = function() {};
+                        return;
+                    }
+                }
+                
+                isVirtualRequest = false;
+                virtualFileData = null;
+                return originalOpen.call(this, method, url, async, user, password);
+            } catch (e) {
+                isVirtualRequest = false;
+                virtualFileData = null;
+                return originalOpen.call(this, method, url, async, user, password);
+            }
+        };
+        
+        xhr.send = function(data) {
+            if (isVirtualRequest && virtualFileData) {
+                try {
+                    setTimeout(() => {
+                        try {
+                            Object.defineProperty(xhr, "readyState", { value: 4, configurable: true });
+                            Object.defineProperty(xhr, "status", { value: 200, configurable: true });
+                            Object.defineProperty(xhr, "statusText", { value: "OK", configurable: true });
+                            
+                            if (virtualFileData.isBinary && virtualFileData.content.startsWith("data:")) {
+                                if (xhr.responseType === "arraybuffer") {
+                                    const [header, base64] = virtualFileData.content.split(",");
+                                    const byteCharacters = atob(base64);
+                                    const byteNumbers = new Array(byteCharacters.length);
+                                    for (let i = 0; i < byteCharacters.length; i++) {
+                                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                                    }
+                                    Object.defineProperty(xhr, "response", { value: new Uint8Array(byteNumbers).buffer, configurable: true });
+                                } else if (xhr.responseType === "blob") {
+                                    const [header, base64] = virtualFileData.content.split(",");
+                                    const mimeType = header.match(/data:([^;]+)/)[1];
+                                    const byteCharacters = atob(base64);
+                                    const byteNumbers = new Array(byteCharacters.length);
+                                    for (let i = 0; i < byteCharacters.length; i++) {
+                                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                                    }
+                                    const byteArray = new Uint8Array(byteNumbers);
+                                    Object.defineProperty(xhr, "response", { value: new Blob([byteArray], { type: mimeType }), configurable: true });
+                                } else {
+                                    Object.defineProperty(xhr, "response", { value: virtualFileData.content, configurable: true });
+                                    Object.defineProperty(xhr, "responseText", { value: virtualFileData.content, configurable: true });
+                                }
+                            } else {
+                                Object.defineProperty(xhr, "responseText", { value: virtualFileData.content, configurable: true });
+                                Object.defineProperty(xhr, "response", { value: virtualFileData.content, configurable: true });
+                            }
+                            
+                            xhr.getResponseHeader = function(name) {
+                                const lowerName = name.toLowerCase();
+                                if (lowerName === "content-type") {
+                                    const typeMap = {
+                                        "image": "image/png",
+                                        "audio": "audio/mpeg",
+                                        "video": "video/mp4",
+                                        "json": "application/json",
+                                        "css": "text/css",
+                                        "javascript": "text/javascript",
+                                        "html": "text/html"
+                                    };
+                                    return typeMap[virtualFileData.type] || "text/plain";
+                                }
+                                return null;
+                            };
+                            
+                            xhr.getAllResponseHeaders = function() {
+                                const contentType = xhr.getResponseHeader("content-type");
+                                return "content-type: " + contentType + "\\r\\n";
+                            };
+                            
+                            xhr.dispatchEvent(new Event("readystatechange"));
+                            xhr.dispatchEvent(new ProgressEvent("load"));
+                            xhr.dispatchEvent(new ProgressEvent("loadend"));
+                        } catch (e) {
+                            xhr.dispatchEvent(new ProgressEvent("error"));
+                            xhr.dispatchEvent(new ProgressEvent("loadend"));
+                        }
+                    }, 1);
+                } catch (e) {
+                    xhr.dispatchEvent(new ProgressEvent("error"));
+                    xhr.dispatchEvent(new ProgressEvent("loadend"));
+                }
+                return;
+            }
+            
+            return originalSend.call(this, data);
+        };
+        
+        return xhr;
+    };`;
+}
+
+/**
+ * Generates JavaScript code string for the Image constructor override (for injection into iframes)
+ * Intercepts Image src assignments to serve images from the virtual file system
+ * 
+ * @returns {string} JavaScript code as a string
+ */
+export function generateImageOverrideCode() {
+    return `
+    const OriginalImage = window.Image;
+    window.Image = function() {
+        const img = new OriginalImage();
+        
+        let _originalSrc = "";
+        let _resolvedSrc = "";
+        
+        Object.defineProperty(img, "src", {
+            get: function() {
+                return _resolvedSrc || _originalSrc;
+            },
+            set: function(value) {
+                _originalSrc = value;
+                
+                const currentFilePath = getCurrentFilePath();
+                let targetPath = value.replace(/^\\.\\//,"");
+                const fileData = findFileInSystem(targetPath, currentFilePath);
+                
+                if (fileData && (fileData.type === "image" || fileData.type === "svg")) {
+                    const dataUrl = fileData.isBinary ? fileData.content : 
+                                   "data:image/svg+xml;charset=utf-8," + encodeURIComponent(fileData.content);
+                    _resolvedSrc = dataUrl;
+                    img.setAttribute("src", dataUrl);
+                } else {
+                    _resolvedSrc = value;
+                    img.setAttribute("src", value);
+                }
+            },
+            enumerable: true,
+            configurable: true
+        });
+        
+        return img;
+    };`;
+}
+
+/**
+ * Generates JavaScript code string for the Audio constructor override (for injection into iframes)
+ * Intercepts Audio src assignments to serve audio files from the virtual file system
+ * 
+ * @returns {string} JavaScript code as a string
+ */
+export function generateAudioOverrideCode() {
+    return `
+    const OriginalAudio = window.Audio;
+    window.Audio = function(src) {
+        const audio = new OriginalAudio();
+        
+        let _originalSrc = "";
+        let _resolvedSrc = "";
+        
+        Object.defineProperty(audio, "src", {
+            get: function() {
+                return _resolvedSrc || _originalSrc;
+            },
+            set: function(value) {
+                _originalSrc = value;
+                
+                const currentFilePath = getCurrentFilePath();
+                let targetPath = value.replace(/^\\.\\//,"");
+                const fileData = findFileInSystem(targetPath, currentFilePath);
+                
+                if (fileData && fileData.type === "audio") {
+                    _resolvedSrc = fileData.content;
+                    audio.setAttribute("src", fileData.content);
+                } else {
+                    _resolvedSrc = value;
+                    audio.setAttribute("src", value);
+                }
+            },
+            enumerable: true,
+            configurable: true
+        });
+        
+        if (src !== undefined) {
+            audio.src = src;
+        }
+        
+        return audio;
+    };`;
+}
+
+/**
+ * Generates JavaScript code string for intercepting dynamic CSS url() property assignments
+ * Resolves virtual file paths in style properties like backgroundImage
+ * 
+ * @returns {string} JavaScript code as a string
+ */
+export function generateCSSURLOverrideCode() {
+    return `
+    (function() {
+        function resolveUrlsInValue(value) {
+            if (typeof value !== 'string' || !value.includes('url(')) return value;
+            return value.replace(/url\\(["']?([^"')]+)["']?\\)/g, function(match, url) {
+                if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('//')) {
+                    return match;
+                }
+                var currentFilePath = getCurrentFilePath();
+                var targetPath = url.replace(/^\\.\\//,"");
+                var fileData = findFileInSystem(targetPath, currentFilePath);
+                if (fileData && (fileData.type === "image" || fileData.type === "svg")) {
+                    var dataUrl = fileData.isBinary ? fileData.content :
+                        "data:image/svg+xml;charset=utf-8," + encodeURIComponent(fileData.content);
+                    return 'url("' + dataUrl + '")';
+                }
+                return match;
+            });
+        }
+        var urlProps = new Set(['backgroundImage', 'background', 'listStyleImage', 'borderImage', 'borderImageSource', 'cursor', 'content',
+            'background-image', 'list-style-image', 'border-image', 'border-image-source']);
+        var origSetProperty = CSSStyleDeclaration.prototype.setProperty;
+        CSSStyleDeclaration.prototype.setProperty = function(prop, value, priority) {
+            if (urlProps.has(prop)) value = resolveUrlsInValue(value);
+            return origSetProperty.call(this, prop, value, priority);
+        };
+        var styleDesc = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'style');
+        if (styleDesc && styleDesc.get) {
+            var origStyleGet = styleDesc.get;
+            var proxyCache = new WeakMap();
+            Object.defineProperty(HTMLElement.prototype, 'style', {
+                get: function() {
+                    var realStyle = origStyleGet.call(this);
+                    if (proxyCache.has(realStyle)) return proxyCache.get(realStyle);
+                    var proxy = new Proxy(realStyle, {
+                        set: function(target, prop, value) {
+                            if (typeof prop === 'string' && urlProps.has(prop)) {
+                                value = resolveUrlsInValue(value);
+                            }
+                            target[prop] = value;
+                            return true;
+                        },
+                        get: function(target, prop) {
+                            var val = target[prop];
+                            if (typeof val === 'function') return val.bind(target);
+                            return val;
+                        }
+                    });
+                    proxyCache.set(realStyle, proxy);
+                    return proxy;
+                },
+                set: styleDesc.set,
+                enumerable: styleDesc.enumerable,
+                configurable: true
+            });
+        }
+    })();`;
+}
+
+/**
+ * Generates JavaScript code string for intercepting .src on existing DOM image/audio elements
+ * Ensures elements created via HTML (not via new Image()/new Audio()) also resolve virtual paths
+ * 
+ * @returns {string} JavaScript code as a string
+ */
+export function generateElementSrcOverrideCode() {
+    return `
+    (function() {
+        function overrideSrcProperty(proto, typeCheck) {
+            const descriptor = Object.getOwnPropertyDescriptor(proto, 'src');
+            if (!descriptor || !descriptor.set) return;
+            const origSet = descriptor.set;
+            const origGet = descriptor.get;
+            Object.defineProperty(proto, 'src', {
+                set: function(value) {
+                    if (typeof value === 'string' && value && !value.startsWith('data:') && !value.startsWith('http://') && !value.startsWith('https://') && !value.startsWith('blob:') && !value.startsWith('//')) {
+                        const currentFilePath = getCurrentFilePath();
+                        const targetPath = value.replace(/^\\.\\//,"");
+                        const fileData = findFileInSystem(targetPath, currentFilePath);
+                        if (fileData && typeCheck(fileData)) {
+                            const resolved = fileData.isBinary ? fileData.content :
+                                (fileData.type === "svg" ? "data:image/svg+xml;charset=utf-8," + encodeURIComponent(fileData.content) : fileData.content);
+                            origSet.call(this, resolved);
+                            return;
+                        }
+                    }
+                    origSet.call(this, value);
+                },
+                get: origGet ? function() { return origGet.call(this); } : undefined,
+                enumerable: descriptor.enumerable,
+                configurable: true
+            });
+        }
+        overrideSrcProperty(HTMLImageElement.prototype, function(f) { return f.type === "image" || f.type === "svg"; });
+        overrideSrcProperty(HTMLAudioElement.prototype, function(f) { return f.type === "audio"; });
+        overrideSrcProperty(HTMLVideoElement.prototype, function(f) { return f.type === "video"; });
+        overrideSrcProperty(HTMLSourceElement.prototype, function(f) { return f.type === "audio" || f.type === "video" || f.type === "image"; });
+    })();`;
+}
+
+/**
+ * Generates JavaScript code string for console capture and error handling (for injection into iframes)
+ * Overrides console methods to post messages to the parent window and captures errors
+ * 
+ * @param {string} messageType - The message type identifier for postMessage communication
+ * @returns {string} JavaScript code as a string
+ */
+export function generateConsoleOverrideCode(messageType) {
+    return `
+    const postLog = (level, args) => {
+        const formattedArgs = args.map(arg => {
+            if (arg instanceof Error) return { message: arg.message, stack: arg.stack };
+            try { return JSON.parse(JSON.stringify(arg)); } catch (e) { return 'Unserializable Object'; }
+        });
+        window.parent.postMessage({ type: '${messageType}', level, message: formattedArgs }, '*');
+    };
+    const originalConsole = { ...window.console };
+    ['log', 'info', 'warn', 'error'].forEach(level => {
+        window.console[level] = (...args) => {
+            postLog(level, Array.from(args));
+            originalConsole[level](...args);
+        };
+    });
+    window.onerror = (message, source, lineno, colno, error) => {
+        if (message === 'Script error.' && !source) return true;
+        postLog('error', [message, 'at ' + (source ? source.split('/').pop() : '(unknown)') + ':' + lineno + ':' + colno]);
+        return true;
+    };
+    window.addEventListener('unhandledrejection', e => {
+        postLog('error', ['Unhandled promise rejection:', e.reason]);
+    });`;
+}
+
+/**
  * Creates a virtual file system Map from an array of file objects
  * 
  * @param {Array<Object>} files - Array of file objects with id, editor, type, fileName properties
