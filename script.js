@@ -924,13 +924,15 @@ const CodePreviewer = {
         const disabled = !availability.allowed;
 
         if (this.dom.modalBtn) {
-            this.dom.modalBtn.disabled = disabled;
+            this.dom.modalBtn.disabled = false;
             this.dom.modalBtn.setAttribute('aria-disabled', String(disabled));
+            this.dom.modalBtn.classList.toggle('button-disabled-state', disabled);
             this.dom.modalBtn.title = disabled ? availability.reason : 'Open preview in modal';
         }
         if (this.dom.tabBtn) {
-            this.dom.tabBtn.disabled = disabled;
+            this.dom.tabBtn.disabled = false;
             this.dom.tabBtn.setAttribute('aria-disabled', String(disabled));
+            this.dom.tabBtn.classList.toggle('button-disabled-state', disabled);
             this.dom.tabBtn.title = disabled ? availability.reason : 'Open preview in new tab';
         }
     },
@@ -2040,16 +2042,33 @@ const CodePreviewer = {
         fileInput.click();
     },
 
-    async _importFiles(fileList, getFileName, successMessage) {
+    async _importFiles(fileList, getFileName, successMessage, options = {}) {
         const files = Array.from(fileList);
         if (files.length === 0) return;
+
+        const shouldShowProgress = options.showProgress || files.length > 8;
+        const progress = shouldShowProgress
+            ? this.showProgressNotification(options.progressMessage || 'Importing files…', {
+                total: files.length,
+                type: 'info'
+            })
+            : null;
 
         const resolution = { action: null };
         let importedCount = 0;
         let skippedCount = 0;
+        let processedCount = 0;
 
         for (const file of files) {
+            processedCount++;
             const targetFileName = getFileName(file);
+            if (progress) {
+                progress.update({
+                    current: processedCount,
+                    message: `Importing ${processedCount}/${files.length}: ${targetFileName || file.name}`
+                });
+            }
+
             if (!targetFileName) {
                 skippedCount++;
                 continue;
@@ -2067,6 +2086,10 @@ const CodePreviewer = {
             importedCount++;
         }
 
+        if (progress) {
+            progress.complete('Import complete.');
+        }
+
         this._showImportSummary(importedCount, skippedCount, successMessage);
     },
 
@@ -2081,7 +2104,11 @@ const CodePreviewer = {
             await this._importFiles(
                 fileList,
                 (file) => file.webkitRelativePath || file.name,
-                'Successfully imported folder files'
+                'Successfully imported folder files',
+                {
+                    showProgress: true,
+                    progressMessage: 'Importing folder contents…'
+                }
             );
         }, { directory: true });
     },
@@ -3437,6 +3464,10 @@ const CodePreviewer = {
         this.notificationSystem.show(message, type);
     },
 
+    showProgressNotification(message, options = {}) {
+        return this.notificationSystem.showProgress(message, options);
+    },
+
     extractHTMLContent(content) {
         const bodyMatch = content.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
         if (bodyMatch) {
@@ -3837,7 +3868,7 @@ const CodePreviewer = {
     renderPreview(target) {
         const availability = this.getPreviewAvailability();
         if (!availability.allowed) {
-            this.showNotification(availability.reason, 'info');
+            this.showNotification('No HTML file found. Import or create an HTML file to preview.', 'warn');
             this.updatePreviewActionButtons();
             return;
         }
@@ -3853,8 +3884,10 @@ const CodePreviewer = {
                 const blob = new Blob([content], { type: 'text/html' });
                 const url = URL.createObjectURL(blob);
                 window.open(url, '_blank');
+                this.showNotification('Preview opened in a new tab.', 'success');
             } catch (e) {
                 console.error("Failed to create or open new tab:", e);
+                this.showNotification('Unable to open preview tab. Check popup settings and try again.', 'error');
             }
         }
     },
@@ -3939,15 +3972,26 @@ const CodePreviewer = {
     },
 
     async exportZip() {
+        if (this.state.files.length === 0) {
+            this.showNotification('Nothing to export. Add files before exporting a ZIP.', 'warn');
+            return;
+        }
+
+        const progress = this.showProgressNotification('Preparing ZIP export…', {
+            type: 'info',
+            total: Math.max(this.state.files.length, 1)
+        });
+
         try {
             if (typeof JSZip === 'undefined') {
+                progress.fail('ZIP export failed: JSZip library not available.');
                 this.showNotification('JSZip library not available', 'error');
                 return;
             }
             
             const zip = new JSZip();
             
-            this.state.files.forEach(file => {
+            this.state.files.forEach((file, index) => {
                 const filename = this.getFileNameFromPanel(file.id) || `file_${file.id}`;
                 let content = file.content || file.editor.getValue();
                 
@@ -3975,8 +4019,14 @@ const CodePreviewer = {
                         zip.file(filename, content);
                     }
                 }
+
+                progress.update({
+                    current: index + 1,
+                    message: `Adding ${index + 1}/${this.state.files.length}: ${filename}`
+                });
             });
             
+            progress.update({ message: 'Generating ZIP archive…' });
             const blob = await zip.generateAsync({type: 'blob'});
             const url = URL.createObjectURL(blob);
             
@@ -3988,10 +4038,12 @@ const CodePreviewer = {
             document.body.removeChild(link);
             
             URL.revokeObjectURL(url);
+            progress.complete('ZIP export complete.');
             this.showNotification('Project exported as ZIP successfully!', 'success');
             
         } catch (error) {
             console.error('Error exporting ZIP:', error);
+            progress.fail('ZIP export failed.');
             this.showNotification('Failed to export project as ZIP', 'error');
         }
     },
@@ -4005,16 +4057,28 @@ const CodePreviewer = {
         this._openFilePicker('.zip', false, async (fileList) => {
             const file = fileList[0];
             if (!file) return;
+
+            let progress = null;
             
             try {
                 const zip = await JSZip.loadAsync(file);
+                const zipEntries = Object.entries(zip.files).filter(([, zipEntry]) => !zipEntry.dir);
+                progress = this.showProgressNotification('Reading ZIP contents…', {
+                    total: Math.max(zipEntries.length, 1),
+                    type: 'info'
+                });
                 
                 const resolution = { action: null };
                 let importedCount = 0;
                 let skippedCount = 0;
+                let processedCount = 0;
 
-                for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
-                    if (zipEntry.dir) continue;
+                for (const [relativePath, zipEntry] of zipEntries) {
+                    processedCount++;
+                    progress.update({
+                        current: processedCount,
+                        message: `Importing ${processedCount}/${zipEntries.length}: ${relativePath}`
+                    });
                     
                     const result = await this._resolveImportConflict(relativePath, resolution);
                     if (result === 'skipped') {
@@ -4038,11 +4102,13 @@ const CodePreviewer = {
                     this.addNewFileWithContent(relativePath, fileType, content, isBinary);
                     importedCount++;
                 }
+                progress.complete('ZIP import complete.');
                 
                 this._showImportSummary(importedCount, skippedCount, 'ZIP project imported successfully!');
                 
             } catch (error) {
                 console.error('Error processing ZIP file:', error);
+                if (progress) progress.fail('ZIP import failed.');
                 this.showNotification('Failed to import ZIP file', 'error');
             }
         });
@@ -4141,6 +4207,7 @@ const CodePreviewer = {
     // ============================================================================
     notificationSystem: {
         container: null,
+        progressId: 0,
 
         getContainer() {
             if (!this.container) {
@@ -4156,11 +4223,22 @@ const CodePreviewer = {
 
             const notification = document.createElement('div');
             notification.className = `notification notification-${type}`;
-            notification.textContent = message;
+            notification.innerHTML = `
+                <div class="notification-header">
+                    <span class="notification-message">${CodePreviewer.escapeHtml(message)}</span>
+                    <button class="notification-close-btn" aria-label="Close notification" title="Close">✕</button>
+                </div>
+            `;
 
             container.appendChild(notification);
 
+            const closeBtn = notification.querySelector('.notification-close-btn');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', () => dismiss());
+            }
+
             const dismiss = () => {
+                if (notification.classList.contains('notification-hiding')) return;
                 notification.classList.add('notification-hiding');
                 notification.addEventListener('animationend', () => {
                     notification.remove();
@@ -4168,6 +4246,73 @@ const CodePreviewer = {
             };
 
             setTimeout(dismiss, 3000);
+        },
+
+        showProgress(message, { type = 'info', total = 100 } = {}) {
+            const container = this.getContainer();
+            const notification = document.createElement('div');
+            notification.className = `notification notification-${type} notification-progress`;
+            notification.dataset.progressId = String(++this.progressId);
+
+            notification.innerHTML = `
+                <div class="notification-header">
+                    <span class="notification-message">${CodePreviewer.escapeHtml(message)}</span>
+                    <button class="notification-close-btn" aria-label="Close notification" title="Close">✕</button>
+                </div>
+                <div class="notification-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="${Math.max(total, 1)}" aria-valuenow="0">
+                    <div class="notification-progress-fill"></div>
+                </div>
+            `;
+
+            container.appendChild(notification);
+
+            const messageEl = notification.querySelector('.notification-message');
+            const progressBar = notification.querySelector('.notification-progress-track');
+            const progressFill = notification.querySelector('.notification-progress-fill');
+            const closeBtn = notification.querySelector('.notification-close-btn');
+            const maxValue = Math.max(total, 1);
+            let currentValue = 0;
+
+            const dismiss = () => {
+                if (notification.classList.contains('notification-hiding')) return;
+                notification.classList.add('notification-hiding');
+                notification.addEventListener('animationend', () => notification.remove(), { once: true });
+            };
+
+            if (closeBtn) {
+                closeBtn.addEventListener('click', () => dismiss());
+            }
+
+            const update = ({ current, message: nextMessage, type: nextType } = {}) => {
+                if (typeof current === 'number') {
+                    currentValue = Math.max(0, Math.min(current, maxValue));
+                    const percentage = (currentValue / maxValue) * 100;
+                    progressFill.style.width = `${percentage}%`;
+                    progressBar.setAttribute('aria-valuenow', String(currentValue));
+                }
+                if (typeof nextMessage === 'string' && messageEl) {
+                    messageEl.textContent = nextMessage;
+                }
+                if (typeof nextType === 'string') {
+                    notification.classList.remove('notification-info', 'notification-success', 'notification-warn', 'notification-error');
+                    notification.classList.add(`notification-${nextType}`);
+                }
+            };
+
+            update({ current: 0, message });
+
+            return {
+                update,
+                complete: (doneMessage = 'Completed') => {
+                    update({ current: maxValue, message: doneMessage, type: 'success' });
+                    setTimeout(dismiss, 1200);
+                },
+                fail: (errorMessage = 'Failed') => {
+                    update({ message: errorMessage, type: 'error' });
+                    setTimeout(dismiss, 3000);
+                },
+                dismiss
+            };
         }
     },
 
