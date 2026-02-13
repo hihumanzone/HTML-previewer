@@ -46,6 +46,10 @@ const CodePreviewer = {
         selectedFileIds: new Set(),
         selectedFolderPaths: new Set(),
         codeModalEditor: null,
+        currentCodeModalSource: null,
+        activePanelId: 'default-html',
+        autoFormatTimers: new Map(),
+        formattingEditors: new Set(),
         mainHtmlFile: '',
     },
 
@@ -880,6 +884,7 @@ const CodePreviewer = {
             consoleOutput: document.getElementById(CONSOLE_ID),
             modalConsolePanel: document.getElementById(MODAL_CONSOLE_PANEL_ID),
             editorGrid: document.querySelector('.editor-grid'),
+            formatCodeBtn: document.getElementById('format-code-btn'),
             saveCodeBtn: document.getElementById('save-code-btn'),
             mediaModal: document.getElementById('media-modal'),
             mediaModalContent: document.getElementById('media-modal-content'),
@@ -1016,10 +1021,34 @@ const CodePreviewer = {
         });
         
         document.addEventListener('keydown', (e) => {
+            const activePanel = this.getActiveEditorPanel();
+
             if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                 e.preventDefault();
                 this.renderPreview('modal');
             }
+
+            if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'f' && activePanel) {
+                e.preventDefault();
+                this.openPanelSearch(activePanel);
+            }
+
+            if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'e' && activePanel) {
+                e.preventDefault();
+                this.expandCode(activePanel);
+            }
+
+            if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
+                const codeModal = document.getElementById('code-modal');
+                if (codeModal && codeModal.getAttribute('aria-hidden') === 'false') {
+                    e.preventDefault();
+                    this.formatCodeModalEditor();
+                } else if (activePanel) {
+                    e.preventDefault();
+                    this.formatPanelCode(activePanel, false);
+                }
+            }
+
             if (e.key === 'Escape' && this.dom.modalOverlay.getAttribute('aria-hidden') === 'false') {
                 this.toggleModal(false);
             }
@@ -1042,6 +1071,10 @@ const CodePreviewer = {
             codeModalCloseBtn.addEventListener('click', () => this.closeCodeModal());
         }
         
+        if (this.dom.formatCodeBtn) {
+            this.dom.formatCodeBtn.addEventListener('click', () => this.formatCodeModalEditor());
+        }
+
         if (this.dom.saveCodeBtn) {
             this.dom.saveCodeBtn.addEventListener('click', () => this.saveCodeModal());
         }
@@ -2317,6 +2350,7 @@ const CodePreviewer = {
             toolbarHTML += this.htmlGenerators.toolbarButton('📋', 'Paste', 'paste-btn', 'Paste from clipboard', 'Paste');
             toolbarHTML += this.htmlGenerators.toolbarButton('📄', 'Copy', 'copy-btn', 'Copy to clipboard', 'Copy');
             toolbarHTML += this.htmlGenerators.toolbarButton('🔎', 'Search', 'search-btn', 'Search in file', 'Search in file');
+            toolbarHTML += this.htmlGenerators.toolbarButton('✨', 'Format', 'format-btn', 'Format code', 'Format code');
         }
         
         if (hasExpandPreview) {
@@ -2537,9 +2571,12 @@ const CodePreviewer = {
         const moveButtons = panel.querySelectorAll('.move-panel-btn');
         moveButtons.forEach((button) => {
             button.addEventListener('click', () => {
+                this.setActiveEditorPanel(panel);
                 this.movePanel(panel, button.dataset.direction);
             });
         });
+
+        panel.addEventListener('pointerdown', () => this.setActiveEditorPanel(panel));
 
         this.bindToolbarEvents(panel);
     },
@@ -2763,10 +2800,21 @@ const CodePreviewer = {
      */
     setupEditorChangeListener(fileId, editor) {
         if (!editor || !editor.on) return;
-        
-        editor.on('change', () => {
+
+        editor.on('change', (_cm, changeObj) => {
             const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
             this.checkFileModified(fileId, panel);
+
+            const fileInfo = this.state.files.find(f => f.id === fileId);
+            const fileType = fileInfo ? fileInfo.type : panel?.dataset.fileType;
+            if (!fileType || !this.isEditableFileType(fileType)) return;
+            if (this.state.formattingEditors.has(fileId)) return;
+
+            const origin = changeObj && changeObj.origin ? changeObj.origin : '';
+            const isUserInput = ['+input', '+delete', 'paste', 'cut'].includes(origin);
+            if (!isUserInput) return;
+
+            this.scheduleAutoFormat(fileId, editor, fileType);
         });
     },
 
@@ -2774,10 +2822,21 @@ const CodePreviewer = {
      * Close a file panel (hide it) - does NOT delete the file
      * @param {string} fileId - The file ID to close
      */
+
+    clearPendingAutoFormat(fileId) {
+        const timer = this.state.autoFormatTimers.get(fileId);
+        if (timer) {
+            clearTimeout(timer);
+            this.state.autoFormatTimers.delete(fileId);
+        }
+        this.state.formattingEditors.delete(fileId);
+    },
+
     closePanel(fileId) {
         // Use .editor-panel selector to avoid matching tree-file elements
         const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
         if (panel) {
+            this.clearPendingAutoFormat(fileId);
             panel.style.display = 'none';
             this.state.openPanels.delete(fileId);
             this.renderFileTree();
@@ -2823,6 +2882,8 @@ const CodePreviewer = {
         if (panel) {
             panel.remove();
         }
+
+        this.clearPendingAutoFormat(fileId);
         
         this.state.files = this.state.files.filter(f => f.id !== fileId);
         this.state.openPanels.delete(fileId);
@@ -2876,6 +2937,9 @@ const CodePreviewer = {
                 panel.remove();
             }
         });
+
+        // Clear pending auto-format timers
+        this.state.files.forEach(file => this.clearPendingAutoFormat(file.id));
 
         // Clear the files array
         this.state.files = [];
@@ -2979,45 +3043,75 @@ const CodePreviewer = {
             this.bindFilePanelEvents(panel);
             });
         this.refreshPanelAndFileTreeUI();
+        this.getActiveEditorPanel();
     },
 
     bindToolbarEvents(panel) {
         const clearBtn = panel.querySelector('.clear-btn');
         const pasteBtn = panel.querySelector('.paste-btn');
         const copyBtn = panel.querySelector('.copy-btn');
+        const formatBtn = panel.querySelector('.format-btn');
         const expandBtn = panel.querySelector('.expand-btn');
         const exportBtn = panel.querySelector('.export-btn');
         const collapseBtn = panel.querySelector('.collapse-btn');
         const { searchBtn, searchInput, searchNextBtn, searchCloseBtn } = this.getPanelSearchElements(panel);
         
         if (clearBtn) {
-            clearBtn.addEventListener('click', () => this.clearEditor(panel));
+            clearBtn.addEventListener('click', () => {
+                this.setActiveEditorPanel(panel);
+                this.clearEditor(panel);
+            });
         }
         
         if (pasteBtn) {
-            pasteBtn.addEventListener('click', () => this.pasteFromClipboard(panel));
+            pasteBtn.addEventListener('click', () => {
+                this.setActiveEditorPanel(panel);
+                this.pasteFromClipboard(panel);
+            });
         }
         
         if (copyBtn) {
-            copyBtn.addEventListener('click', () => this.copyToClipboard(panel));
+            copyBtn.addEventListener('click', () => {
+                this.setActiveEditorPanel(panel);
+                this.copyToClipboard(panel);
+            });
+        }
+
+        if (formatBtn) {
+            formatBtn.addEventListener('click', () => {
+                this.setActiveEditorPanel(panel);
+                this.formatPanelCode(panel, false);
+            });
         }
         
         if (expandBtn) {
-            expandBtn.addEventListener('click', () => this.expandCode(panel));
+            expandBtn.addEventListener('click', () => {
+                this.setActiveEditorPanel(panel);
+                this.expandCode(panel);
+            });
         }
         
         if (exportBtn) {
-            exportBtn.addEventListener('click', () => this.exportFile(panel));
+            exportBtn.addEventListener('click', () => {
+                this.setActiveEditorPanel(panel);
+                this.exportFile(panel);
+            });
         }
         
         if (collapseBtn) {
             collapseBtn.setAttribute('aria-expanded', 'true');
-            collapseBtn.addEventListener('click', () => this.toggleEditorCollapse(panel));
+            collapseBtn.addEventListener('click', () => {
+                this.setActiveEditorPanel(panel);
+                this.toggleEditorCollapse(panel);
+            });
         }
 
         if (searchBtn) {
             searchBtn.setAttribute('aria-expanded', 'false');
-            searchBtn.addEventListener('click', () => this.togglePanelSearch(panel));
+            searchBtn.addEventListener('click', () => {
+                this.setActiveEditorPanel(panel);
+                this.togglePanelSearch(panel);
+            });
         }
 
         if (searchInput) {
@@ -3041,6 +3135,143 @@ const CodePreviewer = {
         if (searchCloseBtn) {
             searchCloseBtn.addEventListener('click', () => this.closePanelSearch(panel));
         }
+    },
+
+    setActiveEditorPanel(panel) {
+        if (!panel || !panel.dataset.fileId) return;
+        this.state.activePanelId = panel.dataset.fileId;
+        document.querySelectorAll('.editor-panel.is-active').forEach((active) => {
+            if (active !== panel) active.classList.remove('is-active');
+        });
+        panel.classList.add('is-active');
+    },
+
+    getActiveEditorPanel() {
+        if (this.state.activePanelId) {
+            const panel = document.querySelector(`.editor-panel[data-file-id="${this.state.activePanelId}"]`);
+            if (panel) return panel;
+        }
+
+        const fallback = document.querySelector('.editor-panel[data-file-id]');
+        if (fallback) {
+            this.setActiveEditorPanel(fallback);
+        }
+        return fallback;
+    },
+
+    openPanelSearch(panel) {
+        const { searchContainer } = this.getPanelSearchElements(panel);
+        if (!searchContainer) return;
+        this.setPanelSearchActive(panel, true);
+    },
+
+
+    formatPanelCode(panel, isAutomatic = false) {
+        if (!panel) return false;
+
+        const fileId = panel.dataset.fileId;
+        const fileType = panel.dataset.fileType;
+        const editor = this.getEditorFromPanel(panel);
+        if (!fileId || !editor || !this.isEditableFileType(fileType)) return false;
+
+        return this.formatEditorContent(fileId, editor, fileType, {
+            isAutomatic,
+            silent: isAutomatic,
+            preserveCursor: true,
+        });
+    },
+
+    scheduleAutoFormat(fileId, editor, fileType) {
+        if (!fileId || !editor || !this.isEditableFileType(fileType)) return;
+
+        const existingTimer = this.state.autoFormatTimers.get(fileId);
+        if (existingTimer) clearTimeout(existingTimer);
+
+        const timer = setTimeout(() => {
+            this.state.autoFormatTimers.delete(fileId);
+            this.formatEditorContent(fileId, editor, fileType, {
+                isAutomatic: true,
+                silent: true,
+                preserveCursor: true,
+            });
+        }, 900);
+
+        this.state.autoFormatTimers.set(fileId, timer);
+    },
+
+    formatEditorContent(fileId, editor, fileType, options = {}) {
+        if (!editor || !editor.getValue || !editor.setValue) return false;
+        if (this.state.formattingEditors.has(fileId)) return false;
+
+        const currentContent = editor.getValue();
+        if (!currentContent || currentContent.length > 150000) return false;
+
+        const formattedContent = this.formatCodeByType(currentContent, fileType);
+        if (!formattedContent || formattedContent === currentContent) return false;
+
+        let cursorIndex = null;
+        if (options.preserveCursor && editor.getCursor && editor.indexFromPos && editor.posFromIndex) {
+            cursorIndex = editor.indexFromPos(editor.getCursor());
+        }
+
+        this.state.formattingEditors.add(fileId);
+
+        try {
+            editor.setValue(formattedContent);
+
+            if (cursorIndex !== null && editor.posFromIndex && editor.setCursor) {
+                const safeIndex = Math.min(cursorIndex, formattedContent.length);
+                editor.setCursor(editor.posFromIndex(safeIndex));
+            }
+
+            if (!options.silent && !options.isAutomatic) {
+                this.showNotification('Code formatted', 'success');
+            }
+
+            const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+            this.checkFileModified(fileId, panel);
+            return true;
+        } catch (error) {
+            console.error('Code formatting failed:', error);
+            if (!options.silent) {
+                this.showNotification('Unable to format code', 'error');
+            }
+            return false;
+        } finally {
+            setTimeout(() => this.state.formattingEditors.delete(fileId), 0);
+        }
+    },
+
+    formatCodeByType(content, fileType) {
+        try {
+            if (fileType === 'json') {
+                return JSON.stringify(JSON.parse(content), null, 2);
+            }
+
+            if ((fileType === 'javascript' || fileType === 'javascript-module') && typeof window.js_beautify === 'function') {
+                return window.js_beautify(content, { indent_size: 2, preserve_newlines: true });
+            }
+
+            if (fileType === 'css' && typeof window.css_beautify === 'function') {
+                return window.css_beautify(content, { indent_size: 2 });
+            }
+
+            if ((fileType === 'html' || fileType === 'xml' || fileType === 'svg') && typeof window.html_beautify === 'function') {
+                return window.html_beautify(content, { indent_size: 2, wrap_line_length: 120 });
+            }
+
+            if (fileType === 'markdown' || fileType === 'text') {
+                return content
+                    .split('\n')
+                    .map(line => line.replace(/[ \t]+$/g, ''))
+                    .join('\n');
+            }
+        } catch (error) {
+            console.warn('formatCodeByType failed for', fileType, error);
+            return content;
+        }
+
+        return content;
     },
 
     getPanelSearchElements(panel) {
@@ -3326,6 +3557,7 @@ const CodePreviewer = {
             }
 
             this.state.currentCodeModalSource = sourcePanel;
+            this.setActiveEditorPanel(sourcePanel);
 
             modalTitle.textContent = `Code View - ${fileName}`;
 
@@ -3339,6 +3571,10 @@ const CodePreviewer = {
                         lineWrapping: true,
                         autoCloseTags: true,
                         viewportMargin: Infinity,
+                        extraKeys: {
+                            'Ctrl-S': () => this.saveCodeModal(false),
+                            'Cmd-S': () => this.saveCodeModal(false),
+                        },
                     });
                 } else {
                     this.state.codeModalEditor.setOption('mode', language);
@@ -3346,6 +3582,7 @@ const CodePreviewer = {
                 }
 
                 this.state.codeModalEditor.setValue(content);
+                this.state.codeModalEditor.focus();
             } else {
                 editorTextarea.value = content;
                 editorTextarea.readOnly = false;
@@ -3360,6 +3597,7 @@ const CodePreviewer = {
                 editorTextarea.style.backgroundColor = '#282a36';
                 editorTextarea.style.color = '#f8f8f2';
                 editorTextarea.style.resize = 'none';
+                editorTextarea.focus();
             }
 
             modal.style.display = 'flex';
@@ -3384,7 +3622,43 @@ const CodePreviewer = {
         this.state.currentCodeModalSource = null;
     },
 
-    saveCodeModal() {
+
+    formatCodeModalEditor() {
+        try {
+            if (!this.state.currentCodeModalSource) return;
+
+            const sourceFileType = this.state.currentCodeModalSource.dataset.fileType || 'text';
+            let currentContent = '';
+
+            if (window.CodeMirror && this.state.codeModalEditor) {
+                currentContent = this.state.codeModalEditor.getValue();
+            } else {
+                const editorTextarea = document.getElementById('code-modal-editor');
+                currentContent = editorTextarea ? editorTextarea.value : '';
+            }
+
+            const formattedContent = this.formatCodeByType(currentContent, sourceFileType);
+            if (!formattedContent || formattedContent === currentContent) return;
+
+            if (window.CodeMirror && this.state.codeModalEditor) {
+                this.state.codeModalEditor.setValue(formattedContent);
+                this.state.codeModalEditor.focus();
+            } else {
+                const editorTextarea = document.getElementById('code-modal-editor');
+                if (editorTextarea) {
+                    editorTextarea.value = formattedContent;
+                    editorTextarea.focus();
+                }
+            }
+
+            this.showNotification('Code formatted', 'success');
+        } catch (error) {
+            console.error('Error formatting code modal content:', error);
+            this.showNotification('Unable to format code', 'error');
+        }
+    },
+
+    saveCodeModal(closeAfterSave = true) {
         try {
             if (!this.state.currentCodeModalSource) {
                 console.error('No source panel reference found for saving');
@@ -3411,7 +3685,11 @@ const CodePreviewer = {
                 }
             }
 
-            this.closeCodeModal();
+            if (closeAfterSave) {
+                this.closeCodeModal();
+            } else {
+                this.showNotification('Changes applied', 'success');
+            }
         } catch (error) {
             console.error('Error saving code from modal:', error);
         }
