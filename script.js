@@ -19,8 +19,8 @@
  * - assetReplacers: Asset path replacement for multi-file projects
  * - console: Console capture and logging
  * 
- * NOTE: Modular versions of utilities are available in the js/ directory.
- * See REFACTORING.md for migration path to modular architecture.
+ * NOTE: Modular versions of utilities are available in the js/ directory
+ * for reference and future migration to a modular architecture.
  */
 const CodePreviewer = {
     // ============================================================================
