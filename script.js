@@ -4330,6 +4330,8 @@ This content is loaded from a markdown file.
             const iframe = this.dom.previewFrame;
             const parent = iframe.parentNode;
             const newIframe = iframe.cloneNode(false);
+            newIframe.removeAttribute('srcdoc');
+            newIframe.src = 'about:blank';
             parent.replaceChild(newIframe, iframe);
             
             // Update the reference to the new iframe
