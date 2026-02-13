@@ -47,6 +47,7 @@ const CodePreviewer = {
         selectedFolderPaths: new Set(),
         codeModalEditor: null,
         mainHtmlFile: '',
+        githubImportHistory: [],
     },
 
     // ============================================================================
@@ -74,6 +75,7 @@ const CodePreviewer = {
             IMPORT_FILE_BTN: 'import-file-btn',
             IMPORT_FOLDER_BTN: 'import-folder-btn',
             IMPORT_ZIP_BTN: 'import-zip-btn',
+            IMPORT_GITHUB_BTN: 'import-github-btn',
             EXPORT_ZIP_BTN: 'export-zip-btn',
             MAIN_HTML_SELECT: 'main-html-select',
         },
@@ -847,6 +849,7 @@ const CodePreviewer = {
         this.bindFileTreeEvents();
         this.initExistingFilePanels();
         this.console.init(this.dom.consoleOutput, this.dom.clearConsoleBtn, this.dom.previewFrame);
+        this.loadGithubImportHistory();
         this.updatePreviewActionButtons();
     },
 
@@ -866,6 +869,7 @@ const CodePreviewer = {
             importFileBtn: document.getElementById(CONTROL_IDS.IMPORT_FILE_BTN),
             importFolderBtn: document.getElementById(CONTROL_IDS.IMPORT_FOLDER_BTN),
             importZipBtn: document.getElementById(CONTROL_IDS.IMPORT_ZIP_BTN),
+            importGithubBtn: document.getElementById(CONTROL_IDS.IMPORT_GITHUB_BTN),
             exportZipBtn: document.getElementById(CONTROL_IDS.EXPORT_ZIP_BTN),
             mainHtmlSelect: document.getElementById(CONTROL_IDS.MAIN_HTML_SELECT),
             mainHtmlSelector: document.getElementById('main-html-selector'),
@@ -1077,6 +1081,9 @@ const CodePreviewer = {
             this.dom.importFolderBtn.addEventListener('click', () => this.importFolder());
         }
         this.dom.importZipBtn.addEventListener('click', () => this.importZip());
+        if (this.dom.importGithubBtn) {
+            this.dom.importGithubBtn.addEventListener('click', () => this.importGithubRepository());
+        }
         this.dom.exportZipBtn.addEventListener('click', () => this.exportZip());
         this.setupMainHtmlDropdownEvents();
 
@@ -2128,6 +2135,185 @@ const CodePreviewer = {
                 reader.readAsText(file);
             }
         });
+    },
+
+    // GitHub import history is stored in localStorage so users can quickly reuse repositories.
+    getGithubHistoryStorageKey() {
+        return 'code-previewer-github-import-history';
+    },
+
+    loadGithubImportHistory() {
+        try {
+            const rawHistory = localStorage.getItem(this.getGithubHistoryStorageKey());
+            if (!rawHistory) {
+                this.state.githubImportHistory = [];
+                return;
+            }
+
+            const parsed = JSON.parse(rawHistory);
+            this.state.githubImportHistory = Array.isArray(parsed)
+                ? parsed.filter(item => typeof item === 'string' && item.trim().length > 0).slice(0, 10)
+                : [];
+        } catch (error) {
+            console.warn('Unable to load GitHub import history:', error);
+            this.state.githubImportHistory = [];
+        }
+    },
+
+    saveGithubImportHistory() {
+        try {
+            localStorage.setItem(this.getGithubHistoryStorageKey(), JSON.stringify(this.state.githubImportHistory));
+        } catch (error) {
+            console.warn('Unable to save GitHub import history:', error);
+        }
+    },
+
+    addGithubHistoryEntry(repoPath) {
+        const trimmed = (repoPath || '').trim();
+        if (!trimmed) return;
+
+        this.state.githubImportHistory = [
+            trimmed,
+            ...this.state.githubImportHistory.filter(entry => entry !== trimmed)
+        ].slice(0, 10);
+
+        this.saveGithubImportHistory();
+    },
+
+    getGithubImportPromptMessage() {
+        const base = 'Enter a GitHub repository to import (owner/repo or full GitHub URL).';
+        if (!this.state.githubImportHistory.length) {
+            return base;
+        }
+
+        const recent = this.state.githubImportHistory
+            .map((entry, index) => `${index + 1}. ${entry}`)
+            .join('\n');
+
+        return `${base}\n\nRecent imports:\n${recent}`;
+    },
+
+    normalizeGithubRepoPath(input) {
+        const rawValue = (input || '').trim();
+        if (!rawValue) return null;
+
+        let value = rawValue
+            .replace(/^git@github\.com:/i, 'https://github.com/')
+            .replace(/\.git$/i, '');
+
+        if (/^https?:\/\//i.test(value)) {
+            try {
+                const parsed = new URL(value);
+                if (!/github\.com$/i.test(parsed.hostname)) {
+                    return null;
+                }
+                value = parsed.pathname;
+            } catch (error) {
+                return null;
+            }
+        }
+
+        value = value.replace(/^\/+|\/+$/g, '');
+        const parts = value.split('/').filter(Boolean);
+        if (parts.length < 2) {
+            return null;
+        }
+
+        return `${parts[0]}/${parts[1]}`;
+    },
+
+    async importGithubRepository() {
+        const input = window.prompt(this.getGithubImportPromptMessage(), this.state.githubImportHistory[0] || '');
+        if (input === null) return;
+
+        const repoPath = this.normalizeGithubRepoPath(input);
+        if (!repoPath) {
+            this.showNotification('Invalid GitHub repository. Use owner/repo or a GitHub URL.', 'error');
+            return;
+        }
+
+        const archiveUrl = `https://codeload.github.com/${repoPath}/zip/refs/heads/main`;
+        const fallbackArchiveUrl = `https://codeload.github.com/${repoPath}/zip/refs/heads/master`;
+
+        let progress = this.showProgressNotification(`Downloading ${repoPath}…`, {
+            type: 'info',
+            total: 3
+        });
+
+        try {
+            if (typeof JSZip === 'undefined') {
+                progress.fail('GitHub import failed: JSZip library not available.');
+                this.showNotification('JSZip library not available', 'error');
+                return;
+            }
+
+            progress.update({ current: 1, message: `Downloading ${repoPath} from GitHub…` });
+            let response = await fetch(archiveUrl);
+            if (!response.ok) {
+                response = await fetch(fallbackArchiveUrl);
+            }
+
+            if (!response.ok) {
+                throw new Error(`GitHub download failed with status ${response.status}`);
+            }
+
+            const archiveBlob = await response.blob();
+            progress.update({ current: 2, message: 'Extracting repository archive…' });
+
+            const zip = await JSZip.loadAsync(archiveBlob);
+            const zipEntries = Object.entries(zip.files).filter(([, zipEntry]) => !zipEntry.dir);
+
+            const resolution = { action: null };
+            let importedCount = 0;
+            let skippedCount = 0;
+            let processedCount = 0;
+
+            for (const [entryPath, zipEntry] of zipEntries) {
+                processedCount++;
+                const pathParts = entryPath.split('/');
+                pathParts.shift(); // strip top-level repo folder
+                const relativePath = pathParts.join('/');
+
+                if (!relativePath) {
+                    continue;
+                }
+
+                progress.update({
+                    current: 3,
+                    message: `Importing ${processedCount}/${zipEntries.length}: ${relativePath}`
+                });
+
+                const result = await this._resolveImportConflict(relativePath, resolution);
+                if (result === 'skipped') {
+                    skippedCount++;
+                    continue;
+                }
+
+                const extension = relativePath.split('.').pop().toLowerCase();
+                const isBinary = this.fileTypeUtils.isBinaryFile(relativePath, '');
+                let content;
+
+                if (isBinary) {
+                    const base64Content = await zipEntry.async('base64');
+                    const mimeType = this.fileTypeUtils.getMimeTypeFromExtension(extension);
+                    content = `data:${mimeType};base64,${base64Content}`;
+                } else {
+                    content = await zipEntry.async('string');
+                }
+
+                const fileType = this.fileTypeUtils.getTypeFromExtension(extension);
+                this.addNewFileWithContent(relativePath, fileType, content, isBinary);
+                importedCount++;
+            }
+
+            progress.complete(`GitHub import complete for ${repoPath}.`);
+            this.addGithubHistoryEntry(repoPath);
+            this._showImportSummary(importedCount, skippedCount, `GitHub repository "${repoPath}" imported successfully!`);
+        } catch (error) {
+            console.error('Error importing GitHub repository:', error);
+            progress.fail('GitHub import failed.');
+            this.showNotification('Failed to import GitHub repository', 'error');
+        }
     },
 
     addNewFileWithContent(fileName, fileType, content, isBinary = false) {
