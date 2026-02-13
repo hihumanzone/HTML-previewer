@@ -884,6 +884,7 @@ const CodePreviewer = {
             consoleOutput: document.getElementById(CONSOLE_ID),
             modalConsolePanel: document.getElementById(MODAL_CONSOLE_PANEL_ID),
             editorGrid: document.querySelector('.editor-grid'),
+            formatCodeBtn: document.getElementById('format-code-btn'),
             saveCodeBtn: document.getElementById('save-code-btn'),
             mediaModal: document.getElementById('media-modal'),
             mediaModalContent: document.getElementById('media-modal-content'),
@@ -1037,6 +1038,17 @@ const CodePreviewer = {
                 this.expandCode(activePanel);
             }
 
+            if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
+                const codeModal = document.getElementById('code-modal');
+                if (codeModal && codeModal.getAttribute('aria-hidden') === 'false') {
+                    e.preventDefault();
+                    this.formatCodeModalEditor();
+                } else if (activePanel) {
+                    e.preventDefault();
+                    this.formatPanelCode(activePanel, false);
+                }
+            }
+
             if (e.key === 'Escape' && this.dom.modalOverlay.getAttribute('aria-hidden') === 'false') {
                 this.toggleModal(false);
             }
@@ -1059,6 +1071,10 @@ const CodePreviewer = {
             codeModalCloseBtn.addEventListener('click', () => this.closeCodeModal());
         }
         
+        if (this.dom.formatCodeBtn) {
+            this.dom.formatCodeBtn.addEventListener('click', () => this.formatCodeModalEditor());
+        }
+
         if (this.dom.saveCodeBtn) {
             this.dom.saveCodeBtn.addEventListener('click', () => this.saveCodeModal());
         }
@@ -2806,10 +2822,21 @@ const CodePreviewer = {
      * Close a file panel (hide it) - does NOT delete the file
      * @param {string} fileId - The file ID to close
      */
+
+    clearPendingAutoFormat(fileId) {
+        const timer = this.state.autoFormatTimers.get(fileId);
+        if (timer) {
+            clearTimeout(timer);
+            this.state.autoFormatTimers.delete(fileId);
+        }
+        this.state.formattingEditors.delete(fileId);
+    },
+
     closePanel(fileId) {
         // Use .editor-panel selector to avoid matching tree-file elements
         const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
         if (panel) {
+            this.clearPendingAutoFormat(fileId);
             panel.style.display = 'none';
             this.state.openPanels.delete(fileId);
             this.renderFileTree();
@@ -2855,6 +2882,8 @@ const CodePreviewer = {
         if (panel) {
             panel.remove();
         }
+
+        this.clearPendingAutoFormat(fileId);
         
         this.state.files = this.state.files.filter(f => f.id !== fileId);
         this.state.openPanels.delete(fileId);
@@ -2908,6 +2937,9 @@ const CodePreviewer = {
                 panel.remove();
             }
         });
+
+        // Clear pending auto-format timers
+        this.state.files.forEach(file => this.clearPendingAutoFormat(file.id));
 
         // Clear the files array
         this.state.files = [];
@@ -3588,6 +3620,42 @@ const CodePreviewer = {
             modal.setAttribute('aria-hidden', 'true');
         }
         this.state.currentCodeModalSource = null;
+    },
+
+
+    formatCodeModalEditor() {
+        try {
+            if (!this.state.currentCodeModalSource) return;
+
+            const sourceFileType = this.state.currentCodeModalSource.dataset.fileType || 'text';
+            let currentContent = '';
+
+            if (window.CodeMirror && this.state.codeModalEditor) {
+                currentContent = this.state.codeModalEditor.getValue();
+            } else {
+                const editorTextarea = document.getElementById('code-modal-editor');
+                currentContent = editorTextarea ? editorTextarea.value : '';
+            }
+
+            const formattedContent = this.formatCodeByType(currentContent, sourceFileType);
+            if (!formattedContent || formattedContent === currentContent) return;
+
+            if (window.CodeMirror && this.state.codeModalEditor) {
+                this.state.codeModalEditor.setValue(formattedContent);
+                this.state.codeModalEditor.focus();
+            } else {
+                const editorTextarea = document.getElementById('code-modal-editor');
+                if (editorTextarea) {
+                    editorTextarea.value = formattedContent;
+                    editorTextarea.focus();
+                }
+            }
+
+            this.showNotification('Code formatted', 'success');
+        } catch (error) {
+            console.error('Error formatting code modal content:', error);
+            this.showNotification('Unable to format code', 'error');
+        }
     },
 
     saveCodeModal(closeAfterSave = true) {
