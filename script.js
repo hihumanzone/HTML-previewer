@@ -48,6 +48,8 @@ const CodePreviewer = {
         codeModalEditor: null,
         currentCodeModalSource: null,
         activePanelId: 'default-html',
+        autoFormatTimers: new Map(),
+        formattingEditors: new Set(),
         mainHtmlFile: '',
     },
 
@@ -2332,6 +2334,7 @@ const CodePreviewer = {
             toolbarHTML += this.htmlGenerators.toolbarButton('📋', 'Paste', 'paste-btn', 'Paste from clipboard', 'Paste');
             toolbarHTML += this.htmlGenerators.toolbarButton('📄', 'Copy', 'copy-btn', 'Copy to clipboard', 'Copy');
             toolbarHTML += this.htmlGenerators.toolbarButton('🔎', 'Search', 'search-btn', 'Search in file', 'Search in file');
+            toolbarHTML += this.htmlGenerators.toolbarButton('✨', 'Format', 'format-btn', 'Format code', 'Format code');
         }
         
         if (hasExpandPreview) {
@@ -2781,10 +2784,21 @@ const CodePreviewer = {
      */
     setupEditorChangeListener(fileId, editor) {
         if (!editor || !editor.on) return;
-        
-        editor.on('change', () => {
+
+        editor.on('change', (_cm, changeObj) => {
             const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
             this.checkFileModified(fileId, panel);
+
+            const fileInfo = this.state.files.find(f => f.id === fileId);
+            const fileType = fileInfo ? fileInfo.type : panel?.dataset.fileType;
+            if (!fileType || !this.isEditableFileType(fileType)) return;
+            if (this.state.formattingEditors.has(fileId)) return;
+
+            const origin = changeObj && changeObj.origin ? changeObj.origin : '';
+            const isUserInput = ['+input', '+delete', 'paste', 'cut'].includes(origin);
+            if (!isUserInput) return;
+
+            this.scheduleAutoFormat(fileId, editor, fileType);
         });
     },
 
@@ -3004,6 +3018,7 @@ const CodePreviewer = {
         const clearBtn = panel.querySelector('.clear-btn');
         const pasteBtn = panel.querySelector('.paste-btn');
         const copyBtn = panel.querySelector('.copy-btn');
+        const formatBtn = panel.querySelector('.format-btn');
         const expandBtn = panel.querySelector('.expand-btn');
         const exportBtn = panel.querySelector('.export-btn');
         const collapseBtn = panel.querySelector('.collapse-btn');
@@ -3027,6 +3042,13 @@ const CodePreviewer = {
             copyBtn.addEventListener('click', () => {
                 this.setActiveEditorPanel(panel);
                 this.copyToClipboard(panel);
+            });
+        }
+
+        if (formatBtn) {
+            formatBtn.addEventListener('click', () => {
+                this.setActiveEditorPanel(panel);
+                this.formatPanelCode(panel, false);
             });
         }
         
@@ -3109,6 +3131,115 @@ const CodePreviewer = {
         const { searchContainer } = this.getPanelSearchElements(panel);
         if (!searchContainer) return;
         this.setPanelSearchActive(panel, true);
+    },
+
+
+    formatPanelCode(panel, isAutomatic = false) {
+        if (!panel) return false;
+
+        const fileId = panel.dataset.fileId;
+        const fileType = panel.dataset.fileType;
+        const editor = this.getEditorFromPanel(panel);
+        if (!fileId || !editor || !this.isEditableFileType(fileType)) return false;
+
+        return this.formatEditorContent(fileId, editor, fileType, {
+            isAutomatic,
+            silent: isAutomatic,
+            preserveCursor: true,
+        });
+    },
+
+    scheduleAutoFormat(fileId, editor, fileType) {
+        if (!fileId || !editor || !this.isEditableFileType(fileType)) return;
+
+        const existingTimer = this.state.autoFormatTimers.get(fileId);
+        if (existingTimer) clearTimeout(existingTimer);
+
+        const timer = setTimeout(() => {
+            this.state.autoFormatTimers.delete(fileId);
+            this.formatEditorContent(fileId, editor, fileType, {
+                isAutomatic: true,
+                silent: true,
+                preserveCursor: true,
+            });
+        }, 900);
+
+        this.state.autoFormatTimers.set(fileId, timer);
+    },
+
+    formatEditorContent(fileId, editor, fileType, options = {}) {
+        if (!editor || !editor.getValue || !editor.setValue) return false;
+        if (this.state.formattingEditors.has(fileId)) return false;
+
+        const currentContent = editor.getValue();
+        if (!currentContent || currentContent.length > 150000) return false;
+
+        const formattedContent = this.formatCodeByType(currentContent, fileType);
+        if (!formattedContent || formattedContent === currentContent) return false;
+
+        let cursorIndex = null;
+        if (options.preserveCursor && editor.getCursor && editor.indexFromPos && editor.posFromIndex) {
+            cursorIndex = editor.indexFromPos(editor.getCursor());
+        }
+
+        this.state.formattingEditors.add(fileId);
+
+        try {
+            editor.setValue(formattedContent);
+
+            if (cursorIndex !== null && editor.posFromIndex && editor.setCursor) {
+                const safeIndex = Math.min(cursorIndex, formattedContent.length);
+                editor.setCursor(editor.posFromIndex(safeIndex));
+            }
+
+            if (!options.silent && !options.isAutomatic) {
+                this.showNotification('Code formatted', 'success');
+            }
+
+            const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+            this.checkFileModified(fileId, panel);
+            return true;
+        } catch (error) {
+            console.error('Code formatting failed:', error);
+            if (!options.silent) {
+                this.showNotification('Unable to format code', 'error');
+            }
+            return false;
+        } finally {
+            setTimeout(() => this.state.formattingEditors.delete(fileId), 0);
+        }
+    },
+
+    formatCodeByType(content, fileType) {
+        try {
+            if (fileType === 'json') {
+                return JSON.stringify(JSON.parse(content), null, 2);
+            }
+
+            if ((fileType === 'javascript' || fileType === 'javascript-module') && typeof window.js_beautify === 'function') {
+                return window.js_beautify(content, { indent_size: 2, preserve_newlines: true });
+            }
+
+            if (fileType === 'css' && typeof window.css_beautify === 'function') {
+                return window.css_beautify(content, { indent_size: 2 });
+            }
+
+            if ((fileType === 'html' || fileType === 'xml' || fileType === 'svg') && typeof window.html_beautify === 'function') {
+                return window.html_beautify(content, { indent_size: 2, wrap_line_length: 120 });
+            }
+
+            if (fileType === 'markdown' || fileType === 'text') {
+                return content
+                    .split('\n')
+                    .map(line => line.replace(/[ \t]+$/g, ''))
+                    .join('\n');
+            }
+        } catch (error) {
+            console.warn('formatCodeByType failed for', fileType, error);
+            return content;
+        }
+
+        return content;
     },
 
     getPanelSearchElements(panel) {
