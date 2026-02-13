@@ -404,22 +404,17 @@ export function generateXHROverrideCode() {
                                 return "content-type: " + contentType + "\\r\\n";
                             };
                             
-                            if (xhr.onreadystatechange) {
-                                xhr.onreadystatechange();
-                            }
-                            if (xhr.onload) {
-                                xhr.onload();
-                            }
+                            xhr.dispatchEvent(new Event("readystatechange"));
+                            xhr.dispatchEvent(new ProgressEvent("load"));
+                            xhr.dispatchEvent(new ProgressEvent("loadend"));
                         } catch (e) {
-                            if (xhr.onerror) {
-                                xhr.onerror();
-                            }
+                            xhr.dispatchEvent(new ProgressEvent("error"));
+                            xhr.dispatchEvent(new ProgressEvent("loadend"));
                         }
                     }, 1);
                 } catch (e) {
-                    if (xhr.onerror) {
-                        xhr.onerror();
-                    }
+                    xhr.dispatchEvent(new ProgressEvent("error"));
+                    xhr.dispatchEvent(new ProgressEvent("loadend"));
                 }
                 return;
             }
