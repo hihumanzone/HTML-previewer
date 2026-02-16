@@ -12,6 +12,7 @@
     --success-color: #a6e3a1;
     --modal-bg: rgba(17, 17, 27, 0.75);
     --transition-speed: 0.2s;
+    --file-panel-size: 420px;
 }
 
 *, *::before, *::after {
@@ -335,7 +336,7 @@ body {
 }
 
 .editor-grid {
-    --panel-size: 420px;
+    --panel-size: var(--file-panel-size);
     display: grid;
     grid-template-columns: repeat(auto-fill, var(--panel-size));
     gap: 1rem;
@@ -1259,11 +1260,11 @@ body {
 }
 
 .file-tree-container {
-    width: 250px;
-    min-width: 200px;
-    min-height: 220px;
-    height: min(60vh, calc(100vh - 300px));
-    resize: both;
+    width: 280px;
+    min-width: 220px;
+    min-height: var(--file-panel-size);
+    height: auto;
+    resize: horizontal;
     overflow: hidden;
     flex: 0 0 auto;
     background-color: var(--secondary-color);
@@ -1920,7 +1921,7 @@ body {
 
 @media (max-width: 900px) {
     .editor-grid {
-        --panel-size: min(100%, 420px);
+        --panel-size: min(100%, var(--file-panel-size));
         justify-content: center;
     }
 
