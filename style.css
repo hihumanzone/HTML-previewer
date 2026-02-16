@@ -1259,10 +1259,10 @@ body {
 }
 
 .file-tree-container {
-    width: 250px;
-    min-width: 200px;
+    width: 280px;
+    min-width: 220px;
     min-height: 220px;
-    height: min(60vh, calc(100vh - 300px));
+    height: auto;
     resize: both;
     overflow: hidden;
     flex: 0 0 auto;
