@@ -4245,7 +4245,9 @@ This content is loaded from a markdown file.
         }
         
         if (combinedModuleContent.trim() !== '') {
-            return '<script type="module">\n' + combinedModuleContent + '\n</script>\n';
+            // Escape closing script tags to prevent them from breaking the parent script tag
+            const escapedContent = combinedModuleContent.replace(/<\/script>/gi, '<\\/script>');
+            return '<script type="module">\n' + escapedContent + '\n</script>\n';
         }
         
         return '';
@@ -4265,7 +4267,9 @@ This content is loaded from a markdown file.
         }).join('\n');
         
         if (regularJS.trim()) {
-            return '<script>\n' + regularJS + '</script>\n';
+            // Escape closing script tags to prevent them from breaking the parent script tag
+            const escapedJS = regularJS.replace(/<\/script>/gi, '<\\/script>');
+            return '<script>\n' + escapedJS + '</script>\n';
         }
         
         return '';
@@ -4931,7 +4935,9 @@ This content is loaded from a markdown file.
                 const file = CodePreviewer.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
                 if (file && (file.type === 'javascript' || file.type === 'javascript-module')) {
                     const scriptType = file.type === 'javascript-module' ? ' type="module"' : '';
-                    return `<script${scriptType}>${file.content}</script>`;
+                    // Escape closing script tags to prevent them from breaking the parent script tag
+                    const escapedContent = file.content.replace(/<\/script>/gi, '<\\/script>');
+                    return `<script${scriptType}>${escapedContent}</script>`;
                 }
                 return match;
             });
