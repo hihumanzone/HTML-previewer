@@ -1261,9 +1261,9 @@ body {
 .file-tree-container {
     width: 280px;
     min-width: 220px;
-    min-height: 220px;
+    min-height: 260px;
     height: auto;
-    resize: both;
+    resize: horizontal;
     overflow: hidden;
     flex: 0 0 auto;
     background-color: var(--secondary-color);
