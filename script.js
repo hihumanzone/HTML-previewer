@@ -1249,6 +1249,51 @@ This content is loaded from a markdown file.
             }
         });
 
+        window.addEventListener('resize', () => {
+            this.updatePanelMoveButtonDirections();
+            this.updateCodeModalHeaderAndButtons();
+        });
+
+    },
+
+    isMobileViewport() {
+        return window.matchMedia('(max-width: 768px)').matches;
+    },
+
+    updateCodeModalHeaderAndButtons(fileName = null) {
+        const modalTitle = document.getElementById('code-modal-title');
+        const isMobile = this.isMobileViewport();
+        const resolvedFileName = fileName
+            || this.state.currentCodeModalSource?.querySelector('.file-name-input')?.value
+            || 'Code';
+
+        if (modalTitle) {
+            modalTitle.textContent = isMobile ? resolvedFileName : `Code View - ${resolvedFileName}`;
+        }
+
+        if (this.dom.formatCodeBtn) {
+            this.dom.formatCodeBtn.textContent = isMobile ? '✨' : '✨ Format';
+        }
+
+        if (this.dom.saveCodeBtn) {
+            this.dom.saveCodeBtn.textContent = isMobile ? '💾' : '💾 Save';
+        }
+    },
+
+    updatePanelMoveButtonDirections() {
+        const isMobile = this.isMobileViewport();
+        document.querySelectorAll('.move-panel-btn').forEach((button) => {
+            const direction = button.dataset.direction;
+            if (direction === 'left') {
+                button.textContent = isMobile ? '↑' : '←';
+                button.setAttribute('aria-label', isMobile ? 'Move panel up' : 'Move panel left');
+                button.title = isMobile ? 'Move up' : 'Move left';
+            } else if (direction === 'right') {
+                button.textContent = isMobile ? '↓' : '→';
+                button.setAttribute('aria-label', isMobile ? 'Move panel down' : 'Move panel right');
+                button.title = isMobile ? 'Move down' : 'Move right';
+            }
+        });
     },
 
     isModuleFile(content, filename) {
@@ -3135,6 +3180,8 @@ This content is loaded from a markdown file.
                 rightBtn.hidden = index === visiblePanels.length - 1;
             }
         });
+
+        this.updatePanelMoveButtonDirections();
     },
 
     updateRemoveButtonsVisibility() {
@@ -3705,7 +3752,7 @@ This content is loaded from a markdown file.
             this.setActiveEditorPanel(sourcePanel);
             this.updateCodeModalFormattingAction(sourcePanel?.dataset.fileType || 'text');
 
-            modalTitle.textContent = `Code View - ${fileName}`;
+            this.updateCodeModalHeaderAndButtons(fileName);
 
             if (window.CodeMirror) {
                 if (!this.state.codeModalEditor) {
