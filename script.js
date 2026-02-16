@@ -51,6 +51,8 @@ const CodePreviewer = {
         autoFormatTimers: new Map(),
         formattingEditors: new Set(),
         mainHtmlFile: '',
+        viewportResizeHandler: null,
+        viewportResizeTimer: null,
     },
 
     // ============================================================================
@@ -1249,10 +1251,19 @@ This content is loaded from a markdown file.
             }
         });
 
-        window.addEventListener('resize', () => {
-            this.updatePanelMoveButtonDirections();
-            this.updateCodeModalHeaderAndButtons();
-        });
+        if (!this.state.viewportResizeHandler) {
+            this.state.viewportResizeHandler = () => {
+                if (this.state.viewportResizeTimer) {
+                    clearTimeout(this.state.viewportResizeTimer);
+                }
+
+                this.state.viewportResizeTimer = setTimeout(() => {
+                    this.updatePanelMoveButtonDirections();
+                    this.updateCodeModalHeaderAndButtons();
+                }, 80);
+            };
+            window.addEventListener('resize', this.state.viewportResizeHandler);
+        }
 
     },
 
@@ -1263,12 +1274,12 @@ This content is loaded from a markdown file.
     updateCodeModalHeaderAndButtons(fileName = null) {
         const modalTitle = document.getElementById('code-modal-title');
         const isMobile = this.isMobileViewport();
-        const resolvedFileName = fileName
+        const displayFileName = fileName
             || this.state.currentCodeModalSource?.querySelector('.file-name-input')?.value
             || 'Code';
 
         if (modalTitle) {
-            modalTitle.textContent = isMobile ? resolvedFileName : `Code View - ${resolvedFileName}`;
+            modalTitle.textContent = isMobile ? displayFileName : `Code View - ${displayFileName}`;
         }
 
         if (this.dom.formatCodeBtn) {
