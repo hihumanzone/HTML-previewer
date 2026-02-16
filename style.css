@@ -1930,6 +1930,17 @@ body {
 }
 
 @media (max-width: 768px) {
+    #preview-modal {
+        padding: 0;
+    }
+
+    #preview-modal .modal-content {
+        width: 100%;
+        height: 100%;
+        border-radius: 0;
+        border: none;
+    }
+
     #code-modal {
         padding: 0;
     }
@@ -1966,6 +1977,26 @@ body {
 
     #preview-modal .console-header span {
         display: none;
+    }
+
+    #preview-modal .console-filter-btn {
+        gap: 0;
+        min-width: 1.9rem;
+        padding: 0.25rem 0.4rem;
+        justify-content: center;
+    }
+
+    #preview-modal .console-filter-btn .filter-count {
+        display: none;
+    }
+
+    #preview-modal .console-filter-btn .filter-icon {
+        display: inline-block;
+    }
+
+    .tree-folder-header .folder-actions,
+    .tree-file .file-actions {
+        display: flex;
     }
 }
 
