@@ -923,7 +923,7 @@ const CodePreviewer = {
             .replace(/'/g, '&#39;');
     },
 
-    createTrackedObjectUrlFromDataUrl(dataUrl, urlSet = this.state.previewAssetUrls) {
+    createObjectUrlFromDataUrl(dataUrl) {
         if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) return dataUrl;
         try {
             const commaIndex = dataUrl.indexOf(',');
@@ -942,14 +942,24 @@ const CodePreviewer = {
                     return new Blob([bytes], { type: mimeType });
                 })()
                 : new Blob([decodeURIComponent(dataPart)], { type: mimeType });
-            const objectUrl = URL.createObjectURL(blob);
-            if (urlSet) {
-                urlSet.add(objectUrl);
-            }
-            return objectUrl;
+            return URL.createObjectURL(blob);
         } catch (error) {
+            return null;
+        }
+    },
+
+    createTrackedObjectUrlFromDataUrl(dataUrl, urlSet = this.state.previewAssetUrls) {
+        const objectUrl = this.createObjectUrlFromDataUrl(dataUrl);
+        if (objectUrl === null) {
             return dataUrl;
         }
+        if (!objectUrl.startsWith('blob:')) {
+            return dataUrl;
+        }
+        if (urlSet) {
+            urlSet.add(objectUrl);
+        }
+        return objectUrl;
     },
 
     getPreviewAssetUrl(fileData, defaultMimeType = 'text/plain', urlSet = this.state.previewAssetUrls) {
@@ -976,10 +986,14 @@ const CodePreviewer = {
             return existingPreviewUrl;
         }
 
-        const previewUrl = this.createTrackedObjectUrlFromDataUrl(content, null);
-        if (typeof previewUrl === 'string' && previewUrl.startsWith('blob:')) {
-            this.state.filePanelPreviewUrls.set(fileId, previewUrl);
+        const previewUrl = this.createObjectUrlFromDataUrl(content);
+        if (previewUrl === null) {
+            return content;
         }
+        if (!previewUrl.startsWith('blob:')) {
+            return content;
+        }
+        this.state.filePanelPreviewUrls.set(fileId, previewUrl);
         return previewUrl;
     },
 
