@@ -953,13 +953,17 @@ const CodePreviewer = {
         if (objectUrl === null) {
             return dataUrl;
         }
-        if (!objectUrl.startsWith('blob:')) {
+        if (!this.isBlobUrl(objectUrl)) {
             return dataUrl;
         }
         if (urlSet) {
             urlSet.add(objectUrl);
         }
         return objectUrl;
+    },
+
+    isBlobUrl(url) {
+        return typeof url === 'string' && url.startsWith('blob:');
     },
 
     getPreviewAssetUrl(fileData, defaultMimeType = 'text/plain', urlSet = this.state.previewAssetUrls) {
@@ -990,7 +994,7 @@ const CodePreviewer = {
         if (previewUrl === null) {
             return content;
         }
-        if (!previewUrl.startsWith('blob:')) {
+        if (!this.isBlobUrl(previewUrl)) {
             return content;
         }
         this.state.filePanelPreviewUrls.set(fileId, previewUrl);
