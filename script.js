@@ -54,6 +54,7 @@ const CodePreviewer = {
         viewportResizeHandler: null,
         viewportResizeTimer: null,
         previewTabWindow: null,
+        previewTabUrl: null,
     },
 
     // ============================================================================
@@ -4385,6 +4386,29 @@ This content is loaded from a markdown file.
         return this.generateMultiFilePreview();
     },
 
+    updatePreviewTab(content, openIfNeeded = false) {
+        let previewWindow = this.state.previewTabWindow;
+        const isTabOpen = previewWindow && !previewWindow.closed;
+        if (!isTabOpen && !openIfNeeded) return false;
+
+        if (!isTabOpen) {
+            previewWindow = window.open('about:blank', '_blank');
+            if (!previewWindow) throw new Error('Failed to open preview tab: popup may have been blocked by the browser.');
+            this.state.previewTabWindow = previewWindow;
+        }
+
+        const blob = new Blob([content], { type: 'text/html' });
+        const nextUrl = URL.createObjectURL(blob);
+        previewWindow.location.replace(nextUrl);
+
+        const previousTabUrl = this.state.previewTabUrl;
+        this.state.previewTabUrl = nextUrl;
+        if (previousTabUrl) {
+            queueMicrotask(() => URL.revokeObjectURL(previousTabUrl));
+        }
+        return true;
+    },
+
     refreshOpenPreviews() {
         const isModalOpen = this.dom.modalOverlay?.getAttribute('aria-hidden') === 'false';
         const previewTabWindow = this.state.previewTabWindow;
@@ -4400,11 +4424,13 @@ This content is loaded from a markdown file.
         }
         if (isTabOpen) {
             try {
-                previewTabWindow.document.open();
-                previewTabWindow.document.write(content);
-                previewTabWindow.document.close();
+                this.updatePreviewTab(content, false);
             } catch (e) {
                 console.error('Failed to update preview tab:', e);
+                if (this.state.previewTabUrl) {
+                    URL.revokeObjectURL(this.state.previewTabUrl);
+                    this.state.previewTabUrl = null;
+                }
                 this.state.previewTabWindow = null;
             }
         }
@@ -4426,12 +4452,7 @@ This content is loaded from a markdown file.
             this.toggleModal(true);
         } else if (target === 'tab') {
             try {
-                const previewWindow = window.open('about:blank', '_blank');
-                if (!previewWindow) throw new Error('Popup blocked');
-                previewWindow.document.open();
-                previewWindow.document.write(content);
-                previewWindow.document.close();
-                this.state.previewTabWindow = previewWindow;
+                this.updatePreviewTab(content, true);
                 this.showNotification('Preview opened in a new tab.', 'success');
             } catch (e) {
                 console.error("Failed to create or open new tab:", e);
