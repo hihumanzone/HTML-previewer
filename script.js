@@ -2972,6 +2972,7 @@ This content is loaded from a markdown file.
         this.checkFileModified(fileId, panel);
         this.renderFileTree();
         this.updateMainHtmlSelector();
+        this.refreshOpenPreviews();
         
         this.showNotification('Changes applied successfully', 'success');
     },
@@ -3008,6 +3009,7 @@ This content is loaded from a markdown file.
         this.checkFileModified(fileId, panel);
         this.renderFileTree();
         this.updateMainHtmlSelector();
+        this.refreshOpenPreviews();
         
         this.showNotification('Changes discarded', 'info');
     },
@@ -3023,7 +3025,6 @@ This content is loaded from a markdown file.
         editor.on('change', (_cm, changeObj) => {
             const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
             this.checkFileModified(fileId, panel);
-            this.refreshOpenPreviews();
 
             const fileInfo = this.state.files.find(f => f.id === fileId);
             const fileType = fileInfo ? fileInfo.type : panel?.dataset.fileType;
