@@ -53,6 +53,8 @@ const CodePreviewer = {
         mainHtmlFile: '',
         viewportResizeHandler: null,
         viewportResizeTimer: null,
+        previewTabWindow: null,
+        previewTabUrl: null,
     },
 
     // ============================================================================
@@ -991,6 +993,15 @@ const CodePreviewer = {
                 setValue: (value) => textarea.value = value,
                 getValue: () => textarea.value,
                 refresh: () => {},
+                setOption: () => {},
+                on: (eventName, handler) => {
+                    if (eventName !== 'change' || !handler) return;
+                    if (textarea.__changeListener) {
+                        textarea.removeEventListener('input', textarea.__changeListener);
+                    }
+                    textarea.__changeListener = () => handler(null, { origin: '+input' });
+                    textarea.addEventListener('input', textarea.__changeListener);
+                },
             };
         };
 
@@ -2519,6 +2530,14 @@ This content is loaded from a markdown file.
                 getValue: () => textarea.value,
                 refresh: () => {},
                 setOption: () => {},
+                on: (eventName, handler) => {
+                    if (eventName !== 'change' || !handler) return;
+                    if (textarea.__changeListener) {
+                        textarea.removeEventListener('input', textarea.__changeListener);
+                    }
+                    textarea.__changeListener = () => handler(null, { origin: '+input' });
+                    textarea.addEventListener('input', textarea.__changeListener);
+                },
             };
         }
         
@@ -2954,6 +2973,7 @@ This content is loaded from a markdown file.
         this.checkFileModified(fileId, panel);
         this.renderFileTree();
         this.updateMainHtmlSelector();
+        this.refreshOpenPreviews();
         
         this.showNotification('Changes applied successfully', 'success');
     },
@@ -2990,6 +3010,7 @@ This content is loaded from a markdown file.
         this.checkFileModified(fileId, panel);
         this.renderFileTree();
         this.updateMainHtmlSelector();
+        this.refreshOpenPreviews();
         
         this.showNotification('Changes discarded', 'info');
     },
@@ -3991,7 +4012,23 @@ This content is loaded from a markdown file.
     },
 
     processHTMLScripts(htmlContent, jsFiles, moduleFiles, currentFilePath = 'index.html') {
-        htmlContent = htmlContent.replace(/<script(?:\s+type\s*=\s*['"](?:text\/javascript|application\/javascript)['"])?[^>]*>([\s\S]*?)<\/script>/gi, (match, scriptContent) => {
+        const parser = new DOMParser();
+        const parsedDoc = parser.parseFromString(`<div id="__preview-script-container">${htmlContent}</div>`, 'text/html');
+        const container = parsedDoc.getElementById('__preview-script-container');
+        if (!container) return htmlContent;
+
+        container.querySelectorAll('script').forEach((scriptEl) => {
+            const src = scriptEl.getAttribute('src');
+            if (src) {
+                const trimmedSrc = src.trim();
+                const isExternal = /^(https?:)?\/\//i.test(trimmedSrc) || /^data:/i.test(trimmedSrc) || /^blob:/i.test(trimmedSrc);
+                if (!isExternal) {
+                    scriptEl.remove();
+                }
+                return;
+            }
+
+            const scriptContent = scriptEl.textContent || '';
             if (this.isModuleFile(scriptContent)) {
                 moduleFiles.push({
                     content: scriptContent,
@@ -4003,14 +4040,11 @@ This content is loaded from a markdown file.
                     filename: currentFilePath.replace(/\.(html?)$/, '-inline-script.js')
                 });
             }
-            return '';
+            scriptEl.remove();
         });
-        
-        htmlContent = htmlContent.replace(/<script[^>]*src\s*=\s*['"][^'"]*\.js['"][^>]*><\/script>/gi, '');
-        htmlContent = htmlContent.replace(/<script[^>]*src\s*=\s*['"][^'"]*\.mjs['"][^>]*><\/script>/gi, '');
-        htmlContent = htmlContent.replace(/<link[^>]*rel\s*=\s*['"]stylesheet['"][^>]*>/gi, '');
-        
-        return htmlContent;
+
+        container.querySelectorAll('link[rel="stylesheet"]').forEach((linkEl) => linkEl.remove());
+        return container.innerHTML;
     },
 
     collectFileContents() {
@@ -4352,6 +4386,63 @@ This content is loaded from a markdown file.
         return this.generateMultiFilePreview();
     },
 
+    clearPreviewTabState() {
+        if (this.state.previewTabUrl) {
+            URL.revokeObjectURL(this.state.previewTabUrl);
+            this.state.previewTabUrl = null;
+        }
+        this.state.previewTabWindow = null;
+    },
+
+    updatePreviewTab(content, openIfNeeded = false) {
+        let previewWindow = this.state.previewTabWindow;
+        const isTabOpen = previewWindow && !previewWindow.closed;
+        if (!isTabOpen && !openIfNeeded) {
+            this.clearPreviewTabState();
+            return false;
+        }
+
+        if (!isTabOpen) {
+            previewWindow = window.open('about:blank', '_blank');
+            if (!previewWindow) throw new Error('Failed to open preview tab: popup may have been blocked by the browser.');
+            this.state.previewTabWindow = previewWindow;
+        }
+
+        const blob = new Blob([content], { type: 'text/html' });
+        const nextUrl = URL.createObjectURL(blob);
+        previewWindow.location.replace(nextUrl);
+
+        const previousTabUrl = this.state.previewTabUrl;
+        this.state.previewTabUrl = nextUrl;
+        if (previousTabUrl) {
+            queueMicrotask(() => URL.revokeObjectURL(previousTabUrl));
+        }
+        return true;
+    },
+
+    refreshOpenPreviews() {
+        const isModalOpen = this.dom.modalOverlay?.getAttribute('aria-hidden') === 'false';
+        const previewTabWindow = this.state.previewTabWindow;
+        const isTabOpen = previewTabWindow && !previewTabWindow.closed;
+        if (!isModalOpen && !isTabOpen) return;
+
+        const availability = this.getPreviewAvailability();
+        if (!availability.allowed) return;
+
+        const content = this.generatePreviewContent();
+        if (isModalOpen) {
+            this.dom.previewFrame.srcdoc = content;
+        }
+        if (isTabOpen) {
+            try {
+                this.updatePreviewTab(content, false);
+            } catch (e) {
+                console.error('Failed to update preview tab:', e);
+                this.clearPreviewTabState();
+            }
+        }
+    },
+
     renderPreview(target) {
         const availability = this.getPreviewAvailability();
         if (!availability.allowed) {
@@ -4368,9 +4459,7 @@ This content is loaded from a markdown file.
             this.toggleModal(true);
         } else if (target === 'tab') {
             try {
-                const blob = new Blob([content], { type: 'text/html' });
-                const url = URL.createObjectURL(blob);
-                window.open(url, '_blank');
+                this.updatePreviewTab(content, true);
                 this.showNotification('Preview opened in a new tab.', 'success');
             } catch (e) {
                 console.error("Failed to create or open new tab:", e);
