@@ -964,6 +964,14 @@ const CodePreviewer = {
         urlSet.clear();
     },
 
+    cleanupPreviewAssetUrlsIfUnused() {
+        const isPreviewModalOpen = this.dom.modalOverlay?.getAttribute('aria-hidden') === 'false';
+        const isPreviewTabOpen = this.state.previewTabWindow && !this.state.previewTabWindow.closed;
+        if (!isPreviewModalOpen && !isPreviewTabOpen) {
+            this.revokeTrackedObjectUrls(this.state.previewAssetUrls);
+        }
+    },
+
     hasHtmlFiles() {
         return this.state.files.some(file => file.type === 'html');
     },
@@ -4439,10 +4447,7 @@ This content is loaded from a markdown file.
             this.state.previewTabUrl = null;
         }
         this.state.previewTabWindow = null;
-        const isModalOpen = this.dom.modalOverlay?.getAttribute('aria-hidden') === 'false';
-        if (!isModalOpen) {
-            this.revokeTrackedObjectUrls(this.state.previewAssetUrls);
-        }
+        this.cleanupPreviewAssetUrlsIfUnused();
     },
 
     updatePreviewTab(content, openIfNeeded = false) {
@@ -4546,10 +4551,7 @@ This content is loaded from a markdown file.
             
             // Clear console
             this.console.clear();
-            const isTabOpen = this.state.previewTabWindow && !this.state.previewTabWindow.closed;
-            if (!isTabOpen) {
-                this.revokeTrackedObjectUrls(this.state.previewAssetUrls);
-            }
+            this.cleanupPreviewAssetUrlsIfUnused();
         }
     },
 
