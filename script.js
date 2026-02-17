@@ -57,6 +57,7 @@ const CodePreviewer = {
         previewTabUrl: null,
         previewAssetUrls: new Set(),
         mediaPreviewUrls: new Set(),
+        filePanelPreviewUrls: new Map(),
     },
 
     // ============================================================================
@@ -942,7 +943,9 @@ const CodePreviewer = {
                 })()
                 : new Blob([decodeURIComponent(dataPart)], { type: mimeType });
             const objectUrl = URL.createObjectURL(blob);
-            urlSet.add(objectUrl);
+            if (urlSet) {
+                urlSet.add(objectUrl);
+            }
             return objectUrl;
         } catch (error) {
             return dataUrl;
@@ -962,6 +965,36 @@ const CodePreviewer = {
             URL.revokeObjectURL(url);
         }
         urlSet.clear();
+    },
+
+    getFilePanelPreviewContent(fileId, fileType, content, isBinary) {
+        const isDirectPreviewType = ['image', 'audio', 'video', 'pdf'].includes(fileType);
+        if (!isBinary || !isDirectPreviewType) return content;
+
+        const existingPreviewUrl = this.state.filePanelPreviewUrls.get(fileId);
+        if (existingPreviewUrl) {
+            return existingPreviewUrl;
+        }
+
+        const previewUrl = this.createTrackedObjectUrlFromDataUrl(content, null);
+        if (typeof previewUrl === 'string' && previewUrl.startsWith('blob:')) {
+            this.state.filePanelPreviewUrls.set(fileId, previewUrl);
+        }
+        return previewUrl;
+    },
+
+    revokeFilePanelPreviewUrl(fileId) {
+        const previewUrl = this.state.filePanelPreviewUrls.get(fileId);
+        if (!previewUrl) return;
+        URL.revokeObjectURL(previewUrl);
+        this.state.filePanelPreviewUrls.delete(fileId);
+    },
+
+    revokeAllFilePanelPreviewUrls() {
+        for (const previewUrl of this.state.filePanelPreviewUrls.values()) {
+            URL.revokeObjectURL(previewUrl);
+        }
+        this.state.filePanelPreviewUrls.clear();
     },
 
     cleanupPreviewAssetUrlsIfUnused() {
@@ -2649,8 +2682,8 @@ This content is loaded from a markdown file.
         if (this.isEditableFileType(fileType)) {
             return `<textarea id="${fileId}"></textarea>`;
         }
-        
-        return this.htmlGenerators.filePreview(fileType, content);
+
+        return this.htmlGenerators.filePreview(fileType, this.getFilePanelPreviewContent(fileId, fileType, content, isBinary));
     },
 
     isEditableFileType(fileType) {
@@ -2726,6 +2759,7 @@ This content is loaded from a markdown file.
     },
 
     applyFileTypeChange(panel, fileId, newType) {
+        this.revokeFilePanelPreviewUrl(fileId);
         panel.dataset.fileType = newType;
 
         const fileInfo = this.state.files.find(f => f.id === fileId);
@@ -3157,6 +3191,7 @@ This content is loaded from a markdown file.
             panel.remove();
         }
 
+        this.revokeFilePanelPreviewUrl(fileId);
         this.clearPendingAutoFormat(fileId);
         
         this.state.files = this.state.files.filter(f => f.id !== fileId);
@@ -3214,6 +3249,7 @@ This content is loaded from a markdown file.
 
         // Clear pending auto-format timers
         this.state.files.forEach(file => this.clearPendingAutoFormat(file.id));
+        this.revokeAllFilePanelPreviewUrls();
 
         // Clear the files array
         this.state.files = [];
