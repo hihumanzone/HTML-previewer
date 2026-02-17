@@ -55,6 +55,8 @@ const CodePreviewer = {
         viewportResizeTimer: null,
         previewTabWindow: null,
         previewTabUrl: null,
+        previewAssetUrls: new Set(),
+        mediaPreviewUrls: new Set(),
     },
 
     // ============================================================================
@@ -918,6 +920,48 @@ const CodePreviewer = {
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
+    },
+
+    createTrackedObjectUrlFromDataUrl(dataUrl, urlSet = this.state.previewAssetUrls) {
+        if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) return dataUrl;
+        try {
+            const commaIndex = dataUrl.indexOf(',');
+            if (commaIndex === -1) return dataUrl;
+            const header = dataUrl.slice(0, commaIndex);
+            const dataPart = dataUrl.slice(commaIndex + 1);
+            const mimeTypeMatch = header.match(/^data:([^;]+)/i);
+            const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : 'application/octet-stream';
+            const blob = header.includes(';base64')
+                ? (() => {
+                    const binaryString = atob(dataPart);
+                    const bytes = new Uint8Array(binaryString.length);
+                    for (let i = 0; i < binaryString.length; i++) {
+                        bytes[i] = binaryString.charCodeAt(i);
+                    }
+                    return new Blob([bytes], { type: mimeType });
+                })()
+                : new Blob([decodeURIComponent(dataPart)], { type: mimeType });
+            const objectUrl = URL.createObjectURL(blob);
+            urlSet.add(objectUrl);
+            return objectUrl;
+        } catch (error) {
+            return dataUrl;
+        }
+    },
+
+    getPreviewAssetUrl(fileData, defaultMimeType = 'text/plain', urlSet = this.state.previewAssetUrls) {
+        const sourceUrl = this.fileSystemUtils.getFileDataUrl(fileData, defaultMimeType);
+        if (fileData?.isBinary && typeof sourceUrl === 'string' && sourceUrl.startsWith('data:')) {
+            return this.createTrackedObjectUrlFromDataUrl(sourceUrl, urlSet);
+        }
+        return sourceUrl;
+    },
+
+    revokeTrackedObjectUrls(urlSet) {
+        for (const url of urlSet) {
+            URL.revokeObjectURL(url);
+        }
+        urlSet.clear();
     },
 
     hasHtmlFiles() {
@@ -3734,13 +3778,15 @@ This content is loaded from a markdown file.
             console.error('File info not found for media preview');
             return;
         }
+
+        this.revokeTrackedObjectUrls(this.state.mediaPreviewUrls);
         
         let previewContent = '';
         
         if (fileType === 'svg') {
             previewContent = this.htmlGenerators.mediaPreviewContent('svg', fileInfo.content, fileName, fileInfo.isBinary);
         } else {
-            previewContent = this.htmlGenerators.mediaPreviewContent(fileType, fileInfo.content, fileName);
+            previewContent = this.htmlGenerators.mediaPreviewContent(fileType, this.getPreviewAssetUrl(fileInfo, 'application/octet-stream', this.state.mediaPreviewUrls), fileName);
         }
         
         this.openMediaModal(fileName, previewContent);
@@ -3760,6 +3806,7 @@ This content is loaded from a markdown file.
     },
 
     closeMediaModal() {
+        this.revokeTrackedObjectUrls(this.state.mediaPreviewUrls);
         if (this.dom.mediaModal) {
             this.dom.mediaModal.style.display = 'none';
             this.dom.mediaModal.setAttribute('aria-hidden', 'true');
@@ -4392,6 +4439,10 @@ This content is loaded from a markdown file.
             this.state.previewTabUrl = null;
         }
         this.state.previewTabWindow = null;
+        const isModalOpen = this.dom.modalOverlay?.getAttribute('aria-hidden') === 'false';
+        if (!isModalOpen) {
+            this.revokeTrackedObjectUrls(this.state.previewAssetUrls);
+        }
     },
 
     updatePreviewTab(content, openIfNeeded = false) {
@@ -4429,6 +4480,7 @@ This content is loaded from a markdown file.
         const availability = this.getPreviewAvailability();
         if (!availability.allowed) return;
 
+        this.revokeTrackedObjectUrls(this.state.previewAssetUrls);
         const content = this.generatePreviewContent();
         if (isModalOpen) {
             this.dom.previewFrame.srcdoc = content;
@@ -4451,6 +4503,7 @@ This content is loaded from a markdown file.
             return;
         }
 
+        this.revokeTrackedObjectUrls(this.state.previewAssetUrls);
         const content = this.generatePreviewContent();
         
         if (target === 'modal') {
@@ -4493,6 +4546,10 @@ This content is loaded from a markdown file.
             
             // Clear console
             this.console.clear();
+            const isTabOpen = this.state.previewTabWindow && !this.state.previewTabWindow.closed;
+            if (!isTabOpen) {
+                this.revokeTrackedObjectUrls(this.state.previewAssetUrls);
+            }
         }
     },
 
@@ -4916,34 +4973,34 @@ This content is loaded from a markdown file.
                 pattern: /<img([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
                 types: ['image', 'svg'],
                 replace: (file, match) => {
-                    const src = CodePreviewer.fileSystemUtils.getFileDataUrl(file, 'image/png');
+                    const src = CodePreviewer.getPreviewAssetUrl(file, 'image/png');
                     return match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${src}"`);
                 }
             },
             video: {
                 pattern: /<video([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
                 types: ['video'],
-                replace: (file, match) => match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${file.content}"`)
+                replace: (file, match) => match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${CodePreviewer.getPreviewAssetUrl(file, 'video/mp4')}"`)
             },
             source: {
                 pattern: /<source([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
                 types: ['video', 'audio'],
-                replace: (file, match) => match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${file.content}"`)
+                replace: (file, match) => match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${CodePreviewer.getPreviewAssetUrl(file, 'application/octet-stream')}"`)
             },
             audio: {
                 pattern: /<audio([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
                 types: ['audio'],
-                replace: (file, match) => match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${file.content}"`)
+                replace: (file, match) => match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${CodePreviewer.getPreviewAssetUrl(file, 'audio/mpeg')}"`)
             },
             favicon: {
                 pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.ico)["']([^>]*?)>/gi,
                 types: ['image'],
-                replace: (file, match) => match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${file.content}"`)
+                replace: (file, match) => match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${CodePreviewer.getPreviewAssetUrl(file, 'image/x-icon')}"`)
             },
             font: {
                 pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.(?:woff|woff2|ttf|otf|eot))["']([^>]*?)>/gi,
                 types: ['font'],
-                replace: (file, match, before, filename, after) => `<link${before}href="${file.content}"${after}>`
+                replace: (file, match, before, filename, after) => `<link${before}href="${CodePreviewer.getPreviewAssetUrl(file, 'font/woff2')}"${after}>`
             }
         },
 
@@ -4994,9 +5051,7 @@ This content is loaded from a markdown file.
                 if (match.includes('download') || !filename.includes('://')) {
                     const file = CodePreviewer.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
                     if (file) {
-                        const href = file.isBinary 
-                            ? file.content 
-                            : CodePreviewer.fileSystemUtils.getFileDataUrl(file);
+                        const href = CodePreviewer.getPreviewAssetUrl(file);
                         return match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${href}"`);
                     }
                 }
