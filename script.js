@@ -53,6 +53,7 @@ const CodePreviewer = {
         mainHtmlFile: '',
         viewportResizeHandler: null,
         viewportResizeTimer: null,
+        previewTabWindow: null,
     },
 
     // ============================================================================
@@ -991,6 +992,15 @@ const CodePreviewer = {
                 setValue: (value) => textarea.value = value,
                 getValue: () => textarea.value,
                 refresh: () => {},
+                setOption: () => {},
+                on: (eventName, handler) => {
+                    if (eventName !== 'change' || !handler) return;
+                    if (textarea.__changeListener) {
+                        textarea.removeEventListener('input', textarea.__changeListener);
+                    }
+                    textarea.__changeListener = () => handler(null, { origin: '+input' });
+                    textarea.addEventListener('input', textarea.__changeListener);
+                },
             };
         };
 
@@ -2519,6 +2529,14 @@ This content is loaded from a markdown file.
                 getValue: () => textarea.value,
                 refresh: () => {},
                 setOption: () => {},
+                on: (eventName, handler) => {
+                    if (eventName !== 'change' || !handler) return;
+                    if (textarea.__changeListener) {
+                        textarea.removeEventListener('input', textarea.__changeListener);
+                    }
+                    textarea.__changeListener = () => handler(null, { origin: '+input' });
+                    textarea.addEventListener('input', textarea.__changeListener);
+                },
             };
         }
         
@@ -3005,6 +3023,7 @@ This content is loaded from a markdown file.
         editor.on('change', (_cm, changeObj) => {
             const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
             this.checkFileModified(fileId, panel);
+            this.refreshOpenPreviews();
 
             const fileInfo = this.state.files.find(f => f.id === fileId);
             const fileType = fileInfo ? fileInfo.type : panel?.dataset.fileType;
@@ -4352,6 +4371,31 @@ This content is loaded from a markdown file.
         return this.generateMultiFilePreview();
     },
 
+    refreshOpenPreviews() {
+        const isModalOpen = this.dom.modalOverlay?.getAttribute('aria-hidden') === 'false';
+        const previewTabWindow = this.state.previewTabWindow;
+        const isTabOpen = previewTabWindow && !previewTabWindow.closed;
+        if (!isModalOpen && !isTabOpen) return;
+
+        const availability = this.getPreviewAvailability();
+        if (!availability.allowed) return;
+
+        const content = this.generatePreviewContent();
+        if (isModalOpen) {
+            this.dom.previewFrame.srcdoc = content;
+        }
+        if (isTabOpen) {
+            try {
+                previewTabWindow.document.open();
+                previewTabWindow.document.write(content);
+                previewTabWindow.document.close();
+            } catch (e) {
+                console.error('Failed to update preview tab:', e);
+                this.state.previewTabWindow = null;
+            }
+        }
+    },
+
     renderPreview(target) {
         const availability = this.getPreviewAvailability();
         if (!availability.allowed) {
@@ -4368,9 +4412,12 @@ This content is loaded from a markdown file.
             this.toggleModal(true);
         } else if (target === 'tab') {
             try {
-                const blob = new Blob([content], { type: 'text/html' });
-                const url = URL.createObjectURL(blob);
-                window.open(url, '_blank');
+                const previewWindow = window.open('about:blank', '_blank');
+                if (!previewWindow) throw new Error('Popup blocked');
+                previewWindow.document.open();
+                previewWindow.document.write(content);
+                previewWindow.document.close();
+                this.state.previewTabWindow = previewWindow;
                 this.showNotification('Preview opened in a new tab.', 'success');
             } catch (e) {
                 console.error("Failed to create or open new tab:", e);
