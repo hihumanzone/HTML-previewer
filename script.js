@@ -4011,7 +4011,23 @@ This content is loaded from a markdown file.
     },
 
     processHTMLScripts(htmlContent, jsFiles, moduleFiles, currentFilePath = 'index.html') {
-        htmlContent = htmlContent.replace(/<script(?:\s+type\s*=\s*['"](?:text\/javascript|application\/javascript)['"])?[^>]*>([\s\S]*?)<\/script>/gi, (match, scriptContent) => {
+        const parser = new DOMParser();
+        const parsedDoc = parser.parseFromString(`<div id="__preview-script-container">${htmlContent}</div>`, 'text/html');
+        const container = parsedDoc.getElementById('__preview-script-container');
+        if (!container) return htmlContent;
+
+        container.querySelectorAll('script').forEach((scriptEl) => {
+            const src = scriptEl.getAttribute('src');
+            if (src) {
+                const trimmedSrc = src.trim();
+                const isExternal = /^(https?:)?\/\//i.test(trimmedSrc) || /^data:/i.test(trimmedSrc) || /^blob:/i.test(trimmedSrc);
+                if (!isExternal) {
+                    scriptEl.remove();
+                }
+                return;
+            }
+
+            const scriptContent = scriptEl.textContent || '';
             if (this.isModuleFile(scriptContent)) {
                 moduleFiles.push({
                     content: scriptContent,
@@ -4023,14 +4039,11 @@ This content is loaded from a markdown file.
                     filename: currentFilePath.replace(/\.(html?)$/, '-inline-script.js')
                 });
             }
-            return '';
+            scriptEl.remove();
         });
-        
-        htmlContent = htmlContent.replace(/<script[^>]*src\s*=\s*['"][^'"]*\.js['"][^>]*><\/script>/gi, '');
-        htmlContent = htmlContent.replace(/<script[^>]*src\s*=\s*['"][^'"]*\.mjs['"][^>]*><\/script>/gi, '');
-        htmlContent = htmlContent.replace(/<link[^>]*rel\s*=\s*['"]stylesheet['"][^>]*>/gi, '');
-        
-        return htmlContent;
+
+        container.querySelectorAll('link[rel="stylesheet"]').forEach((linkEl) => linkEl.remove());
+        return container.innerHTML;
     },
 
     collectFileContents() {
