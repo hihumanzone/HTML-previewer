@@ -60,7 +60,7 @@ const CodePreviewer = {
         previewRefreshTimer: null,
         isPreviewDocked: false,
         previewDockOrientation: 'right',
-        previewDockSize: { right: 50, bottom: 50 },
+        previewDockSize: { right: null, bottom: null },
         dockResizeSession: null,
     },
 
@@ -1403,9 +1403,7 @@ This content is loaded from a markdown file.
             return window.innerWidth;
         }
 
-        const dockPercent = this.state.previewDockSize.right || 50;
-        const dockWidth = (dockPercent / 100) * window.innerWidth;
-        return Math.max(320, window.innerWidth - dockWidth);
+        return window.innerWidth - this.getDockSizePx('right');
     },
 
     updateAdaptiveLayoutMode() {
@@ -4678,11 +4676,34 @@ This content is loaded from a markdown file.
         this.dom.dockPreviewBtn.setAttribute('aria-label', isDocked ? 'Undock preview panel' : 'Dock preview panel');
     },
 
+    getDockConstraints(orientation) {
+        if (orientation === 'bottom') {
+            const minPreview = 220;
+            const minEditor = 260;
+            const maxPreview = Math.max(minPreview, window.innerHeight - minEditor);
+            return { minPreview, maxPreview };
+        }
+
+        const minPreview = 320;
+        const minEditor = 420;
+        const maxPreview = Math.max(minPreview, window.innerWidth - minEditor);
+        return { minPreview, maxPreview };
+    },
+
+    getDockSizePx(orientation) {
+        const stored = this.state.previewDockSize[orientation];
+        const viewportHalf = orientation === 'bottom' ? window.innerHeight / 2 : window.innerWidth / 2;
+        const next = stored ?? viewportHalf;
+        const { minPreview, maxPreview } = this.getDockConstraints(orientation);
+        const clamped = Math.min(maxPreview, Math.max(minPreview, next));
+        this.state.previewDockSize[orientation] = clamped;
+        return clamped;
+    },
+
     applyPreviewDockLayout() {
         const orientation = this.state.previewDockOrientation;
-        const sizePercent = this.state.previewDockSize[orientation] || 50;
-        const unit = orientation === 'right' ? 'vw' : 'vh';
-        document.documentElement.style.setProperty('--preview-dock-size', `${sizePercent}${unit}`);
+        const sizePx = this.getDockSizePx(orientation);
+        document.documentElement.style.setProperty('--preview-dock-size', `${sizePx}px`);
 
         document.body.classList.toggle('preview-docked', this.state.isPreviewDocked);
         document.body.classList.toggle('preview-docked-right', this.state.isPreviewDocked && orientation === 'right');
@@ -4704,6 +4725,9 @@ This content is loaded from a markdown file.
 
     togglePreviewDock(forceState = null) {
         const nextState = typeof forceState === 'boolean' ? forceState : !this.state.isPreviewDocked;
+        if (!nextState && this.state.dockResizeSession) {
+            this.endPreviewDockResize();
+        }
         this.state.isPreviewDocked = nextState;
         if (nextState) {
             this.state.previewDockOrientation = this.getPreviewDockOrientation();
@@ -4721,22 +4745,48 @@ This content is loaded from a markdown file.
     },
 
     startPreviewDockResize(event) {
-        if (!this.state.isPreviewDocked) return;
+        if (!this.state.isPreviewDocked || !this.dom.previewDockDivider) return;
         event.preventDefault();
+
+        const divider = this.dom.previewDockDivider;
         const orientation = this.state.previewDockOrientation;
-        this.state.dockResizeSession = { orientation };
+        this.state.dockResizeSession = { orientation, pointerId: event.pointerId };
+
+        divider.setPointerCapture(event.pointerId);
 
         const onMove = (moveEvent) => this.handlePreviewDockResize(moveEvent);
-        const onUp = () => {
-            window.removeEventListener('pointermove', onMove);
-            window.removeEventListener('pointerup', onUp);
-            this.state.dockResizeSession = null;
-            document.body.classList.remove('is-resizing-preview-dock');
+        const onUp = (upEvent) => this.endPreviewDockResize(upEvent);
+
+        divider.addEventListener('pointermove', onMove);
+        divider.addEventListener('pointerup', onUp, { once: true });
+        divider.addEventListener('pointercancel', onUp, { once: true });
+
+        this.state.dockResizeSession.cleanup = () => {
+            divider.removeEventListener('pointermove', onMove);
         };
 
+        divider.classList.add('is-dragging');
         document.body.classList.add('is-resizing-preview-dock');
-        window.addEventListener('pointermove', onMove);
-        window.addEventListener('pointerup', onUp);
+    },
+
+    endPreviewDockResize(event) {
+        const session = this.state.dockResizeSession;
+        if (!session || !this.dom.previewDockDivider) return;
+
+        try {
+            this.dom.previewDockDivider.releasePointerCapture(session.pointerId);
+        } catch (_err) {
+            // Pointer may already be released.
+        }
+
+        session.cleanup?.();
+        this.state.dockResizeSession = null;
+        this.dom.previewDockDivider.classList.remove('is-dragging');
+        document.body.classList.remove('is-resizing-preview-dock');
+
+        if (event) {
+            this.handlePreviewDockResize(event);
+        }
     },
 
     handlePreviewDockResize(event) {
@@ -4744,13 +4794,13 @@ This content is loaded from a markdown file.
         if (!session) return;
 
         if (session.orientation === 'right') {
-            const width = Math.max(320, window.innerWidth - event.clientX);
-            const percent = (width / window.innerWidth) * 100;
-            this.state.previewDockSize.right = Math.min(70, Math.max(28, percent));
+            const rawSize = window.innerWidth - event.clientX;
+            const { minPreview, maxPreview } = this.getDockConstraints('right');
+            this.state.previewDockSize.right = Math.min(maxPreview, Math.max(minPreview, rawSize));
         } else {
-            const height = Math.max(220, window.innerHeight - event.clientY);
-            const percent = (height / window.innerHeight) * 100;
-            this.state.previewDockSize.bottom = Math.min(75, Math.max(25, percent));
+            const rawSize = window.innerHeight - event.clientY;
+            const { minPreview, maxPreview } = this.getDockConstraints('bottom');
+            this.state.previewDockSize.bottom = Math.min(maxPreview, Math.max(minPreview, rawSize));
         }
 
         this.applyPreviewDockLayout();

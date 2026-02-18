@@ -764,31 +764,76 @@ body.preview-docked-bottom #preview-modal.is-docked .modal-content {
     position: fixed;
     top: 0;
     bottom: 0;
-    width: 8px;
+    width: 18px;
     cursor: col-resize;
     z-index: 1100;
-    background: linear-gradient(180deg, rgba(137, 180, 250, 0.6), rgba(137, 180, 250, 0.15));
-    border-left: 1px solid rgba(137, 180, 250, 0.7);
-    border-right: 1px solid rgba(17, 17, 27, 0.7);
-    left: calc(100vw - var(--preview-dock-size) - 4px);
+    left: calc(100vw - var(--preview-dock-size) - 9px);
+    background: transparent;
+    touch-action: none;
+}
+
+.preview-dock-divider::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 2px;
+    transform: translateX(-50%);
+    background: linear-gradient(180deg, rgba(137, 180, 250, 0.85), rgba(137, 180, 250, 0.25));
+    box-shadow: 0 0 0 1px rgba(17, 17, 27, 0.4);
+}
+
+.preview-dock-divider::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 10px;
+    height: 56px;
+    border-radius: 999px;
+    transform: translate(-50%, -50%);
+    background: rgba(137, 180, 250, 0.22);
+    border: 1px solid rgba(137, 180, 250, 0.5);
+}
+
+.preview-dock-divider:hover::before,
+.preview-dock-divider.is-dragging::before {
+    background: linear-gradient(180deg, rgba(166, 202, 255, 0.95), rgba(137, 180, 250, 0.45));
 }
 
 .preview-dock-divider.is-bottom {
     left: 0;
     right: 0;
-    top: calc(100vh - var(--preview-dock-size) - 4px);
-    height: 8px;
+    top: calc(100vh - var(--preview-dock-size) - 9px);
+    height: 18px;
     width: auto;
     cursor: row-resize;
-    border-left: 0;
-    border-right: 0;
-    border-top: 1px solid rgba(137, 180, 250, 0.7);
-    border-bottom: 1px solid rgba(17, 17, 27, 0.7);
-    background: linear-gradient(90deg, rgba(137, 180, 250, 0.6), rgba(137, 180, 250, 0.15));
+}
+
+.preview-dock-divider.is-bottom::before {
+    top: 50%;
+    bottom: auto;
+    left: 0;
+    right: 0;
+    width: auto;
+    height: 2px;
+    transform: translateY(-50%);
+    background: linear-gradient(90deg, rgba(137, 180, 250, 0.85), rgba(137, 180, 250, 0.25));
+}
+
+.preview-dock-divider.is-bottom::after {
+    width: 56px;
+    height: 10px;
 }
 
 body.is-resizing-preview-dock {
     user-select: none;
+    cursor: col-resize;
+}
+
+body.preview-docked-bottom.is-resizing-preview-dock {
+    cursor: row-resize;
 }
 
 .modal-content {
