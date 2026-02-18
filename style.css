@@ -187,6 +187,10 @@ body {
     border-color: rgba(137, 180, 250, 0.85);
 }
 
+.settings-panel[hidden] {
+    display: none !important;
+}
+
 .settings-panel {
     position: absolute;
     top: calc(100% + 0.45rem);
