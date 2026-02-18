@@ -3951,6 +3951,7 @@ This content is loaded from a markdown file.
         
         this.dom.mediaModal.style.display = 'flex';
         this.dom.mediaModal.setAttribute('aria-hidden', 'false');
+        this.updateDockDividerVisibility();
     },
 
     closeMediaModal() {
@@ -3962,6 +3963,7 @@ This content is loaded from a markdown file.
         if (this.dom.mediaModalContent) {
             this.dom.mediaModalContent.innerHTML = '';
         }
+        this.updateDockDividerVisibility();
     },
 
     openCodeModal(content, fileName, language, sourcePanel) {
@@ -4022,6 +4024,7 @@ This content is loaded from a markdown file.
 
             modal.style.display = 'flex';
             modal.setAttribute('aria-hidden', 'false');
+            this.updateDockDividerVisibility();
 
             if (window.CodeMirror && this.state.codeModalEditor) {
                 setTimeout(() => {
@@ -4040,6 +4043,7 @@ This content is loaded from a markdown file.
             modal.setAttribute('aria-hidden', 'true');
         }
         this.state.currentCodeModalSource = null;
+        this.updateDockDividerVisibility();
     },
 
 
@@ -4700,6 +4704,22 @@ This content is loaded from a markdown file.
         return clamped;
     },
 
+    isSecondaryModalOpen() {
+        const codeOpen = document.getElementById('code-modal')?.getAttribute('aria-hidden') === 'false';
+        const mediaOpen = this.dom.mediaModal?.getAttribute('aria-hidden') === 'false';
+        return codeOpen || mediaOpen;
+    },
+
+    updateDockDividerVisibility() {
+        if (!this.dom.previewDockDivider) return;
+
+        const shouldShow = this.state.isPreviewDocked;
+        const suspended = shouldShow && this.isSecondaryModalOpen();
+
+        this.dom.previewDockDivider.hidden = !shouldShow;
+        this.dom.previewDockDivider.classList.toggle('is-suspended', suspended);
+    },
+
     applyPreviewDockLayout() {
         const orientation = this.state.previewDockOrientation;
         const sizePx = this.getDockSizePx(orientation);
@@ -4715,9 +4735,9 @@ This content is loaded from a markdown file.
         }
 
         if (this.dom.previewDockDivider) {
-            this.dom.previewDockDivider.hidden = !this.state.isPreviewDocked;
             this.dom.previewDockDivider.classList.toggle('is-bottom', orientation === 'bottom');
         }
+        this.updateDockDividerVisibility();
 
         this.updatePreviewDockButton();
         this.updateAdaptiveLayoutMode();

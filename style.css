@@ -837,6 +837,12 @@ body.preview-docked-bottom.is-resizing-preview-dock {
 }
 
 
+.preview-dock-divider.is-suspended {
+    opacity: 0;
+    pointer-events: none;
+}
+
+
 #code-modal,
 #media-modal {
     z-index: 1200;
