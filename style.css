@@ -20,6 +20,7 @@
     --shadow-elevated: 0 18px 42px rgba(0, 0, 0, 0.32);
     --radius-md: 10px;
     --radius-lg: 14px;
+    --preview-dock-size: 50vw;
 }
 
 *, *::before, *::after {
@@ -699,6 +700,95 @@ body {
 .modal-overlay[aria-hidden="false"] {
     opacity: 1;
     visibility: visible;
+}
+
+
+body.preview-docked {
+    overflow: hidden;
+}
+
+body.preview-docked-right .container {
+    width: calc(100vw - var(--preview-dock-size));
+    max-width: none;
+    margin: 0;
+    height: 100vh;
+    overflow: auto;
+}
+
+body.preview-docked-bottom .container {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    height: calc(100vh - var(--preview-dock-size));
+    overflow: auto;
+}
+
+#preview-modal.is-docked {
+    background: transparent;
+    padding: 0;
+    opacity: 1;
+    pointer-events: none;
+}
+
+body.preview-docked-right #preview-modal.is-docked {
+    align-items: stretch;
+    justify-content: flex-end;
+}
+
+body.preview-docked-bottom #preview-modal.is-docked {
+    align-items: flex-end;
+    justify-content: stretch;
+}
+
+#preview-modal.is-docked .modal-content {
+    pointer-events: auto;
+    width: var(--preview-dock-size);
+    height: 100vh;
+    border-radius: 0;
+    border-right: 0;
+    border-top: 0;
+    border-bottom: 0;
+    box-shadow: none;
+}
+
+body.preview-docked-bottom #preview-modal.is-docked .modal-content {
+    width: 100vw;
+    height: var(--preview-dock-size);
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
+    border-top: 1px solid var(--border-color);
+}
+
+.preview-dock-divider {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    width: 8px;
+    cursor: col-resize;
+    z-index: 1100;
+    background: linear-gradient(180deg, rgba(137, 180, 250, 0.6), rgba(137, 180, 250, 0.15));
+    border-left: 1px solid rgba(137, 180, 250, 0.7);
+    border-right: 1px solid rgba(17, 17, 27, 0.7);
+    left: calc(100vw - var(--preview-dock-size) - 4px);
+}
+
+.preview-dock-divider.is-bottom {
+    left: 0;
+    right: 0;
+    top: calc(100vh - var(--preview-dock-size) - 4px);
+    height: 8px;
+    width: auto;
+    cursor: row-resize;
+    border-left: 0;
+    border-right: 0;
+    border-top: 1px solid rgba(137, 180, 250, 0.7);
+    border-bottom: 1px solid rgba(17, 17, 27, 0.7);
+    background: linear-gradient(90deg, rgba(137, 180, 250, 0.6), rgba(137, 180, 250, 0.15));
+}
+
+body.is-resizing-preview-dock {
+    user-select: none;
 }
 
 .modal-content {
@@ -2209,5 +2299,13 @@ body {
 
     .files-header-buttons {
         flex-wrap: wrap;
+    }
+}
+
+
+@media (max-width: 700px) {
+    #dock-preview-btn {
+        padding-inline: 0.55rem;
+        font-size: 0.75rem;
     }
 }

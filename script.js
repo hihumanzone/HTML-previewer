@@ -58,6 +58,10 @@ const CodePreviewer = {
         mediaPreviewUrls: new Set(),
         filePanelPreviewUrls: new Map(),
         previewRefreshTimer: null,
+        isPreviewDocked: false,
+        previewDockOrientation: 'right',
+        previewDockSize: { right: 50, bottom: 50 },
+        dockResizeSession: null,
     },
 
     // ============================================================================
@@ -858,6 +862,8 @@ const CodePreviewer = {
             tabBtn: document.getElementById(CONTROL_IDS.TAB_BTN),
             clearConsoleBtn: document.getElementById(CONTROL_IDS.CLEAR_CONSOLE_BTN),
             toggleConsoleBtn: document.getElementById(CONTROL_IDS.TOGGLE_CONSOLE_BTN),
+            dockPreviewBtn: document.getElementById('dock-preview-btn'),
+            previewDockDivider: document.getElementById('preview-dock-divider'),
             addFileBtn: document.getElementById(CONTROL_IDS.ADD_FILE_BTN),
             addFolderBtn: document.getElementById(CONTROL_IDS.ADD_FOLDER_BTN),
             clearAllFilesBtn: document.getElementById(CONTROL_IDS.CLEAR_ALL_FILES_BTN),
@@ -1262,7 +1268,10 @@ This content is loaded from a markdown file.
         this.dom.tabBtn.addEventListener('click', () => this.renderPreview('tab'));
         this.dom.closeModalBtn.addEventListener('click', () => this.toggleModal(false));
         this.dom.toggleConsoleBtn.addEventListener('click', () => this.toggleConsole());
+        this.dom.dockPreviewBtn?.addEventListener('click', () => this.togglePreviewDock());
+        this.dom.previewDockDivider?.addEventListener('pointerdown', (event) => this.startPreviewDockResize(event));
         this.dom.modalOverlay.addEventListener('click', (e) => {
+            if (this.state.isPreviewDocked) return;
             if (e.target === this.dom.modalOverlay) this.toggleModal(false);
         });
         
@@ -1382,6 +1391,7 @@ This content is loaded from a markdown file.
                 }, 80);
             };
             window.addEventListener('resize', this.state.viewportResizeHandler);
+            window.addEventListener('resize', () => this.handleDockViewportResize());
         }
 
     },
@@ -4636,13 +4646,106 @@ This content is loaded from a markdown file.
         }
     },
 
+
+    getPreviewDockOrientation() {
+        const isPortraitMobile = window.matchMedia('(max-width: 900px) and (orientation: portrait)').matches;
+        return isPortraitMobile ? 'bottom' : 'right';
+    },
+
+    updatePreviewDockButton() {
+        if (!this.dom.dockPreviewBtn) return;
+        const isDocked = this.state.isPreviewDocked;
+        this.dom.dockPreviewBtn.classList.toggle('active', isDocked);
+        this.dom.dockPreviewBtn.textContent = isDocked ? '🧲 Undock' : '🧲 Dock';
+        this.dom.dockPreviewBtn.setAttribute('aria-label', isDocked ? 'Undock preview panel' : 'Dock preview panel');
+    },
+
+    applyPreviewDockLayout() {
+        const orientation = this.state.previewDockOrientation;
+        const sizePercent = this.state.previewDockSize[orientation] || 50;
+        const unit = orientation === 'right' ? 'vw' : 'vh';
+        document.documentElement.style.setProperty('--preview-dock-size', `${sizePercent}${unit}`);
+
+        document.body.classList.toggle('preview-docked', this.state.isPreviewDocked);
+        document.body.classList.toggle('preview-docked-right', this.state.isPreviewDocked && orientation === 'right');
+        document.body.classList.toggle('preview-docked-bottom', this.state.isPreviewDocked && orientation === 'bottom');
+
+        if (this.dom.modalOverlay) {
+            this.dom.modalOverlay.classList.toggle('is-docked', this.state.isPreviewDocked);
+            this.dom.modalOverlay.setAttribute('aria-modal', this.state.isPreviewDocked ? 'false' : 'true');
+        }
+
+        if (this.dom.previewDockDivider) {
+            this.dom.previewDockDivider.hidden = !this.state.isPreviewDocked;
+            this.dom.previewDockDivider.classList.toggle('is-bottom', orientation === 'bottom');
+        }
+
+        this.updatePreviewDockButton();
+    },
+
+    togglePreviewDock(forceState = null) {
+        const nextState = typeof forceState === 'boolean' ? forceState : !this.state.isPreviewDocked;
+        this.state.isPreviewDocked = nextState;
+        if (nextState) {
+            this.state.previewDockOrientation = this.getPreviewDockOrientation();
+        }
+        this.applyPreviewDockLayout();
+    },
+
+    handleDockViewportResize() {
+        if (!this.state.isPreviewDocked) return;
+        const nextOrientation = this.getPreviewDockOrientation();
+        if (nextOrientation !== this.state.previewDockOrientation) {
+            this.state.previewDockOrientation = nextOrientation;
+        }
+        this.applyPreviewDockLayout();
+    },
+
+    startPreviewDockResize(event) {
+        if (!this.state.isPreviewDocked) return;
+        event.preventDefault();
+        const orientation = this.state.previewDockOrientation;
+        this.state.dockResizeSession = { orientation };
+
+        const onMove = (moveEvent) => this.handlePreviewDockResize(moveEvent);
+        const onUp = () => {
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('pointerup', onUp);
+            this.state.dockResizeSession = null;
+            document.body.classList.remove('is-resizing-preview-dock');
+        };
+
+        document.body.classList.add('is-resizing-preview-dock');
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+    },
+
+    handlePreviewDockResize(event) {
+        const session = this.state.dockResizeSession;
+        if (!session) return;
+
+        if (session.orientation === 'right') {
+            const width = Math.max(320, window.innerWidth - event.clientX);
+            const percent = (width / window.innerWidth) * 100;
+            this.state.previewDockSize.right = Math.min(70, Math.max(28, percent));
+        } else {
+            const height = Math.max(220, window.innerHeight - event.clientY);
+            const percent = (height / window.innerHeight) * 100;
+            this.state.previewDockSize.bottom = Math.min(75, Math.max(25, percent));
+        }
+
+        this.applyPreviewDockLayout();
+    },
+
     toggleModal(show) {
         this.dom.modalOverlay.setAttribute('aria-hidden', !show);
         if (show) {
+            this.applyPreviewDockLayout();
             this.dom.modalConsolePanel.classList.add('hidden');
             this.dom.toggleConsoleBtn.classList.remove('active');
             this.dom.toggleConsoleBtn.textContent = '📋 Console';
         } else {
+            this.togglePreviewDock(false);
             if (this.state.previewRefreshTimer) {
                 clearTimeout(this.state.previewRefreshTimer);
                 this.state.previewRefreshTimer = null;
