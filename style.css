@@ -146,6 +146,9 @@ body {
     border-radius: var(--radius-md);
     background: var(--surface-muted);
     backdrop-filter: blur(6px);
+    position: relative;
+    z-index: 120;
+    overflow: visible;
 }
 
 .files-header span {
@@ -163,6 +166,7 @@ body {
 
 .settings-menu {
     position: relative;
+    z-index: 130;
 }
 
 .settings-btn {
@@ -196,7 +200,7 @@ body {
     border-radius: 10px;
     background: rgba(24, 24, 37, 0.97);
     box-shadow: 0 16px 30px rgba(0, 0, 0, 0.35);
-    z-index: 20;
+    z-index: 2400;
 }
 
 .settings-option {
@@ -1541,6 +1545,15 @@ body.preview-docked-bottom.is-resizing-preview-dock {
 
     .files-header-buttons button {
         flex: 1 1 calc(50% - 0.3rem);
+        min-height: 40px;
+    }
+
+    .files-header-buttons .settings-menu {
+        flex: 1 1 calc(50% - 0.3rem);
+    }
+
+    .files-header-buttons .settings-menu .settings-btn {
+        width: 100%;
         min-height: 40px;
     }
     
