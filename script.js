@@ -68,6 +68,8 @@ const CodePreviewer = {
             lineWrapping: true,
             autoFormatOnType: true,
             fontSize: 14,
+            tabSize: 2,
+            theme: 'dracula',
         },
     },
 
@@ -103,6 +105,8 @@ const CodePreviewer = {
             SETTINGS_LINE_WRAP: 'setting-line-wrap',
             SETTINGS_AUTO_FORMAT: 'setting-auto-format',
             SETTINGS_FONT_SIZE: 'setting-font-size',
+            SETTINGS_TAB_SIZE: 'setting-tab-size',
+            SETTINGS_EDITOR_THEME: 'setting-editor-theme',
             MAIN_HTML_SELECT: 'main-html-select',
         },
         CONTAINER_IDS: {
@@ -895,6 +899,8 @@ const CodePreviewer = {
             settingLineWrap: document.getElementById(CONTROL_IDS.SETTINGS_LINE_WRAP),
             settingAutoFormat: document.getElementById(CONTROL_IDS.SETTINGS_AUTO_FORMAT),
             settingFontSize: document.getElementById(CONTROL_IDS.SETTINGS_FONT_SIZE),
+            settingTabSize: document.getElementById(CONTROL_IDS.SETTINGS_TAB_SIZE),
+            settingEditorTheme: document.getElementById(CONTROL_IDS.SETTINGS_EDITOR_THEME),
             mainHtmlSelect: document.getElementById(CONTROL_IDS.MAIN_HTML_SELECT),
             mainHtmlSelector: document.getElementById('main-html-selector'),
             mainHtmlDropdown: document.getElementById('main-html-dropdown'),
@@ -1093,9 +1099,11 @@ const CodePreviewer = {
         const editorConfig = (mode) => ({
             lineNumbers: !!this.state.settings.lineNumbers,
             mode: mode,
-            theme: 'dracula',
+            theme: this.state.settings.theme,
             autoCloseTags: mode === 'htmlmixed',
             lineWrapping: !!this.state.settings.lineWrapping,
+            tabSize: this.state.settings.tabSize,
+            indentUnit: this.state.settings.tabSize,
         });
 
         if (this.dom.htmlEditor) {
@@ -1298,6 +1306,8 @@ This content is loaded from a markdown file.
                 ...this.state.settings,
                 ...parsed,
                 fontSize: Number(parsed?.fontSize) || this.state.settings.fontSize,
+                tabSize: Number(parsed?.tabSize) || this.state.settings.tabSize,
+                theme: ['dracula', 'default'].includes(parsed?.theme) ? parsed.theme : this.state.settings.theme,
             };
         } catch (error) {
             console.warn('Unable to load settings:', error);
@@ -1317,6 +1327,8 @@ This content is loaded from a markdown file.
         if (this.dom.settingLineWrap) this.dom.settingLineWrap.checked = !!this.state.settings.lineWrapping;
         if (this.dom.settingAutoFormat) this.dom.settingAutoFormat.checked = !!this.state.settings.autoFormatOnType;
         if (this.dom.settingFontSize) this.dom.settingFontSize.value = String(this.state.settings.fontSize);
+        if (this.dom.settingTabSize) this.dom.settingTabSize.value = String(this.state.settings.tabSize);
+        if (this.dom.settingEditorTheme) this.dom.settingEditorTheme.value = this.state.settings.theme;
     },
 
     getAllEditors() {
@@ -1334,6 +1346,9 @@ This content is loaded from a markdown file.
         if (editor.setOption) {
             editor.setOption('lineNumbers', !!this.state.settings.lineNumbers);
             editor.setOption('lineWrapping', !!this.state.settings.lineWrapping);
+            editor.setOption('tabSize', this.state.settings.tabSize);
+            editor.setOption('indentUnit', this.state.settings.tabSize);
+            editor.setOption('theme', this.state.settings.theme);
         }
 
         const wrapper = editor.getWrapperElement ? editor.getWrapperElement() : null;
@@ -1538,6 +1553,22 @@ This content is loaded from a markdown file.
             this.dom.settingFontSize.addEventListener('change', () => {
                 applySettingAndClose(() => {
                     this.state.settings.fontSize = Number(this.dom.settingFontSize.value) || 14;
+                }, { refreshEditors: true });
+            });
+        }
+
+        if (this.dom.settingTabSize) {
+            this.dom.settingTabSize.addEventListener('change', () => {
+                applySettingAndClose(() => {
+                    this.state.settings.tabSize = Number(this.dom.settingTabSize.value) || 2;
+                }, { refreshEditors: true });
+            });
+        }
+
+        if (this.dom.settingEditorTheme) {
+            this.dom.settingEditorTheme.addEventListener('change', () => {
+                applySettingAndClose(() => {
+                    this.state.settings.theme = this.dom.settingEditorTheme.value || 'dracula';
                 }, { refreshEditors: true });
             });
         }
@@ -2857,9 +2888,11 @@ This content is loaded from a markdown file.
             const editor = window.CodeMirror.fromTextArea(textarea, {
                 lineNumbers: !!this.state.settings.lineNumbers,
                 mode: mode,
-                theme: 'dracula',
+                theme: this.state.settings.theme,
                 autoCloseTags: fileType === 'html',
                 lineWrapping: !!this.state.settings.lineWrapping,
+                tabSize: this.state.settings.tabSize,
+                indentUnit: this.state.settings.tabSize,
                 readOnly: isBinary ? 'nocursor' : false
             });
             this.applySettingsToEditor(editor);
@@ -4159,9 +4192,11 @@ This content is loaded from a markdown file.
                     this.state.codeModalEditor = window.CodeMirror.fromTextArea(editorTextarea, {
                         lineNumbers: true,
                         mode: language,
-                        theme: 'dracula',
+                        theme: this.state.settings.theme,
                         readOnly: false,
-                        lineWrapping: true,
+                        lineWrapping: !!this.state.settings.lineWrapping,
+                        tabSize: this.state.settings.tabSize,
+                        indentUnit: this.state.settings.tabSize,
                         autoCloseTags: true,
                         viewportMargin: Infinity,
                         extraKeys: {
@@ -4172,6 +4207,7 @@ This content is loaded from a markdown file.
                 } else {
                     this.state.codeModalEditor.setOption('mode', language);
                     this.state.codeModalEditor.setOption('readOnly', false);
+                    this.applySettingsToEditor(this.state.codeModalEditor);
                 }
 
                 this.state.codeModalEditor.setValue(content);
