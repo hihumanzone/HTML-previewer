@@ -14,7 +14,7 @@
     --transition-speed: 0.2s;
     --file-panel-size: 420px;
     --panel-mobile-min-height: 340px;
-    --panel-mobile-max-height: 72vh;
+    --panel-mobile-max-height: 144vh;
 }
 
 *, *::before, *::after {
@@ -2084,7 +2084,7 @@ body {
 @media (max-width: 600px) {
     .editor-panel {
         min-height: 300px;
-        max-height: 68vh;
+        max-height: 136vh;
     }
 }
 
