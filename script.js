@@ -62,6 +62,12 @@ const CodePreviewer = {
         previewDockOrientation: 'right',
         previewDockSize: { right: null, bottom: null },
         dockResizeSession: null,
+        settings: {
+            lineNumbers: true,
+            lineWrapping: true,
+            autoFormatOnType: true,
+            fontSize: 14,
+        },
     },
 
     // ============================================================================
@@ -90,6 +96,12 @@ const CodePreviewer = {
             IMPORT_FOLDER_BTN: 'import-folder-btn',
             IMPORT_ZIP_BTN: 'import-zip-btn',
             EXPORT_ZIP_BTN: 'export-zip-btn',
+            SETTINGS_BTN: 'settings-btn',
+            SETTINGS_PANEL: 'settings-panel',
+            SETTINGS_LINE_NUMBERS: 'setting-line-numbers',
+            SETTINGS_LINE_WRAP: 'setting-line-wrap',
+            SETTINGS_AUTO_FORMAT: 'setting-auto-format',
+            SETTINGS_FONT_SIZE: 'setting-font-size',
             MAIN_HTML_SELECT: 'main-html-select',
         },
         CONTAINER_IDS: {
@@ -104,6 +116,7 @@ const CodePreviewer = {
         CONSOLE_ID: 'console-output',
         MODAL_CONSOLE_PANEL_ID: 'modal-console-panel',
         CONSOLE_MESSAGE_TYPE: 'console',
+        SETTINGS_STORAGE_KEY: 'codepreviewer.settings',
         
         FILE_TYPES: {
             EXTENSIONS: {
@@ -843,11 +856,14 @@ const CodePreviewer = {
     
     init() {
         this.cacheDOMElements();
+        this.loadSettings();
         this.initEditors();
         this.bindEvents();
         this.bindFileTreeEvents();
         this.initExistingFilePanels();
         this.ensureDefaultContentFile();
+        this.applyEditorSettingsToAllEditors();
+        this.syncSettingsUI();
         this.console.init(this.dom.consoleOutput, this.dom.clearConsoleBtn, this.dom.previewFrame);
         this.updatePreviewActionButtons();
         this.updateAdaptiveLayoutMode();
@@ -872,6 +888,13 @@ const CodePreviewer = {
             importFolderBtn: document.getElementById(CONTROL_IDS.IMPORT_FOLDER_BTN),
             importZipBtn: document.getElementById(CONTROL_IDS.IMPORT_ZIP_BTN),
             exportZipBtn: document.getElementById(CONTROL_IDS.EXPORT_ZIP_BTN),
+            settingsMenu: document.getElementById('settings-menu'),
+            settingsBtn: document.getElementById(CONTROL_IDS.SETTINGS_BTN),
+            settingsPanel: document.getElementById(CONTROL_IDS.SETTINGS_PANEL),
+            settingLineNumbers: document.getElementById(CONTROL_IDS.SETTINGS_LINE_NUMBERS),
+            settingLineWrap: document.getElementById(CONTROL_IDS.SETTINGS_LINE_WRAP),
+            settingAutoFormat: document.getElementById(CONTROL_IDS.SETTINGS_AUTO_FORMAT),
+            settingFontSize: document.getElementById(CONTROL_IDS.SETTINGS_FONT_SIZE),
             mainHtmlSelect: document.getElementById(CONTROL_IDS.MAIN_HTML_SELECT),
             mainHtmlSelector: document.getElementById('main-html-selector'),
             mainHtmlDropdown: document.getElementById('main-html-dropdown'),
@@ -1068,11 +1091,11 @@ const CodePreviewer = {
         }
 
         const editorConfig = (mode) => ({
-            lineNumbers: true,
+            lineNumbers: !!this.state.settings.lineNumbers,
             mode: mode,
             theme: 'dracula',
             autoCloseTags: mode === 'htmlmixed',
-            lineWrapping: true,
+            lineWrapping: !!this.state.settings.lineWrapping,
         });
 
         if (this.dom.htmlEditor) {
@@ -1085,6 +1108,7 @@ const CodePreviewer = {
             this.state.editors.js = window.CodeMirror.fromTextArea(this.dom.jsEditor, editorConfig('javascript'));
         }
 
+        this.applyEditorSettingsToAllEditors();
         this.setDefaultContent();
     },
 
@@ -1093,7 +1117,7 @@ const CodePreviewer = {
             if (!textarea) return null;
             
             Object.assign(textarea.style, {
-                fontFamily: 'monospace', fontSize: '14px', lineHeight: '1.5',
+                fontFamily: 'monospace', fontSize: `${this.state.settings.fontSize}px`, lineHeight: '1.5',
                 resize: 'none', border: 'none', outline: 'none',
                 background: '#282a36', color: '#f8f8f2', padding: '1rem',
                 width: '100%', height: '400px'
@@ -1264,6 +1288,81 @@ This content is loaded from a markdown file.
         this.refreshPanelAndFileTreeUI();
     },
 
+
+    loadSettings() {
+        try {
+            const raw = localStorage.getItem(this.constants.SETTINGS_STORAGE_KEY);
+            if (!raw) return;
+            const parsed = JSON.parse(raw);
+            this.state.settings = {
+                ...this.state.settings,
+                ...parsed,
+                fontSize: Number(parsed?.fontSize) || this.state.settings.fontSize,
+            };
+        } catch (error) {
+            console.warn('Unable to load settings:', error);
+        }
+    },
+
+    saveSettings() {
+        try {
+            localStorage.setItem(this.constants.SETTINGS_STORAGE_KEY, JSON.stringify(this.state.settings));
+        } catch (error) {
+            console.warn('Unable to save settings:', error);
+        }
+    },
+
+    syncSettingsUI() {
+        if (this.dom.settingLineNumbers) this.dom.settingLineNumbers.checked = !!this.state.settings.lineNumbers;
+        if (this.dom.settingLineWrap) this.dom.settingLineWrap.checked = !!this.state.settings.lineWrapping;
+        if (this.dom.settingAutoFormat) this.dom.settingAutoFormat.checked = !!this.state.settings.autoFormatOnType;
+        if (this.dom.settingFontSize) this.dom.settingFontSize.value = String(this.state.settings.fontSize);
+    },
+
+    getAllEditors() {
+        const editors = Object.values(this.state.editors || {}).filter(Boolean);
+        this.state.files.forEach(file => {
+            if (file.editor) editors.push(file.editor);
+        });
+        if (this.state.codeModalEditor) editors.push(this.state.codeModalEditor);
+        return editors;
+    },
+
+    applySettingsToEditor(editor) {
+        if (!editor) return;
+
+        if (editor.setOption) {
+            editor.setOption('lineNumbers', !!this.state.settings.lineNumbers);
+            editor.setOption('lineWrapping', !!this.state.settings.lineWrapping);
+        }
+
+        const wrapper = editor.getWrapperElement ? editor.getWrapperElement() : null;
+        if (wrapper) {
+            wrapper.style.fontSize = `${this.state.settings.fontSize}px`;
+        }
+
+        if (!editor.setOption && editor.getTextArea) {
+            const textarea = editor.getTextArea();
+            if (textarea) textarea.style.fontSize = `${this.state.settings.fontSize}px`;
+        }
+
+        if (editor.refresh) {
+            editor.refresh();
+        }
+    },
+
+    applyEditorSettingsToAllEditors() {
+        this.getAllEditors().forEach((editor) => this.applySettingsToEditor(editor));
+    },
+
+    toggleSettingsPanel(forceOpen = null) {
+        if (!this.dom.settingsBtn || !this.dom.settingsPanel) return;
+        const isOpen = this.dom.settingsBtn.getAttribute('aria-expanded') === 'true';
+        const shouldOpen = forceOpen === null ? !isOpen : !!forceOpen;
+        this.dom.settingsBtn.setAttribute('aria-expanded', String(shouldOpen));
+        this.dom.settingsPanel.hidden = !shouldOpen;
+    },
+
     bindEvents() {
         this.dom.modalBtn.addEventListener('click', () => this.renderPreview('modal'));
         this.dom.tabBtn.addEventListener('click', () => this.renderPreview('tab'));
@@ -1312,6 +1411,9 @@ This content is loaded from a markdown file.
 
             if (e.key === 'Escape' && this.dom.modalOverlay.getAttribute('aria-hidden') === 'false') {
                 this.toggleModal(false);
+            }
+            if (e.key === 'Escape') {
+                this.toggleSettingsPanel(false);
             }
             if (e.key === 'Escape') {
                 const codeModal = document.getElementById('code-modal');
@@ -1374,7 +1476,52 @@ This content is loaded from a markdown file.
         this.dom.exportZipBtn.addEventListener('click', () => this.exportZip());
         this.setupMainHtmlDropdownEvents();
 
+        if (this.dom.settingsBtn) {
+            this.dom.settingsBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                this.toggleSettingsPanel();
+            });
+        }
+
+        if (this.dom.settingsPanel) {
+            this.dom.settingsPanel.addEventListener('click', (event) => event.stopPropagation());
+        }
+
+        if (this.dom.settingLineNumbers) {
+            this.dom.settingLineNumbers.addEventListener('change', () => {
+                this.state.settings.lineNumbers = this.dom.settingLineNumbers.checked;
+                this.applyEditorSettingsToAllEditors();
+                this.saveSettings();
+            });
+        }
+
+        if (this.dom.settingLineWrap) {
+            this.dom.settingLineWrap.addEventListener('change', () => {
+                this.state.settings.lineWrapping = this.dom.settingLineWrap.checked;
+                this.applyEditorSettingsToAllEditors();
+                this.saveSettings();
+            });
+        }
+
+        if (this.dom.settingAutoFormat) {
+            this.dom.settingAutoFormat.addEventListener('change', () => {
+                this.state.settings.autoFormatOnType = this.dom.settingAutoFormat.checked;
+                this.saveSettings();
+            });
+        }
+
+        if (this.dom.settingFontSize) {
+            this.dom.settingFontSize.addEventListener('change', () => {
+                this.state.settings.fontSize = Number(this.dom.settingFontSize.value) || 14;
+                this.applyEditorSettingsToAllEditors();
+                this.saveSettings();
+            });
+        }
+
         document.addEventListener('click', (event) => {
+            if (this.dom.settingsMenu && !event.target.closest('#settings-menu')) {
+                this.toggleSettingsPanel(false);
+            }
             if (!event.target.closest('.file-type-dropdown')) {
                 this.closeAllFileTypeDropdowns();
             }
@@ -2686,17 +2833,19 @@ This content is loaded from a markdown file.
         if (typeof window.CodeMirror !== 'undefined' && textarea) {
             const mode = this.getCodeMirrorMode(fileType);
             
-            return window.CodeMirror.fromTextArea(textarea, {
-                lineNumbers: true,
+            const editor = window.CodeMirror.fromTextArea(textarea, {
+                lineNumbers: !!this.state.settings.lineNumbers,
                 mode: mode,
                 theme: 'dracula',
                 autoCloseTags: fileType === 'html',
-                lineWrapping: true,
+                lineWrapping: !!this.state.settings.lineWrapping,
                 readOnly: isBinary ? 'nocursor' : false
             });
+            this.applySettingsToEditor(editor);
+            return editor;
         } else if (textarea) {
             Object.assign(textarea.style, {
-                fontFamily: 'monospace', fontSize: '14px', lineHeight: '1.5',
+                fontFamily: 'monospace', fontSize: `${this.state.settings.fontSize}px`, lineHeight: '1.5',
                 resize: 'none', border: 'none', outline: 'none',
                 background: '#282a36', color: '#f8f8f2', padding: '1rem',
                 width: '100%', height: '400px'
@@ -3598,6 +3747,7 @@ This content is loaded from a markdown file.
     },
 
     scheduleAutoFormat(fileId, editor, fileType) {
+        if (!this.state.settings.autoFormatOnType) return;
         if (!fileId || !editor || !this.isEditableFileType(fileType) || !this.supportsFormattingForType(fileType)) return;
 
         const existingTimer = this.state.autoFormatTimers.get(fileId);
@@ -4012,7 +4162,7 @@ This content is loaded from a markdown file.
                 editorTextarea.style.width = '100%';
                 editorTextarea.style.height = '100%';
                 editorTextarea.style.fontFamily = 'monospace';
-                editorTextarea.style.fontSize = '14px';
+                editorTextarea.style.fontSize = `${this.state.settings.fontSize}px`;
                 editorTextarea.style.border = 'none';
                 editorTextarea.style.outline = 'none';
                 editorTextarea.style.padding = '10px';
