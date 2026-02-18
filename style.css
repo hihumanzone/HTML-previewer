@@ -232,12 +232,13 @@ body {
 }
 
 .settings-option-description {
-    color: rgba(205, 214, 244, 0.62);
-    font-size: 0.62rem;
-    line-height: 1.3;
-    letter-spacing: 0.01em;
+    color: rgba(205, 214, 244, 0.52);
+    font-size: 0.5rem;
+    line-height: 1.18;
+    letter-spacing: 0.015em;
     font-style: italic;
-    max-width: 26ch;
+    max-width: 22ch;
+    text-transform: lowercase;
 }
 
 .settings-option:not(.settings-select) {
