@@ -425,6 +425,23 @@ const CodePreviewer = {
         },
 
         /**
+         * Generates JavaScript code for a shared base64-to-Uint8Array helper (used in injected scripts)
+         * Eliminates duplicate byte-conversion loops in fetch, XHR, and other overrides
+         * @returns {string} JavaScript code for the base64ToUint8Array function
+         */
+        generateBase64HelperCode() {
+            return `
+    function base64ToUint8Array(base64) {
+        const binaryString = atob(base64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+        return bytes;
+    }`;
+        },
+
+        /**
          * Generates JavaScript code for the fetch override (used in injected scripts)
          * Intercepts fetch requests to serve files from the virtual file system
          * @returns {string} JavaScript code for the fetch override
@@ -468,13 +485,7 @@ const CodePreviewer = {
                     if (fileData.isBinary && fileData.content.startsWith("data:")) {
                         const [header, base64] = fileData.content.split(",");
                         const mimeType = header.match(/data:([^;]+)/)[1];
-                        const byteCharacters = atob(base64);
-                        const byteNumbers = new Array(byteCharacters.length);
-                        for (let i = 0; i < byteCharacters.length; i++) {
-                            byteNumbers[i] = byteCharacters.charCodeAt(i);
-                        }
-                        const byteArray = new Uint8Array(byteNumbers);
-                        return Promise.resolve(new Blob([byteArray], { type: mimeType }));
+                        return Promise.resolve(new Blob([base64ToUint8Array(base64)], { type: mimeType }));
                     } else {
                         return Promise.resolve(new Blob([fileData.content], { type: "text/plain" }));
                     }
@@ -482,12 +493,7 @@ const CodePreviewer = {
                 arrayBuffer: () => {
                     if (fileData.isBinary && fileData.content.startsWith("data:")) {
                         const [header, base64] = fileData.content.split(",");
-                        const byteCharacters = atob(base64);
-                        const byteNumbers = new Array(byteCharacters.length);
-                        for (let i = 0; i < byteCharacters.length; i++) {
-                            byteNumbers[i] = byteCharacters.charCodeAt(i);
-                        }
-                        return Promise.resolve(new Uint8Array(byteNumbers).buffer);
+                        return Promise.resolve(base64ToUint8Array(base64).buffer);
                     } else {
                         const encoder = new TextEncoder();
                         return Promise.resolve(encoder.encode(fileData.content).buffer);
@@ -556,22 +562,11 @@ const CodePreviewer = {
                             if (virtualFileData.isBinary && virtualFileData.content.startsWith("data:")) {
                                 if (xhr.responseType === "arraybuffer") {
                                     const [header, base64] = virtualFileData.content.split(",");
-                                    const byteCharacters = atob(base64);
-                                    const byteNumbers = new Array(byteCharacters.length);
-                                    for (let i = 0; i < byteCharacters.length; i++) {
-                                        byteNumbers[i] = byteCharacters.charCodeAt(i);
-                                    }
-                                    Object.defineProperty(xhr, "response", { value: new Uint8Array(byteNumbers).buffer, configurable: true });
+                                    Object.defineProperty(xhr, "response", { value: base64ToUint8Array(base64).buffer, configurable: true });
                                 } else if (xhr.responseType === "blob") {
                                     const [header, base64] = virtualFileData.content.split(",");
                                     const mimeType = header.match(/data:([^;]+)/)[1];
-                                    const byteCharacters = atob(base64);
-                                    const byteNumbers = new Array(byteCharacters.length);
-                                    for (let i = 0; i < byteCharacters.length; i++) {
-                                        byteNumbers[i] = byteCharacters.charCodeAt(i);
-                                    }
-                                    const byteArray = new Uint8Array(byteNumbers);
-                                    Object.defineProperty(xhr, "response", { value: new Blob([byteArray], { type: mimeType }), configurable: true });
+                                    Object.defineProperty(xhr, "response", { value: new Blob([base64ToUint8Array(base64)], { type: mimeType }), configurable: true });
                                 } else {
                                     Object.defineProperty(xhr, "response", { value: virtualFileData.content, configurable: true });
                                     Object.defineProperty(xhr, "responseText", { value: virtualFileData.content, configurable: true });
@@ -630,16 +625,32 @@ const CodePreviewer = {
          * Intercepts Image src assignments to serve images from the virtual file system
          * @returns {string} JavaScript code for the Image constructor override
          */
-        generateImageOverrideCode() {
+        /**
+         * Generates JavaScript code for a media constructor override (used in injected scripts).
+         * Intercepts src assignments to serve files from the virtual file system.
+         * Used to generate both Image and Audio overrides.
+         * @param {Object} options - Configuration for the override
+         * @param {string} options.name - Constructor name (e.g., 'Image', 'Audio')
+         * @param {string} options.typeCheck - JS expression for matching file types
+         * @param {string} options.resolveExpr - JS expression to resolve the src value
+         * @param {boolean} options.hasInitialSrc - Whether the constructor accepts an initial src argument
+         * @returns {string} JavaScript code for the constructor override
+         */
+        generateMediaOverrideCode({ name, typeCheck, resolveExpr, hasInitialSrc }) {
+            const paramList = hasInitialSrc ? 'src' : '';
+            const initSrc = hasInitialSrc ? `
+        if (src !== undefined) {
+            el.src = src;
+        }` : '';
             return `
-    const OriginalImage = window.Image;
-    window.Image = function() {
-        const img = new OriginalImage();
+    const Original${name} = window.${name};
+    window.${name} = function(${paramList}) {
+        const el = new Original${name}();
         
         let _originalSrc = "";
         let _resolvedSrc = "";
         
-        Object.defineProperty(img, "src", {
+        Object.defineProperty(el, "src", {
             get: function() {
                 return _resolvedSrc || _originalSrc;
             },
@@ -650,67 +661,39 @@ const CodePreviewer = {
                 let targetPath = value.replace(/^\\.\\//,"");
                 const fileData = findFileInSystem(targetPath, currentFilePath);
                 
-                if (fileData && (fileData.type === "image" || fileData.type === "svg")) {
-                    const dataUrl = fileData.isBinary ? fileData.content : 
-                                   "data:image/svg+xml;charset=utf-8," + encodeURIComponent(fileData.content);
-                    _resolvedSrc = dataUrl;
-                    img.setAttribute("src", dataUrl);
+                if (fileData && (${typeCheck})) {
+                    const resolved = ${resolveExpr};
+                    _resolvedSrc = resolved;
+                    el.setAttribute("src", resolved);
                 } else {
                     _resolvedSrc = value;
-                    img.setAttribute("src", value);
+                    el.setAttribute("src", value);
                 }
             },
             enumerable: true,
             configurable: true
         });
-        
-        return img;
+        ${initSrc}
+        return el;
     };`;
         },
 
-        /**
-         * Generates JavaScript code for the Audio constructor override (used in injected scripts)
-         * Intercepts Audio src assignments to serve audio files from the virtual file system
-         * @returns {string} JavaScript code for the Audio constructor override
-         */
+        generateImageOverrideCode() {
+            return this.generateMediaOverrideCode({
+                name: 'Image',
+                typeCheck: 'fileData.type === "image" || fileData.type === "svg"',
+                resolveExpr: 'fileData.isBinary ? fileData.content : "data:image/svg+xml;charset=utf-8," + encodeURIComponent(fileData.content)',
+                hasInitialSrc: false
+            });
+        },
+
         generateAudioOverrideCode() {
-            return `
-    const OriginalAudio = window.Audio;
-    window.Audio = function(src) {
-        const audio = new OriginalAudio();
-        
-        let _originalSrc = "";
-        let _resolvedSrc = "";
-        
-        Object.defineProperty(audio, "src", {
-            get: function() {
-                return _resolvedSrc || _originalSrc;
-            },
-            set: function(value) {
-                _originalSrc = value;
-                
-                const currentFilePath = getCurrentFilePath();
-                let targetPath = value.replace(/^\\.\\//,"");
-                const fileData = findFileInSystem(targetPath, currentFilePath);
-                
-                if (fileData && fileData.type === "audio") {
-                    _resolvedSrc = fileData.content;
-                    audio.setAttribute("src", fileData.content);
-                } else {
-                    _resolvedSrc = value;
-                    audio.setAttribute("src", value);
-                }
-            },
-            enumerable: true,
-            configurable: true
-        });
-        
-        if (src !== undefined) {
-            audio.src = src;
-        }
-        
-        return audio;
-    };`;
+            return this.generateMediaOverrideCode({
+                name: 'Audio',
+                typeCheck: 'fileData.type === "audio"',
+                resolveExpr: 'fileData.content',
+                hasInitialSrc: true
+            });
         },
 
         /**
@@ -924,6 +907,29 @@ const CodePreviewer = {
             .replace(/'/g, '&#39;');
     },
 
+    /**
+     * Decodes a base64 string into a Uint8Array.
+     * @param {string} base64 - The base64-encoded string
+     * @returns {Uint8Array} The decoded byte array
+     */
+    base64ToUint8Array(base64) {
+        const binaryString = atob(base64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+        return bytes;
+    },
+
+    /**
+     * Gets the current content of a file, preferring the editor value when available.
+     * @param {Object} file - The file object with optional editor and content properties
+     * @returns {string} The file content
+     */
+    getFileContent(file) {
+        return file.content || (file.editor && file.editor.getValue ? file.editor.getValue() : '');
+    },
+
     createObjectUrlFromDataUrl(dataUrl) {
         if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) return dataUrl;
         try {
@@ -934,14 +940,7 @@ const CodePreviewer = {
             const mimeTypeMatch = header.match(/^data:([^;]+)/i);
             const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : 'application/octet-stream';
             const blob = header.includes(';base64')
-                ? (() => {
-                    const binaryString = atob(dataPart);
-                    const bytes = new Uint8Array(binaryString.length);
-                    for (let i = 0; i < binaryString.length; i++) {
-                        bytes[i] = binaryString.charCodeAt(i);
-                    }
-                    return new Blob([bytes], { type: mimeType });
-                })()
+                ? new Blob([this.base64ToUint8Array(dataPart)], { type: mimeType })
                 : new Blob([decodeURIComponent(dataPart)], { type: mimeType });
             return URL.createObjectURL(blob);
         } catch (error) {
@@ -4264,7 +4263,7 @@ This content is loaded from a markdown file.
             
             if (currentFilename && file.editor) {
                 const fileData = {
-                    content: file.content || file.editor.getValue(),
+                    content: this.getFileContent(file),
                     type: file.type,
                     isBinary: file.isBinary || false
                 };
@@ -4314,14 +4313,8 @@ This content is loaded from a markdown file.
     },
 
     replaceAssetReferences(htmlContent, fileSystem, currentFilePath = '') {
-        htmlContent = this.assetReplacers.replaceCSS(htmlContent, fileSystem, currentFilePath);
-        htmlContent = this.assetReplacers.replaceImages(htmlContent, fileSystem, currentFilePath);
-        htmlContent = this.assetReplacers.replaceVideoSources(htmlContent, fileSystem, currentFilePath);
-        htmlContent = this.assetReplacers.replaceSourceElements(htmlContent, fileSystem, currentFilePath);
-        htmlContent = this.assetReplacers.replaceAudioSources(htmlContent, fileSystem, currentFilePath);
-        htmlContent = this.assetReplacers.replaceFavicons(htmlContent, fileSystem, currentFilePath);
+        htmlContent = this.assetReplacers.replaceAllConfigBased(htmlContent, fileSystem, currentFilePath);
         htmlContent = this.assetReplacers.replaceDownloadLinks(htmlContent, fileSystem, currentFilePath);
-        htmlContent = this.assetReplacers.replaceFontLinks(htmlContent, fileSystem, currentFilePath);
         htmlContent = this.assetReplacers.replaceStyleTags(htmlContent, fileSystem, currentFilePath);
         
         const workerFileNames = this.extractWorkerFileNames(htmlContent);
@@ -4735,7 +4728,7 @@ This content is loaded from a markdown file.
             
             this.state.files.forEach((file, index) => {
                 const filename = this.getFileNameFromPanel(file.id) || `file_${file.id}`;
-                let content = file.content || file.editor.getValue();
+                let content = this.getFileContent(file);
                 
                 if (filename.includes('/')) {
                     const pathParts = filename.split('/');
@@ -5127,28 +5120,19 @@ This content is loaded from a markdown file.
             });
         },
 
-        replaceCSS(htmlContent, fileSystem, currentFilePath) {
-            return this.applyReplacement(htmlContent, fileSystem, currentFilePath, this.REPLACEMENT_CONFIGS.css);
-        },
-
-        replaceImages(htmlContent, fileSystem, currentFilePath) {
-            return this.applyReplacement(htmlContent, fileSystem, currentFilePath, this.REPLACEMENT_CONFIGS.images);
-        },
-
-        replaceVideoSources(htmlContent, fileSystem, currentFilePath) {
-            return this.applyReplacement(htmlContent, fileSystem, currentFilePath, this.REPLACEMENT_CONFIGS.video);
-        },
-
-        replaceSourceElements(htmlContent, fileSystem, currentFilePath) {
-            return this.applyReplacement(htmlContent, fileSystem, currentFilePath, this.REPLACEMENT_CONFIGS.source);
-        },
-
-        replaceAudioSources(htmlContent, fileSystem, currentFilePath) {
-            return this.applyReplacement(htmlContent, fileSystem, currentFilePath, this.REPLACEMENT_CONFIGS.audio);
-        },
-
-        replaceFavicons(htmlContent, fileSystem, currentFilePath) {
-            return this.applyReplacement(htmlContent, fileSystem, currentFilePath, this.REPLACEMENT_CONFIGS.favicon);
+        /**
+         * Applies all config-driven replacements (CSS, images, video, source, audio, favicon, font)
+         * in a single pass over the configuration map.
+         * @param {string} htmlContent - The HTML content to process
+         * @param {Map} fileSystem - The virtual file system
+         * @param {string} currentFilePath - Current file path for relative resolution
+         * @returns {string} Processed HTML content
+         */
+        replaceAllConfigBased(htmlContent, fileSystem, currentFilePath) {
+            for (const config of Object.values(this.REPLACEMENT_CONFIGS)) {
+                htmlContent = this.applyReplacement(htmlContent, fileSystem, currentFilePath, config);
+            }
+            return htmlContent;
         },
 
         replaceDownloadLinks(htmlContent, fileSystem, currentFilePath) {
@@ -5162,10 +5146,6 @@ This content is loaded from a markdown file.
                 }
                 return match;
             });
-        },
-
-        replaceFontLinks(htmlContent, fileSystem, currentFilePath) {
-            return this.applyReplacement(htmlContent, fileSystem, currentFilePath, this.REPLACEMENT_CONFIGS.font);
         },
 
         replaceStyleTags(htmlContent, fileSystem, currentFilePath) {
@@ -5550,10 +5530,7 @@ This content is loaded from a markdown file.
                 const base64Data = btoa(binaryChars.join(''));
                 fileSystemScript = `
                     const virtualFileSystemData = "${base64Data}";
-                    const rawBytes = atob(virtualFileSystemData);
-                    const bytes = new Uint8Array(rawBytes.length);
-                    for (let i = 0; i < rawBytes.length; i++) bytes[i] = rawBytes.charCodeAt(i);
-                    const virtualFileSystem = JSON.parse(new TextDecoder().decode(bytes));
+                    const virtualFileSystem = JSON.parse(new TextDecoder().decode(base64ToUint8Array(virtualFileSystemData)));
                     const mainHtmlPath = "${mainHtmlPath}";
                 `;
             } else {
@@ -5565,6 +5542,7 @@ This content is loaded from a markdown file.
             
             // Use the centralized code generators from fileSystemUtils
             const fsUtils = CodePreviewer.fileSystemUtils;
+            const base64HelperCode = fsUtils.generateBase64HelperCode();
             const resolvePathCode = fsUtils.generateResolvePathCode();
             const findFileCode = fsUtils.generateFindFileCode();
             const getCurrentFilePathCode = fsUtils.generateGetCurrentFilePathCode();
@@ -5579,6 +5557,7 @@ This content is loaded from a markdown file.
             return `<script>
 (function() {
     ${fileSystemScript}
+    ${base64HelperCode}
     ${resolvePathCode}
     ${findFileCode}
     ${getCurrentFilePathCode}
