@@ -13,6 +13,8 @@
     --modal-bg: rgba(17, 17, 27, 0.75);
     --transition-speed: 0.2s;
     --file-panel-size: 420px;
+    --panel-mobile-min-height: 340px;
+    --panel-mobile-max-height: 144vh;
 }
 
 *, *::before, *::after {
@@ -1319,25 +1321,57 @@ body {
     z-index: 3;
     background: linear-gradient(180deg, rgba(24, 24, 37, 0.96), rgba(49, 50, 68, 0.92));
     border: 1px solid rgba(137, 180, 250, 0.18);
-    border-radius: 6px;
-    padding: 0.45rem;
+    border-radius: 10px;
+    padding: 0.5rem;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22);
+}
+
+.file-tree-search-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-bottom: 0.4rem;
 }
 
 .file-tree-search-input {
     width: 100%;
-    margin-bottom: 0.4rem;
+    margin-bottom: 0;
     background: rgba(49, 50, 68, 0.88);
     border: 1px solid rgba(137, 180, 250, 0.2);
-    border-radius: 6px;
+    border-radius: 8px;
     color: var(--primary-color);
     font-size: 0.76rem;
-    padding: 0.38rem 0.5rem;
+    padding: 0.42rem 0.6rem;
+}
+
+.file-tree-search-hint {
+    flex: 0 0 auto;
+    font-size: 0.64rem;
+    color: rgba(205, 214, 244, 0.72);
+    border: 1px solid rgba(137, 180, 250, 0.25);
+    border-radius: 6px;
+    padding: 0.18rem 0.34rem;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+.file-tree-toolbar-meta {
+    font-size: 0.65rem;
+    color: rgba(205, 214, 244, 0.7);
+    margin-bottom: 0.4rem;
+    padding-left: 0.1rem;
 }
 
 .file-tree-search-input:focus {
     outline: none;
     border-color: var(--accent-color);
     box-shadow: 0 0 0 2px rgba(137, 180, 250, 0.15);
+}
+
+@media (max-width: 900px) {
+    .file-tree-search-hint {
+        display: none;
+    }
 }
 
 .file-tree-toolbar-actions {
@@ -1351,10 +1385,16 @@ body {
     background: rgba(49, 50, 68, 0.8);
     border: 1px solid var(--border-color);
     color: var(--primary-color);
-    border-radius: 5px;
-    padding: 0.28rem 0.35rem;
+    border-radius: 7px;
+    padding: 0.3rem 0.35rem;
     font-size: 0.68rem;
     cursor: pointer;
+    transition: background-color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+
+.tree-toolbar-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
 }
 
 .tree-toolbar-btn:hover,
@@ -1964,6 +2004,9 @@ body {
 
     .editor-panel {
         min-width: 0;
+        aspect-ratio: auto;
+        max-height: var(--panel-mobile-max-height);
+        min-height: var(--panel-mobile-min-height);
     }
 }
 
@@ -2035,6 +2078,13 @@ body {
     .tree-folder-header .folder-actions,
     .tree-file .file-actions {
         display: flex;
+    }
+}
+
+@media (max-width: 600px) {
+    .editor-panel {
+        min-height: 300px;
+        max-height: 136vh;
     }
 }
 
