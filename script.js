@@ -4824,22 +4824,22 @@ This content is loaded from a markdown file.
         filePreview(type, content, fileName = '') {
             const previews = {
                 image: `<div class="file-preview image-preview">
-                    <img src="${content}" alt="Preview" style="max-width: 100%; max-height: 400px;">
+                    <img src="${content}" alt="Preview">
                 </div>`,
                 audio: `<div class="file-preview audio-preview">
-                    <audio controls style="width: 100%;">
+                    <audio controls>
                         <source src="${content}">
                         Your browser does not support the audio element.
                     </audio>
                 </div>`,
                 video: `<div class="file-preview video-preview">
-                    <video controls style="max-width: 100%; max-height: 400px;">
+                    <video controls>
                         <source src="${content}">
                         Your browser does not support the video element.
                     </video>
                 </div>`,
                 pdf: `<div class="file-preview pdf-preview">
-                    <object data="${content}" type="application/pdf" style="width: 100%; height: 400px;">
+                    <object data="${content}" type="application/pdf">
                         <p>PDF failed to load. <a href="${content}" target="_blank">Open in new tab</a></p>
                     </object>
                 </div>`,
