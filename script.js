@@ -850,6 +850,7 @@ const CodePreviewer = {
         this.ensureDefaultContentFile();
         this.console.init(this.dom.consoleOutput, this.dom.clearConsoleBtn, this.dom.previewFrame);
         this.updatePreviewActionButtons();
+        this.updateAdaptiveLayoutMode();
     },
 
     cacheDOMElements() {
@@ -1388,6 +1389,7 @@ This content is loaded from a markdown file.
                 this.state.viewportResizeTimer = setTimeout(() => {
                     this.updatePanelMoveButtonDirections();
                     this.updateCodeModalHeaderAndButtons();
+                    this.updateAdaptiveLayoutMode();
                 }, 80);
             };
             window.addEventListener('resize', this.state.viewportResizeHandler);
@@ -1396,8 +1398,24 @@ This content is loaded from a markdown file.
 
     },
 
+    getAvailableEditorWidth() {
+        if (!this.state.isPreviewDocked || this.state.previewDockOrientation !== 'right') {
+            return window.innerWidth;
+        }
+
+        const dockPercent = this.state.previewDockSize.right || 50;
+        const dockWidth = (dockPercent / 100) * window.innerWidth;
+        return Math.max(320, window.innerWidth - dockWidth);
+    },
+
+    updateAdaptiveLayoutMode() {
+        const availableWidth = this.getAvailableEditorWidth();
+        const isCompact = availableWidth <= 900;
+        document.body.classList.toggle('compact-editor-layout', isCompact);
+    },
+
     isMobileViewport() {
-        return window.matchMedia('(max-width: 768px)').matches;
+        return this.getAvailableEditorWidth() <= 768;
     },
 
     updateCodeModalHeaderAndButtons(fileName = null) {
@@ -4681,6 +4699,7 @@ This content is loaded from a markdown file.
         }
 
         this.updatePreviewDockButton();
+        this.updateAdaptiveLayoutMode();
     },
 
     togglePreviewDock(forceState = null) {

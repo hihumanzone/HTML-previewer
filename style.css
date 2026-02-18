@@ -2157,6 +2157,32 @@ body.is-resizing-preview-dock {
     }
 }
 
+
+/* Trigger compact/mobile workspace styles when docked preview significantly narrows editor width. */
+body.compact-editor-layout .workspace-layout {
+    flex-direction: column;
+}
+
+body.compact-editor-layout .file-tree-container {
+    height: clamp(260px, 38vh, 360px);
+    width: 100%;
+    min-width: 0;
+    max-height: none;
+    resize: none;
+}
+
+body.compact-editor-layout .editor-grid {
+    --panel-size: min(100%, var(--file-panel-size));
+    justify-content: center;
+}
+
+body.compact-editor-layout .editor-panel {
+    min-width: 0;
+    aspect-ratio: auto;
+    max-height: var(--panel-mobile-max-height);
+    min-height: var(--panel-mobile-min-height);
+}
+
 @media (max-width: 768px) {
     #preview-modal {
         padding: 0;
@@ -2303,6 +2329,21 @@ body.is-resizing-preview-dock {
 }
 
 
+
+body.compact-editor-layout .app-header {
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+body.compact-editor-layout .files-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.6rem;
+}
+
+body.compact-editor-layout .files-header-buttons {
+    flex-wrap: wrap;
+}
 @media (max-width: 700px) {
     #dock-preview-btn {
         padding-inline: 0.55rem;
