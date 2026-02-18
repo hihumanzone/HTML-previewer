@@ -68,7 +68,6 @@ const CodePreviewer = {
             lineWrapping: true,
             autoFormatOnType: true,
             fontSize: 14,
-            tabSize: 2,
             theme: 'dracula',
         },
     },
@@ -105,7 +104,6 @@ const CodePreviewer = {
             SETTINGS_LINE_WRAP: 'setting-line-wrap',
             SETTINGS_AUTO_FORMAT: 'setting-auto-format',
             SETTINGS_FONT_SIZE: 'setting-font-size',
-            SETTINGS_TAB_SIZE: 'setting-tab-size',
             SETTINGS_EDITOR_THEME: 'setting-editor-theme',
             MAIN_HTML_SELECT: 'main-html-select',
         },
@@ -899,7 +897,6 @@ const CodePreviewer = {
             settingLineWrap: document.getElementById(CONTROL_IDS.SETTINGS_LINE_WRAP),
             settingAutoFormat: document.getElementById(CONTROL_IDS.SETTINGS_AUTO_FORMAT),
             settingFontSize: document.getElementById(CONTROL_IDS.SETTINGS_FONT_SIZE),
-            settingTabSize: document.getElementById(CONTROL_IDS.SETTINGS_TAB_SIZE),
             settingEditorTheme: document.getElementById(CONTROL_IDS.SETTINGS_EDITOR_THEME),
             mainHtmlSelect: document.getElementById(CONTROL_IDS.MAIN_HTML_SELECT),
             mainHtmlSelector: document.getElementById('main-html-selector'),
@@ -1102,8 +1099,6 @@ const CodePreviewer = {
             theme: this.state.settings.theme,
             autoCloseTags: mode === 'htmlmixed',
             lineWrapping: !!this.state.settings.lineWrapping,
-            tabSize: this.state.settings.tabSize,
-            indentUnit: this.state.settings.tabSize,
         });
 
         if (this.dom.htmlEditor) {
@@ -1321,11 +1316,9 @@ This content is loaded from a markdown file.
 
     normalizeSettings(nextSettings = {}) {
         const allowedFontSizes = new Set([12, 13, 14, 15, 16, 18]);
-        const allowedTabSizes = new Set([2, 4, 8]);
         const allowedThemes = new Set(['dracula', 'default']);
 
         const fontSize = Number(nextSettings.fontSize);
-        const tabSize = Number(nextSettings.tabSize);
 
         return {
             ...nextSettings,
@@ -1333,7 +1326,6 @@ This content is loaded from a markdown file.
             lineWrapping: typeof nextSettings.lineWrapping === 'boolean' ? nextSettings.lineWrapping : true,
             autoFormatOnType: typeof nextSettings.autoFormatOnType === 'boolean' ? nextSettings.autoFormatOnType : true,
             fontSize: allowedFontSizes.has(fontSize) ? fontSize : 14,
-            tabSize: allowedTabSizes.has(tabSize) ? tabSize : 2,
             theme: allowedThemes.has(nextSettings.theme) ? nextSettings.theme : 'dracula',
         };
     },
@@ -1343,7 +1335,6 @@ This content is loaded from a markdown file.
         if (this.dom.settingLineWrap) this.dom.settingLineWrap.checked = !!this.state.settings.lineWrapping;
         if (this.dom.settingAutoFormat) this.dom.settingAutoFormat.checked = !!this.state.settings.autoFormatOnType;
         if (this.dom.settingFontSize) this.dom.settingFontSize.value = String(this.state.settings.fontSize);
-        if (this.dom.settingTabSize) this.dom.settingTabSize.value = String(this.state.settings.tabSize);
         if (this.dom.settingEditorTheme) this.dom.settingEditorTheme.value = this.state.settings.theme;
     },
 
@@ -1362,8 +1353,6 @@ This content is loaded from a markdown file.
         if (editor.setOption) {
             editor.setOption('lineNumbers', !!this.state.settings.lineNumbers);
             editor.setOption('lineWrapping', !!this.state.settings.lineWrapping);
-            editor.setOption('tabSize', this.state.settings.tabSize);
-            editor.setOption('indentUnit', this.state.settings.tabSize);
             editor.setOption('theme', this.state.settings.theme);
         }
 
@@ -1571,14 +1560,6 @@ This content is loaded from a markdown file.
             this.dom.settingFontSize.addEventListener('change', () => {
                 applySettingAndClose(() => {
                     this.state.settings.fontSize = Number(this.dom.settingFontSize.value) || 14;
-                }, { refreshEditors: true });
-            });
-        }
-
-        if (this.dom.settingTabSize) {
-            this.dom.settingTabSize.addEventListener('change', () => {
-                applySettingAndClose(() => {
-                    this.state.settings.tabSize = Number(this.dom.settingTabSize.value) || 2;
                 }, { refreshEditors: true });
             });
         }
@@ -2909,8 +2890,6 @@ This content is loaded from a markdown file.
                 theme: this.state.settings.theme,
                 autoCloseTags: fileType === 'html',
                 lineWrapping: !!this.state.settings.lineWrapping,
-                tabSize: this.state.settings.tabSize,
-                indentUnit: this.state.settings.tabSize,
                 readOnly: isBinary ? 'nocursor' : false
             });
             this.applySettingsToEditor(editor);
@@ -4213,8 +4192,6 @@ This content is loaded from a markdown file.
                         theme: this.state.settings.theme,
                         readOnly: false,
                         lineWrapping: !!this.state.settings.lineWrapping,
-                        tabSize: this.state.settings.tabSize,
-                        indentUnit: this.state.settings.tabSize,
                         autoCloseTags: true,
                         viewportMargin: Infinity,
                         extraKeys: {

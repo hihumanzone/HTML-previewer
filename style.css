@@ -220,33 +220,6 @@ body {
 }
 
 
-.settings-option-copy {
-    display: flex;
-    flex-direction: column;
-    gap: 0.08rem;
-}
-
-.settings-option-title {
-    color: var(--primary-color);
-    font-weight: 600;
-}
-
-.settings-option-description {
-    color: rgba(205, 214, 244, 0.52);
-    font-size: 0.5rem;
-    line-height: 1.18;
-    letter-spacing: 0.015em;
-    font-style: italic;
-    max-width: 22ch;
-}
-
-.settings-option:not(.settings-select) {
-    align-items: flex-start;
-}
-
-.settings-option:not(.settings-select) input[type="checkbox"] {
-    margin-top: 0.2rem;
-}
 
 .settings-option.settings-select {
     flex-direction: column;
