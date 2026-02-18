@@ -13,6 +13,7 @@
     --modal-bg: rgba(17, 17, 27, 0.75);
     --transition-speed: 0.2s;
     --file-panel-size: 420px;
+    --panel-mobile-min-height: 340px;
 }
 
 *, *::before, *::after {
@@ -2002,6 +2003,9 @@ body {
 
     .editor-panel {
         min-width: 0;
+        aspect-ratio: auto;
+        max-height: none;
+        min-height: var(--panel-mobile-min-height);
     }
 }
 
@@ -2073,6 +2077,12 @@ body {
     .tree-folder-header .folder-actions,
     .tree-file .file-actions {
         display: flex;
+    }
+}
+
+@media (max-width: 600px) {
+    .editor-panel {
+        min-height: 300px;
     }
 }
 
