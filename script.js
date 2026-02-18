@@ -889,7 +889,6 @@ const CodePreviewer = {
             importFolderBtn: document.getElementById(CONTROL_IDS.IMPORT_FOLDER_BTN),
             importZipBtn: document.getElementById(CONTROL_IDS.IMPORT_ZIP_BTN),
             exportZipBtn: document.getElementById(CONTROL_IDS.EXPORT_ZIP_BTN),
-            settingsMenu: document.getElementById('settings-menu'),
             settingsBtn: document.getElementById(CONTROL_IDS.SETTINGS_BTN),
             settingsPanel: document.getElementById(CONTROL_IDS.SETTINGS_PANEL),
             settingLineNumbers: document.getElementById(CONTROL_IDS.SETTINGS_LINE_NUMBERS),
@@ -1414,17 +1413,18 @@ This content is loaded from a markdown file.
                 }
             }
 
-            if (e.key === 'Escape' && this.dom.modalOverlay.getAttribute('aria-hidden') === 'false') {
-                this.toggleModal(false);
-            }
             if (e.key === 'Escape') {
+                if (this.dom.modalOverlay.getAttribute('aria-hidden') === 'false') {
+                    this.toggleModal(false);
+                }
+
                 this.toggleSettingsPanel(false);
-            }
-            if (e.key === 'Escape') {
+
                 const codeModal = document.getElementById('code-modal');
                 if (codeModal && codeModal.getAttribute('aria-hidden') === 'false') {
                     this.closeCodeModal();
                 }
+
                 const mediaModal = document.getElementById('media-modal');
                 if (mediaModal && mediaModal.getAttribute('aria-hidden') === 'false') {
                     this.closeMediaModal();
@@ -1495,45 +1495,50 @@ This content is loaded from a markdown file.
         if (!this.state.settingsCloseHandler) {
             this.state.settingsCloseHandler = (event) => {
                 if (!this.isSettingsPanelOpen()) return;
-                const target = event.target;
-                if (target && target.closest && target.closest('#settings-menu')) return;
+                if (this.dom.settingsBtn?.contains(event.target) || this.dom.settingsPanel?.contains(event.target)) return;
                 this.toggleSettingsPanel(false);
             };
             document.addEventListener('pointerdown', this.state.settingsCloseHandler, true);
         }
 
+        const applySettingAndClose = (updateFn, { refreshEditors = false } = {}) => {
+            updateFn();
+            if (refreshEditors) {
+                this.applyEditorSettingsToAllEditors();
+            }
+            this.saveSettings();
+            this.toggleSettingsPanel(false);
+        };
+
         if (this.dom.settingLineNumbers) {
             this.dom.settingLineNumbers.addEventListener('change', () => {
-                this.state.settings.lineNumbers = this.dom.settingLineNumbers.checked;
-                this.applyEditorSettingsToAllEditors();
-                this.saveSettings();
-                this.toggleSettingsPanel(false);
+                applySettingAndClose(() => {
+                    this.state.settings.lineNumbers = this.dom.settingLineNumbers.checked;
+                }, { refreshEditors: true });
             });
         }
 
         if (this.dom.settingLineWrap) {
             this.dom.settingLineWrap.addEventListener('change', () => {
-                this.state.settings.lineWrapping = this.dom.settingLineWrap.checked;
-                this.applyEditorSettingsToAllEditors();
-                this.saveSettings();
-                this.toggleSettingsPanel(false);
+                applySettingAndClose(() => {
+                    this.state.settings.lineWrapping = this.dom.settingLineWrap.checked;
+                }, { refreshEditors: true });
             });
         }
 
         if (this.dom.settingAutoFormat) {
             this.dom.settingAutoFormat.addEventListener('change', () => {
-                this.state.settings.autoFormatOnType = this.dom.settingAutoFormat.checked;
-                this.saveSettings();
-                this.toggleSettingsPanel(false);
+                applySettingAndClose(() => {
+                    this.state.settings.autoFormatOnType = this.dom.settingAutoFormat.checked;
+                });
             });
         }
 
         if (this.dom.settingFontSize) {
             this.dom.settingFontSize.addEventListener('change', () => {
-                this.state.settings.fontSize = Number(this.dom.settingFontSize.value) || 14;
-                this.applyEditorSettingsToAllEditors();
-                this.saveSettings();
-                this.toggleSettingsPanel(false);
+                applySettingAndClose(() => {
+                    this.state.settings.fontSize = Number(this.dom.settingFontSize.value) || 14;
+                }, { refreshEditors: true });
             });
         }
 
