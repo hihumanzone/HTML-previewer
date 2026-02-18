@@ -15,6 +15,12 @@
     --file-panel-size: 420px;
     --panel-mobile-min-height: 340px;
     --panel-mobile-max-height: 144vh;
+    --surface-elevated: rgba(24, 24, 37, 0.88);
+    --surface-muted: rgba(49, 50, 68, 0.55);
+    --shadow-elevated: 0 18px 42px rgba(0, 0, 0, 0.32);
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --preview-dock-size: 50vw;
 }
 
 *, *::before, *::after {
@@ -28,6 +34,55 @@ body {
     background-color: var(--bg-color);
     color: var(--primary-color);
     line-height: 1.6;
+}
+
+
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1rem 1.1rem;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(145deg, rgba(49, 50, 68, 0.75), rgba(24, 24, 37, 0.9));
+    border: 1px solid rgba(137, 180, 250, 0.22);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-elevated);
+}
+
+.app-eyebrow {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent-hover);
+    margin-bottom: 0.2rem;
+}
+
+.app-header h1 {
+    margin: 0;
+    font-size: 1.45rem;
+    line-height: 1.2;
+}
+
+.app-subtitle {
+    margin-top: 0.35rem;
+    color: rgba(205, 214, 244, 0.9);
+    font-size: 0.92rem;
+}
+
+.app-status-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.3rem 0.7rem;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    border-radius: 999px;
+    background: rgba(166, 227, 161, 0.16);
+    border: 1px solid rgba(166, 227, 161, 0.4);
+    color: var(--success-color);
+    font-weight: 700;
 }
 
 
@@ -51,9 +106,9 @@ body {
 
 
 .container {
-    max-width: 95%;
+    max-width: 96%;
     margin: 0 auto;
-    padding: 1rem 1rem;
+    padding: 1rem 1rem 1.25rem;
 }
 
 .main-header {
@@ -86,8 +141,11 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid var(--border-color);
+    padding: 0.7rem 0.8rem;
+    border: 1px solid rgba(137, 180, 250, 0.15);
+    border-radius: var(--radius-md);
+    background: var(--surface-muted);
+    backdrop-filter: blur(6px);
 }
 
 .files-header span {
@@ -642,6 +700,152 @@ body {
 .modal-overlay[aria-hidden="false"] {
     opacity: 1;
     visibility: visible;
+}
+
+
+body.preview-docked {
+    overflow: hidden;
+}
+
+body.preview-docked-right .container {
+    width: calc(100vw - var(--preview-dock-size));
+    max-width: none;
+    margin: 0;
+    height: 100vh;
+    overflow: auto;
+}
+
+body.preview-docked-bottom .container {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    height: calc(100vh - var(--preview-dock-size));
+    overflow: auto;
+}
+
+#preview-modal.is-docked {
+    background: transparent;
+    padding: 0;
+    opacity: 1;
+    pointer-events: none;
+}
+
+body.preview-docked-right #preview-modal.is-docked {
+    align-items: stretch;
+    justify-content: flex-end;
+}
+
+body.preview-docked-bottom #preview-modal.is-docked {
+    align-items: flex-end;
+    justify-content: stretch;
+}
+
+#preview-modal.is-docked .modal-content {
+    pointer-events: auto;
+    width: var(--preview-dock-size);
+    height: 100vh;
+    border-radius: 0;
+    border-right: 0;
+    border-top: 0;
+    border-bottom: 0;
+    box-shadow: none;
+}
+
+body.preview-docked-bottom #preview-modal.is-docked .modal-content {
+    width: 100vw;
+    height: var(--preview-dock-size);
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
+    border-top: 1px solid var(--border-color);
+}
+
+.preview-dock-divider {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    width: 18px;
+    cursor: col-resize;
+    z-index: 1005;
+    left: calc(100vw - var(--preview-dock-size) - 9px);
+    background: transparent;
+    touch-action: none;
+}
+
+.preview-dock-divider::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 2px;
+    transform: translateX(-50%);
+    background: linear-gradient(180deg, rgba(137, 180, 250, 0.85), rgba(137, 180, 250, 0.25));
+    box-shadow: 0 0 0 1px rgba(17, 17, 27, 0.4);
+}
+
+.preview-dock-divider::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 10px;
+    height: 56px;
+    border-radius: 999px;
+    transform: translate(-50%, -50%);
+    background: rgba(137, 180, 250, 0.22);
+    border: 1px solid rgba(137, 180, 250, 0.5);
+}
+
+.preview-dock-divider:hover::before,
+.preview-dock-divider.is-dragging::before {
+    background: linear-gradient(180deg, rgba(166, 202, 255, 0.95), rgba(137, 180, 250, 0.45));
+}
+
+.preview-dock-divider.is-bottom {
+    left: 0;
+    right: 0;
+    top: calc(100vh - var(--preview-dock-size) - 9px);
+    height: 18px;
+    width: auto;
+    cursor: row-resize;
+}
+
+.preview-dock-divider.is-bottom::before {
+    top: 50%;
+    bottom: auto;
+    left: 0;
+    right: 0;
+    width: auto;
+    height: 2px;
+    transform: translateY(-50%);
+    background: linear-gradient(90deg, rgba(137, 180, 250, 0.85), rgba(137, 180, 250, 0.25));
+}
+
+.preview-dock-divider.is-bottom::after {
+    width: 56px;
+    height: 10px;
+}
+
+body.is-resizing-preview-dock {
+    user-select: none;
+    cursor: col-resize;
+}
+
+body.preview-docked-bottom.is-resizing-preview-dock {
+    cursor: row-resize;
+}
+
+
+.preview-dock-divider.is-suspended {
+    opacity: 0;
+    pointer-events: none;
+}
+
+
+#code-modal,
+#media-modal {
+    z-index: 1200;
 }
 
 .modal-content {
@@ -1292,7 +1496,7 @@ body {
    FILE TREE STYLES
    ========================================================================== */
 
-.multi-file-layout {
+.workspace-layout {
     display: flex;
     gap: 1rem;
     flex: 1;
@@ -1601,7 +1805,7 @@ body {
 
 /* Responsive adjustments for file tree */
 @media (max-width: 900px) {
-    .multi-file-layout {
+    .workspace-layout {
         flex-direction: column;
     }
     
@@ -2010,6 +2214,32 @@ body {
     }
 }
 
+
+/* Trigger compact/mobile workspace styles when docked preview significantly narrows editor width. */
+body.compact-editor-layout .workspace-layout {
+    flex-direction: column;
+}
+
+body.compact-editor-layout .file-tree-container {
+    height: clamp(260px, 38vh, 360px);
+    width: 100%;
+    min-width: 0;
+    max-height: none;
+    resize: none;
+}
+
+body.compact-editor-layout .editor-grid {
+    --panel-size: min(100%, var(--file-panel-size));
+    justify-content: center;
+}
+
+body.compact-editor-layout .editor-panel {
+    min-width: 0;
+    aspect-ratio: auto;
+    max-height: var(--panel-mobile-max-height);
+    min-height: var(--panel-mobile-min-height);
+}
+
 @media (max-width: 768px) {
     #preview-modal {
         padding: 0;
@@ -2095,5 +2325,85 @@ body {
 
     .conflict-btn {
         width: 100%;
+    }
+}
+
+
+.clear-all-files-btn,
+.import-zip-btn,
+.export-zip-btn,
+.import-file-btn,
+.add-folder-btn,
+.add-file-btn {
+    border: 1px solid rgba(137, 180, 250, 0.28);
+    background: linear-gradient(150deg, rgba(49, 50, 68, 0.95), rgba(30, 30, 46, 0.9));
+    color: var(--primary-color);
+    border-radius: 8px;
+    font-weight: 600;
+    padding: 0.42rem 0.72rem;
+    font-size: 0.78rem;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease, background .16s ease;
+}
+
+.clear-all-files-btn:hover,
+.import-zip-btn:hover,
+.export-zip-btn:hover,
+.import-file-btn:hover,
+.add-folder-btn:hover,
+.add-file-btn:hover {
+    transform: translateY(-1px);
+    border-color: rgba(137, 180, 250, 0.6);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+    background: linear-gradient(150deg, rgba(70, 73, 98, 0.95), rgba(35, 35, 55, 0.95));
+}
+
+/* Workspace intentionally has no wrapper container styles. */
+.workspace-layout {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
+}
+
+@media (max-width: 840px) {
+    .app-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .files-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.6rem;
+    }
+
+    .files-header-buttons {
+        flex-wrap: wrap;
+    }
+}
+
+
+
+body.compact-editor-layout .app-header {
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+body.compact-editor-layout .files-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.6rem;
+}
+
+body.compact-editor-layout .files-header-buttons {
+    flex-wrap: wrap;
+}
+@media (max-width: 700px) {
+    #dock-preview-btn {
+        padding-inline: 0.55rem;
+        font-size: 0.75rem;
     }
 }

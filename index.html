@@ -13,6 +13,14 @@
 <body>
 
     <div class="container">
+        <header class="app-header" role="banner">
+            <div>
+                <p class="app-eyebrow">Frontend Playground</p>
+                <h1>HTML Previewer</h1>
+                <p class="app-subtitle">Build, organize, and preview full web projects in one streamlined workspace.</p>
+            </div>
+            <span class="app-status-pill" aria-label="Application mode">Local-first</span>
+        </header>
         <main class="main-content">
             <div id="multi-file-container" class="editor-container">
                 <div class="files-header">
@@ -37,7 +45,7 @@
                         <option value="">Auto-detect</option>
                     </select>
                 </div>
-                <div class="multi-file-layout">
+                <section class="workspace-layout" aria-label="Project workspace">
                     <div id="file-tree-container" class="file-tree-container"></div>
                     <div class="editor-grid">
                     <div class="editor-panel" data-file-type="html" data-file-id="default-html">
@@ -293,7 +301,7 @@
                         </div>
                     </div>
                     </div>
-                </div>
+                </section>
             </div>
 
             <div class="controls">
@@ -309,6 +317,7 @@
                 <h2 id="modal-title">Preview</h2>
                 <div class="modal-controls">
                     <button id="toggle-console-btn" class="toggle-console-btn" aria-label="Toggle console visibility">📋 Console</button>
+                    <button id="dock-preview-btn" class="toggle-console-btn" aria-label="Dock preview panel">🧲 Dock</button>
                     <button class="close-btn" aria-label="Close preview modal">&times;</button>
                 </div>
             </div>
@@ -324,6 +333,8 @@
             </div>
         </div>
     </div>
+
+    <div id="preview-dock-divider" class="preview-dock-divider" aria-hidden="true" hidden></div>
 
     <div id="code-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="code-modal-title" aria-hidden="true">
         <div class="modal-content">

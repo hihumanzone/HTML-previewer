@@ -57,6 +57,11 @@ const CodePreviewer = {
         previewAssetUrls: new Set(),
         mediaPreviewUrls: new Set(),
         filePanelPreviewUrls: new Map(),
+        previewRefreshTimer: null,
+        isPreviewDocked: false,
+        previewDockOrientation: 'right',
+        previewDockSize: { right: null, bottom: null },
+        dockResizeSession: null,
     },
 
     // ============================================================================
@@ -845,6 +850,7 @@ const CodePreviewer = {
         this.ensureDefaultContentFile();
         this.console.init(this.dom.consoleOutput, this.dom.clearConsoleBtn, this.dom.previewFrame);
         this.updatePreviewActionButtons();
+        this.updateAdaptiveLayoutMode();
     },
 
     cacheDOMElements() {
@@ -857,6 +863,8 @@ const CodePreviewer = {
             tabBtn: document.getElementById(CONTROL_IDS.TAB_BTN),
             clearConsoleBtn: document.getElementById(CONTROL_IDS.CLEAR_CONSOLE_BTN),
             toggleConsoleBtn: document.getElementById(CONTROL_IDS.TOGGLE_CONSOLE_BTN),
+            dockPreviewBtn: document.getElementById('dock-preview-btn'),
+            previewDockDivider: document.getElementById('preview-dock-divider'),
             addFileBtn: document.getElementById(CONTROL_IDS.ADD_FILE_BTN),
             addFolderBtn: document.getElementById(CONTROL_IDS.ADD_FOLDER_BTN),
             clearAllFilesBtn: document.getElementById(CONTROL_IDS.CLEAR_ALL_FILES_BTN),
@@ -1261,7 +1269,10 @@ This content is loaded from a markdown file.
         this.dom.tabBtn.addEventListener('click', () => this.renderPreview('tab'));
         this.dom.closeModalBtn.addEventListener('click', () => this.toggleModal(false));
         this.dom.toggleConsoleBtn.addEventListener('click', () => this.toggleConsole());
+        this.dom.dockPreviewBtn?.addEventListener('click', () => this.togglePreviewDock());
+        this.dom.previewDockDivider?.addEventListener('pointerdown', (event) => this.startPreviewDockResize(event));
         this.dom.modalOverlay.addEventListener('click', (e) => {
+            if (this.state.isPreviewDocked) return;
             if (e.target === this.dom.modalOverlay) this.toggleModal(false);
         });
         
@@ -1378,15 +1389,31 @@ This content is loaded from a markdown file.
                 this.state.viewportResizeTimer = setTimeout(() => {
                     this.updatePanelMoveButtonDirections();
                     this.updateCodeModalHeaderAndButtons();
+                    this.updateAdaptiveLayoutMode();
                 }, 80);
             };
             window.addEventListener('resize', this.state.viewportResizeHandler);
+            window.addEventListener('resize', () => this.handleDockViewportResize());
         }
 
     },
 
+    getAvailableEditorWidth() {
+        if (!this.state.isPreviewDocked || this.state.previewDockOrientation !== 'right') {
+            return window.innerWidth;
+        }
+
+        return window.innerWidth - this.getDockSizePx('right');
+    },
+
+    updateAdaptiveLayoutMode() {
+        const availableWidth = this.getAvailableEditorWidth();
+        const isCompact = availableWidth <= 900;
+        document.body.classList.toggle('compact-editor-layout', isCompact);
+    },
+
     isMobileViewport() {
-        return window.matchMedia('(max-width: 768px)').matches;
+        return this.getAvailableEditorWidth() <= 768;
     },
 
     updateCodeModalHeaderAndButtons(fileName = null) {
@@ -3124,7 +3151,7 @@ This content is loaded from a markdown file.
         this.checkFileModified(fileId, panel);
         this.renderFileTree();
         this.updateMainHtmlSelector();
-        this.refreshOpenPreviews();
+        this.schedulePreviewRefresh();
         
         this.showNotification('Changes applied successfully', 'success');
     },
@@ -3161,7 +3188,7 @@ This content is loaded from a markdown file.
         this.checkFileModified(fileId, panel);
         this.renderFileTree();
         this.updateMainHtmlSelector();
-        this.refreshOpenPreviews();
+        this.schedulePreviewRefresh();
         
         this.showNotification('Changes discarded', 'info');
     },
@@ -3188,6 +3215,7 @@ This content is loaded from a markdown file.
             if (!isUserInput) return;
 
             this.scheduleAutoFormat(fileId, editor, fileType);
+            this.schedulePreviewRefresh();
         });
     },
 
@@ -3203,6 +3231,17 @@ This content is loaded from a markdown file.
             this.state.autoFormatTimers.delete(fileId);
         }
         this.state.formattingEditors.delete(fileId);
+    },
+
+    schedulePreviewRefresh() {
+        if (this.state.previewRefreshTimer) {
+            clearTimeout(this.state.previewRefreshTimer);
+        }
+
+        this.state.previewRefreshTimer = setTimeout(() => {
+            this.state.previewRefreshTimer = null;
+            this.refreshOpenPreviews();
+        }, 120);
     },
 
     closePanel(fileId) {
@@ -3912,6 +3951,7 @@ This content is loaded from a markdown file.
         
         this.dom.mediaModal.style.display = 'flex';
         this.dom.mediaModal.setAttribute('aria-hidden', 'false');
+        this.updateDockDividerVisibility();
     },
 
     closeMediaModal() {
@@ -3923,6 +3963,7 @@ This content is loaded from a markdown file.
         if (this.dom.mediaModalContent) {
             this.dom.mediaModalContent.innerHTML = '';
         }
+        this.updateDockDividerVisibility();
     },
 
     openCodeModal(content, fileName, language, sourcePanel) {
@@ -3983,6 +4024,7 @@ This content is loaded from a markdown file.
 
             modal.style.display = 'flex';
             modal.setAttribute('aria-hidden', 'false');
+            this.updateDockDividerVisibility();
 
             if (window.CodeMirror && this.state.codeModalEditor) {
                 setTimeout(() => {
@@ -4001,6 +4043,7 @@ This content is loaded from a markdown file.
             modal.setAttribute('aria-hidden', 'true');
         }
         this.state.currentCodeModalSource = null;
+        this.updateDockDividerVisibility();
     },
 
 
@@ -4582,9 +4625,11 @@ This content is loaded from a markdown file.
 
         this.revokeTrackedObjectUrls(this.state.previewAssetUrls);
         const content = this.generatePreviewContent();
-        if (isModalOpen) {
+
+        if (isModalOpen && this.dom.previewFrame) {
             this.dom.previewFrame.srcdoc = content;
         }
+
         if (isTabOpen) {
             try {
                 this.updatePreviewTab(content, false);
@@ -4621,13 +4666,179 @@ This content is loaded from a markdown file.
         }
     },
 
+
+    getPreviewDockOrientation() {
+        const isPortraitMobile = window.matchMedia('(max-width: 900px) and (orientation: portrait)').matches;
+        return isPortraitMobile ? 'bottom' : 'right';
+    },
+
+    updatePreviewDockButton() {
+        if (!this.dom.dockPreviewBtn) return;
+        const isDocked = this.state.isPreviewDocked;
+        this.dom.dockPreviewBtn.classList.toggle('active', isDocked);
+        this.dom.dockPreviewBtn.textContent = isDocked ? '🧲 Undock' : '🧲 Dock';
+        this.dom.dockPreviewBtn.setAttribute('aria-label', isDocked ? 'Undock preview panel' : 'Dock preview panel');
+    },
+
+    getDockConstraints(orientation) {
+        if (orientation === 'bottom') {
+            const minPreview = 220;
+            const minEditor = 260;
+            const maxPreview = Math.max(minPreview, window.innerHeight - minEditor);
+            return { minPreview, maxPreview };
+        }
+
+        const minPreview = 320;
+        const minEditor = 420;
+        const maxPreview = Math.max(minPreview, window.innerWidth - minEditor);
+        return { minPreview, maxPreview };
+    },
+
+    getDockSizePx(orientation) {
+        const stored = this.state.previewDockSize[orientation];
+        const viewportHalf = orientation === 'bottom' ? window.innerHeight / 2 : window.innerWidth / 2;
+        const next = stored ?? viewportHalf;
+        const { minPreview, maxPreview } = this.getDockConstraints(orientation);
+        const clamped = Math.min(maxPreview, Math.max(minPreview, next));
+        this.state.previewDockSize[orientation] = clamped;
+        return clamped;
+    },
+
+    isSecondaryModalOpen() {
+        const codeOpen = document.getElementById('code-modal')?.getAttribute('aria-hidden') === 'false';
+        const mediaOpen = this.dom.mediaModal?.getAttribute('aria-hidden') === 'false';
+        return codeOpen || mediaOpen;
+    },
+
+    updateDockDividerVisibility() {
+        if (!this.dom.previewDockDivider) return;
+
+        const shouldShow = this.state.isPreviewDocked;
+        const suspended = shouldShow && this.isSecondaryModalOpen();
+
+        this.dom.previewDockDivider.hidden = !shouldShow;
+        this.dom.previewDockDivider.classList.toggle('is-suspended', suspended);
+    },
+
+    applyPreviewDockLayout() {
+        const orientation = this.state.previewDockOrientation;
+        const sizePx = this.getDockSizePx(orientation);
+        document.documentElement.style.setProperty('--preview-dock-size', `${sizePx}px`);
+
+        document.body.classList.toggle('preview-docked', this.state.isPreviewDocked);
+        document.body.classList.toggle('preview-docked-right', this.state.isPreviewDocked && orientation === 'right');
+        document.body.classList.toggle('preview-docked-bottom', this.state.isPreviewDocked && orientation === 'bottom');
+
+        if (this.dom.modalOverlay) {
+            this.dom.modalOverlay.classList.toggle('is-docked', this.state.isPreviewDocked);
+            this.dom.modalOverlay.setAttribute('aria-modal', this.state.isPreviewDocked ? 'false' : 'true');
+        }
+
+        if (this.dom.previewDockDivider) {
+            this.dom.previewDockDivider.classList.toggle('is-bottom', orientation === 'bottom');
+        }
+        this.updateDockDividerVisibility();
+
+        this.updatePreviewDockButton();
+        this.updateAdaptiveLayoutMode();
+    },
+
+    togglePreviewDock(forceState = null) {
+        const nextState = typeof forceState === 'boolean' ? forceState : !this.state.isPreviewDocked;
+        if (!nextState && this.state.dockResizeSession) {
+            this.endPreviewDockResize();
+        }
+        this.state.isPreviewDocked = nextState;
+        if (nextState) {
+            this.state.previewDockOrientation = this.getPreviewDockOrientation();
+        }
+        this.applyPreviewDockLayout();
+    },
+
+    handleDockViewportResize() {
+        if (!this.state.isPreviewDocked) return;
+        const nextOrientation = this.getPreviewDockOrientation();
+        if (nextOrientation !== this.state.previewDockOrientation) {
+            this.state.previewDockOrientation = nextOrientation;
+        }
+        this.applyPreviewDockLayout();
+    },
+
+    startPreviewDockResize(event) {
+        if (!this.state.isPreviewDocked || !this.dom.previewDockDivider) return;
+        event.preventDefault();
+
+        const divider = this.dom.previewDockDivider;
+        const orientation = this.state.previewDockOrientation;
+        this.state.dockResizeSession = { orientation, pointerId: event.pointerId };
+
+        divider.setPointerCapture(event.pointerId);
+
+        const onMove = (moveEvent) => this.handlePreviewDockResize(moveEvent);
+        const onUp = (upEvent) => this.endPreviewDockResize(upEvent);
+
+        divider.addEventListener('pointermove', onMove);
+        divider.addEventListener('pointerup', onUp, { once: true });
+        divider.addEventListener('pointercancel', onUp, { once: true });
+
+        this.state.dockResizeSession.cleanup = () => {
+            divider.removeEventListener('pointermove', onMove);
+        };
+
+        divider.classList.add('is-dragging');
+        document.body.classList.add('is-resizing-preview-dock');
+    },
+
+    endPreviewDockResize(event) {
+        const session = this.state.dockResizeSession;
+        if (!session || !this.dom.previewDockDivider) return;
+
+        try {
+            this.dom.previewDockDivider.releasePointerCapture(session.pointerId);
+        } catch (_err) {
+            // Pointer may already be released.
+        }
+
+        session.cleanup?.();
+        this.state.dockResizeSession = null;
+        this.dom.previewDockDivider.classList.remove('is-dragging');
+        document.body.classList.remove('is-resizing-preview-dock');
+
+        if (event) {
+            this.handlePreviewDockResize(event);
+        }
+    },
+
+    handlePreviewDockResize(event) {
+        const session = this.state.dockResizeSession;
+        if (!session) return;
+
+        if (session.orientation === 'right') {
+            const rawSize = window.innerWidth - event.clientX;
+            const { minPreview, maxPreview } = this.getDockConstraints('right');
+            this.state.previewDockSize.right = Math.min(maxPreview, Math.max(minPreview, rawSize));
+        } else {
+            const rawSize = window.innerHeight - event.clientY;
+            const { minPreview, maxPreview } = this.getDockConstraints('bottom');
+            this.state.previewDockSize.bottom = Math.min(maxPreview, Math.max(minPreview, rawSize));
+        }
+
+        this.applyPreviewDockLayout();
+    },
+
     toggleModal(show) {
         this.dom.modalOverlay.setAttribute('aria-hidden', !show);
         if (show) {
+            this.applyPreviewDockLayout();
             this.dom.modalConsolePanel.classList.add('hidden');
             this.dom.toggleConsoleBtn.classList.remove('active');
             this.dom.toggleConsoleBtn.textContent = '📋 Console';
         } else {
+            this.togglePreviewDock(false);
+            if (this.state.previewRefreshTimer) {
+                clearTimeout(this.state.previewRefreshTimer);
+                this.state.previewRefreshTimer = null;
+            }
             // Clean up when closing the modal
             // Completely remove and recreate the iframe to ensure full cleanup
             // This stops all scripts, event listeners, and timers running in the iframe
