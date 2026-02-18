@@ -766,7 +766,7 @@ body.preview-docked-bottom #preview-modal.is-docked .modal-content {
     bottom: 0;
     width: 18px;
     cursor: col-resize;
-    z-index: 1100;
+    z-index: 1005;
     left: calc(100vw - var(--preview-dock-size) - 9px);
     background: transparent;
     touch-action: none;
@@ -834,6 +834,12 @@ body.is-resizing-preview-dock {
 
 body.preview-docked-bottom.is-resizing-preview-dock {
     cursor: row-resize;
+}
+
+
+#code-modal,
+#media-modal {
+    z-index: 1200;
 }
 
 .modal-content {
