@@ -62,6 +62,14 @@ const CodePreviewer = {
         previewDockOrientation: 'right',
         previewDockSize: { right: null, bottom: null },
         dockResizeSession: null,
+        settingsCloseHandler: null,
+        settings: {
+            lineNumbers: true,
+            lineWrapping: true,
+            autoFormatOnType: true,
+            fontSize: 14,
+            theme: 'dracula',
+        },
     },
 
     // ============================================================================
@@ -90,6 +98,13 @@ const CodePreviewer = {
             IMPORT_FOLDER_BTN: 'import-folder-btn',
             IMPORT_ZIP_BTN: 'import-zip-btn',
             EXPORT_ZIP_BTN: 'export-zip-btn',
+            SETTINGS_BTN: 'settings-btn',
+            SETTINGS_PANEL: 'settings-panel',
+            SETTINGS_LINE_NUMBERS: 'setting-line-numbers',
+            SETTINGS_LINE_WRAP: 'setting-line-wrap',
+            SETTINGS_AUTO_FORMAT: 'setting-auto-format',
+            SETTINGS_FONT_SIZE: 'setting-font-size',
+            SETTINGS_EDITOR_THEME: 'setting-editor-theme',
             MAIN_HTML_SELECT: 'main-html-select',
         },
         CONTAINER_IDS: {
@@ -104,6 +119,7 @@ const CodePreviewer = {
         CONSOLE_ID: 'console-output',
         MODAL_CONSOLE_PANEL_ID: 'modal-console-panel',
         CONSOLE_MESSAGE_TYPE: 'console',
+        SETTINGS_STORAGE_KEY: 'codepreviewer.settings',
         
         FILE_TYPES: {
             EXTENSIONS: {
@@ -843,11 +859,14 @@ const CodePreviewer = {
     
     init() {
         this.cacheDOMElements();
+        this.loadSettings();
         this.initEditors();
         this.bindEvents();
         this.bindFileTreeEvents();
         this.initExistingFilePanels();
         this.ensureDefaultContentFile();
+        this.applyEditorSettingsToAllEditors();
+        this.syncSettingsUI();
         this.console.init(this.dom.consoleOutput, this.dom.clearConsoleBtn, this.dom.previewFrame);
         this.updatePreviewActionButtons();
         this.updateAdaptiveLayoutMode();
@@ -872,6 +891,13 @@ const CodePreviewer = {
             importFolderBtn: document.getElementById(CONTROL_IDS.IMPORT_FOLDER_BTN),
             importZipBtn: document.getElementById(CONTROL_IDS.IMPORT_ZIP_BTN),
             exportZipBtn: document.getElementById(CONTROL_IDS.EXPORT_ZIP_BTN),
+            settingsBtn: document.getElementById(CONTROL_IDS.SETTINGS_BTN),
+            settingsPanel: document.getElementById(CONTROL_IDS.SETTINGS_PANEL),
+            settingLineNumbers: document.getElementById(CONTROL_IDS.SETTINGS_LINE_NUMBERS),
+            settingLineWrap: document.getElementById(CONTROL_IDS.SETTINGS_LINE_WRAP),
+            settingAutoFormat: document.getElementById(CONTROL_IDS.SETTINGS_AUTO_FORMAT),
+            settingFontSize: document.getElementById(CONTROL_IDS.SETTINGS_FONT_SIZE),
+            settingEditorTheme: document.getElementById(CONTROL_IDS.SETTINGS_EDITOR_THEME),
             mainHtmlSelect: document.getElementById(CONTROL_IDS.MAIN_HTML_SELECT),
             mainHtmlSelector: document.getElementById('main-html-selector'),
             mainHtmlDropdown: document.getElementById('main-html-dropdown'),
@@ -1068,11 +1094,11 @@ const CodePreviewer = {
         }
 
         const editorConfig = (mode) => ({
-            lineNumbers: true,
+            lineNumbers: !!this.state.settings.lineNumbers,
             mode: mode,
-            theme: 'dracula',
+            theme: this.state.settings.theme,
             autoCloseTags: mode === 'htmlmixed',
-            lineWrapping: true,
+            lineWrapping: !!this.state.settings.lineWrapping,
         });
 
         if (this.dom.htmlEditor) {
@@ -1085,6 +1111,7 @@ const CodePreviewer = {
             this.state.editors.js = window.CodeMirror.fromTextArea(this.dom.jsEditor, editorConfig('javascript'));
         }
 
+        this.applyEditorSettingsToAllEditors();
         this.setDefaultContent();
     },
 
@@ -1093,7 +1120,7 @@ const CodePreviewer = {
             if (!textarea) return null;
             
             Object.assign(textarea.style, {
-                fontFamily: 'monospace', fontSize: '14px', lineHeight: '1.5',
+                fontFamily: 'monospace', fontSize: `${this.state.settings.fontSize}px`, lineHeight: '1.5',
                 resize: 'none', border: 'none', outline: 'none',
                 background: '#282a36', color: '#f8f8f2', padding: '1rem',
                 width: '100%', height: '400px'
@@ -1264,6 +1291,102 @@ This content is loaded from a markdown file.
         this.refreshPanelAndFileTreeUI();
     },
 
+
+    loadSettings() {
+        try {
+            const raw = localStorage.getItem(this.constants.SETTINGS_STORAGE_KEY);
+            if (!raw) return;
+            const parsed = JSON.parse(raw);
+            this.state.settings = this.normalizeSettings({
+                ...this.state.settings,
+                ...parsed,
+            });
+        } catch (error) {
+            console.warn('Unable to load settings:', error);
+        }
+    },
+
+    saveSettings() {
+        try {
+            localStorage.setItem(this.constants.SETTINGS_STORAGE_KEY, JSON.stringify(this.state.settings));
+        } catch (error) {
+            console.warn('Unable to save settings:', error);
+        }
+    },
+
+    normalizeSettings(nextSettings = {}) {
+        const allowedFontSizes = new Set([12, 13, 14, 15, 16, 18]);
+        const allowedThemes = new Set(['dracula', 'default']);
+
+        const fontSize = Number(nextSettings.fontSize);
+
+        return {
+            ...nextSettings,
+            lineNumbers: typeof nextSettings.lineNumbers === 'boolean' ? nextSettings.lineNumbers : true,
+            lineWrapping: typeof nextSettings.lineWrapping === 'boolean' ? nextSettings.lineWrapping : true,
+            autoFormatOnType: typeof nextSettings.autoFormatOnType === 'boolean' ? nextSettings.autoFormatOnType : true,
+            fontSize: allowedFontSizes.has(fontSize) ? fontSize : 14,
+            theme: allowedThemes.has(nextSettings.theme) ? nextSettings.theme : 'dracula',
+        };
+    },
+
+    syncSettingsUI() {
+        if (this.dom.settingLineNumbers) this.dom.settingLineNumbers.checked = !!this.state.settings.lineNumbers;
+        if (this.dom.settingLineWrap) this.dom.settingLineWrap.checked = !!this.state.settings.lineWrapping;
+        if (this.dom.settingAutoFormat) this.dom.settingAutoFormat.checked = !!this.state.settings.autoFormatOnType;
+        if (this.dom.settingFontSize) this.dom.settingFontSize.value = String(this.state.settings.fontSize);
+        if (this.dom.settingEditorTheme) this.dom.settingEditorTheme.value = this.state.settings.theme;
+    },
+
+    getAllEditors() {
+        const editors = Object.values(this.state.editors || {}).filter(Boolean);
+        this.state.files.forEach(file => {
+            if (file.editor) editors.push(file.editor);
+        });
+        if (this.state.codeModalEditor) editors.push(this.state.codeModalEditor);
+        return editors;
+    },
+
+    applySettingsToEditor(editor) {
+        if (!editor) return;
+
+        if (editor.setOption) {
+            editor.setOption('lineNumbers', !!this.state.settings.lineNumbers);
+            editor.setOption('lineWrapping', !!this.state.settings.lineWrapping);
+            editor.setOption('theme', this.state.settings.theme);
+        }
+
+        const wrapper = editor.getWrapperElement ? editor.getWrapperElement() : null;
+        if (wrapper) {
+            wrapper.style.fontSize = `${this.state.settings.fontSize}px`;
+        }
+
+        if (!editor.setOption && editor.getTextArea) {
+            const textarea = editor.getTextArea();
+            if (textarea) textarea.style.fontSize = `${this.state.settings.fontSize}px`;
+        }
+
+        if (editor.refresh) {
+            editor.refresh();
+        }
+    },
+
+    applyEditorSettingsToAllEditors() {
+        this.getAllEditors().forEach((editor) => this.applySettingsToEditor(editor));
+    },
+
+    isSettingsPanelOpen() {
+        return !!(this.dom.settingsBtn && this.dom.settingsBtn.getAttribute('aria-expanded') === 'true');
+    },
+
+    toggleSettingsPanel(forceOpen = null) {
+        if (!this.dom.settingsBtn || !this.dom.settingsPanel) return;
+        const isOpen = this.isSettingsPanelOpen();
+        const shouldOpen = forceOpen === null ? !isOpen : !!forceOpen;
+        this.dom.settingsBtn.setAttribute('aria-expanded', String(shouldOpen));
+        this.dom.settingsPanel.hidden = !shouldOpen;
+    },
+
     bindEvents() {
         this.dom.modalBtn.addEventListener('click', () => this.renderPreview('modal'));
         this.dom.tabBtn.addEventListener('click', () => this.renderPreview('tab'));
@@ -1310,14 +1433,18 @@ This content is loaded from a markdown file.
                 }
             }
 
-            if (e.key === 'Escape' && this.dom.modalOverlay.getAttribute('aria-hidden') === 'false') {
-                this.toggleModal(false);
-            }
             if (e.key === 'Escape') {
+                if (this.dom.modalOverlay.getAttribute('aria-hidden') === 'false') {
+                    this.toggleModal(false);
+                }
+
+                this.toggleSettingsPanel(false);
+
                 const codeModal = document.getElementById('code-modal');
                 if (codeModal && codeModal.getAttribute('aria-hidden') === 'false') {
                     this.closeCodeModal();
                 }
+
                 const mediaModal = document.getElementById('media-modal');
                 if (mediaModal && mediaModal.getAttribute('aria-hidden') === 'false') {
                     this.closeMediaModal();
@@ -1373,6 +1500,77 @@ This content is loaded from a markdown file.
         this.dom.importZipBtn.addEventListener('click', () => this.importZip());
         this.dom.exportZipBtn.addEventListener('click', () => this.exportZip());
         this.setupMainHtmlDropdownEvents();
+
+        if (this.dom.settingsBtn) {
+            this.dom.settingsBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                this.toggleSettingsPanel();
+            });
+        }
+
+        if (this.dom.settingsPanel) {
+            this.dom.settingsPanel.addEventListener('click', (event) => event.stopPropagation());
+        }
+
+        if (!this.state.settingsCloseHandler) {
+            this.state.settingsCloseHandler = (event) => {
+                if (!this.isSettingsPanelOpen()) return;
+                if (this.dom.settingsBtn?.contains(event.target) || this.dom.settingsPanel?.contains(event.target)) return;
+                this.toggleSettingsPanel(false);
+            };
+            document.addEventListener('pointerdown', this.state.settingsCloseHandler, true);
+        }
+
+        const applySettingAndClose = (updateFn, { refreshEditors = false } = {}) => {
+            updateFn();
+            this.state.settings = this.normalizeSettings(this.state.settings);
+            this.syncSettingsUI();
+            if (refreshEditors) {
+                this.applyEditorSettingsToAllEditors();
+            }
+            this.saveSettings();
+            this.toggleSettingsPanel(false);
+        };
+
+        if (this.dom.settingLineNumbers) {
+            this.dom.settingLineNumbers.addEventListener('change', () => {
+                applySettingAndClose(() => {
+                    this.state.settings.lineNumbers = this.dom.settingLineNumbers.checked;
+                }, { refreshEditors: true });
+            });
+        }
+
+        if (this.dom.settingLineWrap) {
+            this.dom.settingLineWrap.addEventListener('change', () => {
+                applySettingAndClose(() => {
+                    this.state.settings.lineWrapping = this.dom.settingLineWrap.checked;
+                }, { refreshEditors: true });
+            });
+        }
+
+        if (this.dom.settingAutoFormat) {
+            this.dom.settingAutoFormat.addEventListener('change', () => {
+                applySettingAndClose(() => {
+                    this.state.settings.autoFormatOnType = this.dom.settingAutoFormat.checked;
+                });
+            });
+        }
+
+        if (this.dom.settingFontSize) {
+            this.dom.settingFontSize.addEventListener('change', () => {
+                applySettingAndClose(() => {
+                    this.state.settings.fontSize = Number(this.dom.settingFontSize.value) || 14;
+                }, { refreshEditors: true });
+            });
+        }
+
+        if (this.dom.settingEditorTheme) {
+            this.dom.settingEditorTheme.addEventListener('change', () => {
+                applySettingAndClose(() => {
+                    this.state.settings.theme = this.dom.settingEditorTheme.value || 'dracula';
+                }, { refreshEditors: true });
+            });
+        }
 
         document.addEventListener('click', (event) => {
             if (!event.target.closest('.file-type-dropdown')) {
@@ -2686,17 +2884,19 @@ This content is loaded from a markdown file.
         if (typeof window.CodeMirror !== 'undefined' && textarea) {
             const mode = this.getCodeMirrorMode(fileType);
             
-            return window.CodeMirror.fromTextArea(textarea, {
-                lineNumbers: true,
+            const editor = window.CodeMirror.fromTextArea(textarea, {
+                lineNumbers: !!this.state.settings.lineNumbers,
                 mode: mode,
-                theme: 'dracula',
+                theme: this.state.settings.theme,
                 autoCloseTags: fileType === 'html',
-                lineWrapping: true,
+                lineWrapping: !!this.state.settings.lineWrapping,
                 readOnly: isBinary ? 'nocursor' : false
             });
+            this.applySettingsToEditor(editor);
+            return editor;
         } else if (textarea) {
             Object.assign(textarea.style, {
-                fontFamily: 'monospace', fontSize: '14px', lineHeight: '1.5',
+                fontFamily: 'monospace', fontSize: `${this.state.settings.fontSize}px`, lineHeight: '1.5',
                 resize: 'none', border: 'none', outline: 'none',
                 background: '#282a36', color: '#f8f8f2', padding: '1rem',
                 width: '100%', height: '400px'
@@ -3598,6 +3798,7 @@ This content is loaded from a markdown file.
     },
 
     scheduleAutoFormat(fileId, editor, fileType) {
+        if (!this.state.settings.autoFormatOnType) return;
         if (!fileId || !editor || !this.isEditableFileType(fileType) || !this.supportsFormattingForType(fileType)) return;
 
         const existingTimer = this.state.autoFormatTimers.get(fileId);
@@ -3988,9 +4189,9 @@ This content is loaded from a markdown file.
                     this.state.codeModalEditor = window.CodeMirror.fromTextArea(editorTextarea, {
                         lineNumbers: true,
                         mode: language,
-                        theme: 'dracula',
+                        theme: this.state.settings.theme,
                         readOnly: false,
-                        lineWrapping: true,
+                        lineWrapping: !!this.state.settings.lineWrapping,
                         autoCloseTags: true,
                         viewportMargin: Infinity,
                         extraKeys: {
@@ -4001,6 +4202,7 @@ This content is loaded from a markdown file.
                 } else {
                     this.state.codeModalEditor.setOption('mode', language);
                     this.state.codeModalEditor.setOption('readOnly', false);
+                    this.applySettingsToEditor(this.state.codeModalEditor);
                 }
 
                 this.state.codeModalEditor.setValue(content);
@@ -4012,7 +4214,7 @@ This content is loaded from a markdown file.
                 editorTextarea.style.width = '100%';
                 editorTextarea.style.height = '100%';
                 editorTextarea.style.fontFamily = 'monospace';
-                editorTextarea.style.fontSize = '14px';
+                editorTextarea.style.fontSize = `${this.state.settings.fontSize}px`;
                 editorTextarea.style.border = 'none';
                 editorTextarea.style.outline = 'none';
                 editorTextarea.style.padding = '10px';
