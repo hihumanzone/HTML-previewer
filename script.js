@@ -909,6 +909,7 @@ const CodePreviewer = {
 
     /**
      * Decodes a base64 string into a Uint8Array.
+     * Callers are responsible for ensuring valid base64 input; atob will throw on invalid data.
      * @param {string} base64 - The base64-encoded string
      * @returns {Uint8Array} The decoded byte array
      */
@@ -5123,6 +5124,7 @@ This content is loaded from a markdown file.
         /**
          * Applies all config-driven replacements (CSS, images, video, source, audio, favicon, font)
          * in a single pass over the configuration map.
+         * Iteration follows insertion order of REPLACEMENT_CONFIGS, matching the original call sequence.
          * @param {string} htmlContent - The HTML content to process
          * @param {Map} fileSystem - The virtual file system
          * @param {string} currentFilePath - Current file path for relative resolution
