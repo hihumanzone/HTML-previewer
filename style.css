@@ -238,7 +238,6 @@ body {
     letter-spacing: 0.015em;
     font-style: italic;
     max-width: 22ch;
-    text-transform: lowercase;
 }
 
 .settings-option:not(.settings-select) {

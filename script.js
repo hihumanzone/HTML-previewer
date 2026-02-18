@@ -1302,13 +1302,10 @@ This content is loaded from a markdown file.
             const raw = localStorage.getItem(this.constants.SETTINGS_STORAGE_KEY);
             if (!raw) return;
             const parsed = JSON.parse(raw);
-            this.state.settings = {
+            this.state.settings = this.normalizeSettings({
                 ...this.state.settings,
                 ...parsed,
-                fontSize: Number(parsed?.fontSize) || this.state.settings.fontSize,
-                tabSize: Number(parsed?.tabSize) || this.state.settings.tabSize,
-                theme: ['dracula', 'default'].includes(parsed?.theme) ? parsed.theme : this.state.settings.theme,
-            };
+            });
         } catch (error) {
             console.warn('Unable to load settings:', error);
         }
@@ -1320,6 +1317,25 @@ This content is loaded from a markdown file.
         } catch (error) {
             console.warn('Unable to save settings:', error);
         }
+    },
+
+    normalizeSettings(nextSettings = {}) {
+        const allowedFontSizes = new Set([12, 13, 14, 15, 16, 18]);
+        const allowedTabSizes = new Set([2, 4, 8]);
+        const allowedThemes = new Set(['dracula', 'default']);
+
+        const fontSize = Number(nextSettings.fontSize);
+        const tabSize = Number(nextSettings.tabSize);
+
+        return {
+            ...nextSettings,
+            lineNumbers: typeof nextSettings.lineNumbers === 'boolean' ? nextSettings.lineNumbers : true,
+            lineWrapping: typeof nextSettings.lineWrapping === 'boolean' ? nextSettings.lineWrapping : true,
+            autoFormatOnType: typeof nextSettings.autoFormatOnType === 'boolean' ? nextSettings.autoFormatOnType : true,
+            fontSize: allowedFontSizes.has(fontSize) ? fontSize : 14,
+            tabSize: allowedTabSizes.has(tabSize) ? tabSize : 2,
+            theme: allowedThemes.has(nextSettings.theme) ? nextSettings.theme : 'dracula',
+        };
     },
 
     syncSettingsUI() {
@@ -1518,6 +1534,8 @@ This content is loaded from a markdown file.
 
         const applySettingAndClose = (updateFn, { refreshEditors = false } = {}) => {
             updateFn();
+            this.state.settings = this.normalizeSettings(this.state.settings);
+            this.syncSettingsUI();
             if (refreshEditors) {
                 this.applyEditorSettingsToAllEditors();
             }
