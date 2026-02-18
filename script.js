@@ -57,6 +57,7 @@ const CodePreviewer = {
         previewAssetUrls: new Set(),
         mediaPreviewUrls: new Set(),
         filePanelPreviewUrls: new Map(),
+        previewRefreshTimer: null,
     },
 
     // ============================================================================
@@ -3124,7 +3125,7 @@ This content is loaded from a markdown file.
         this.checkFileModified(fileId, panel);
         this.renderFileTree();
         this.updateMainHtmlSelector();
-        this.refreshOpenPreviews();
+        this.schedulePreviewRefresh();
         
         this.showNotification('Changes applied successfully', 'success');
     },
@@ -3161,7 +3162,7 @@ This content is loaded from a markdown file.
         this.checkFileModified(fileId, panel);
         this.renderFileTree();
         this.updateMainHtmlSelector();
-        this.refreshOpenPreviews();
+        this.schedulePreviewRefresh();
         
         this.showNotification('Changes discarded', 'info');
     },
@@ -3188,6 +3189,7 @@ This content is loaded from a markdown file.
             if (!isUserInput) return;
 
             this.scheduleAutoFormat(fileId, editor, fileType);
+            this.schedulePreviewRefresh();
         });
     },
 
@@ -3203,6 +3205,17 @@ This content is loaded from a markdown file.
             this.state.autoFormatTimers.delete(fileId);
         }
         this.state.formattingEditors.delete(fileId);
+    },
+
+    schedulePreviewRefresh() {
+        if (this.state.previewRefreshTimer) {
+            clearTimeout(this.state.previewRefreshTimer);
+        }
+
+        this.state.previewRefreshTimer = setTimeout(() => {
+            this.state.previewRefreshTimer = null;
+            this.refreshOpenPreviews();
+        }, 120);
     },
 
     closePanel(fileId) {
@@ -4582,9 +4595,11 @@ This content is loaded from a markdown file.
 
         this.revokeTrackedObjectUrls(this.state.previewAssetUrls);
         const content = this.generatePreviewContent();
-        if (isModalOpen) {
+
+        if (isModalOpen && this.dom.previewFrame) {
             this.dom.previewFrame.srcdoc = content;
         }
+
         if (isTabOpen) {
             try {
                 this.updatePreviewTab(content, false);
@@ -4628,6 +4643,10 @@ This content is loaded from a markdown file.
             this.dom.toggleConsoleBtn.classList.remove('active');
             this.dom.toggleConsoleBtn.textContent = '📋 Console';
         } else {
+            if (this.state.previewRefreshTimer) {
+                clearTimeout(this.state.previewRefreshTimer);
+                this.state.previewRefreshTimer = null;
+            }
             // Clean up when closing the modal
             // Completely remove and recreate the iframe to ensure full cleanup
             // This stops all scripts, event listeners, and timers running in the iframe

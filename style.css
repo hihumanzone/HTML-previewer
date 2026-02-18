@@ -15,6 +15,11 @@
     --file-panel-size: 420px;
     --panel-mobile-min-height: 340px;
     --panel-mobile-max-height: 144vh;
+    --surface-elevated: rgba(24, 24, 37, 0.88);
+    --surface-muted: rgba(49, 50, 68, 0.55);
+    --shadow-elevated: 0 18px 42px rgba(0, 0, 0, 0.32);
+    --radius-md: 10px;
+    --radius-lg: 14px;
 }
 
 *, *::before, *::after {
@@ -28,6 +33,55 @@ body {
     background-color: var(--bg-color);
     color: var(--primary-color);
     line-height: 1.6;
+}
+
+
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1rem 1.1rem;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(145deg, rgba(49, 50, 68, 0.75), rgba(24, 24, 37, 0.9));
+    border: 1px solid rgba(137, 180, 250, 0.22);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-elevated);
+}
+
+.app-eyebrow {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent-hover);
+    margin-bottom: 0.2rem;
+}
+
+.app-header h1 {
+    margin: 0;
+    font-size: 1.45rem;
+    line-height: 1.2;
+}
+
+.app-subtitle {
+    margin-top: 0.35rem;
+    color: rgba(205, 214, 244, 0.9);
+    font-size: 0.92rem;
+}
+
+.app-status-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.3rem 0.7rem;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    border-radius: 999px;
+    background: rgba(166, 227, 161, 0.16);
+    border: 1px solid rgba(166, 227, 161, 0.4);
+    color: var(--success-color);
+    font-weight: 700;
 }
 
 
@@ -51,9 +105,9 @@ body {
 
 
 .container {
-    max-width: 95%;
+    max-width: 96%;
     margin: 0 auto;
-    padding: 1rem 1rem;
+    padding: 1rem 1rem 1.25rem;
 }
 
 .main-header {
@@ -86,8 +140,11 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid var(--border-color);
+    padding: 0.7rem 0.8rem;
+    border: 1px solid rgba(137, 180, 250, 0.15);
+    border-radius: var(--radius-md);
+    background: var(--surface-muted);
+    backdrop-filter: blur(6px);
 }
 
 .files-header span {
@@ -2095,5 +2152,61 @@ body {
 
     .conflict-btn {
         width: 100%;
+    }
+}
+
+
+.clear-all-files-btn,
+.import-zip-btn,
+.export-zip-btn,
+.import-file-btn,
+.add-folder-btn,
+.add-file-btn {
+    border: 1px solid rgba(137, 180, 250, 0.28);
+    background: linear-gradient(150deg, rgba(49, 50, 68, 0.95), rgba(30, 30, 46, 0.9));
+    color: var(--primary-color);
+    border-radius: 8px;
+    font-weight: 600;
+    padding: 0.42rem 0.72rem;
+    font-size: 0.78rem;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease, background .16s ease;
+}
+
+.clear-all-files-btn:hover,
+.import-zip-btn:hover,
+.export-zip-btn:hover,
+.import-file-btn:hover,
+.add-folder-btn:hover,
+.add-file-btn:hover {
+    transform: translateY(-1px);
+    border-color: rgba(137, 180, 250, 0.6);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+    background: linear-gradient(150deg, rgba(70, 73, 98, 0.95), rgba(35, 35, 55, 0.95));
+}
+
+.multi-file-layout {
+    background: var(--surface-elevated);
+    border: 1px solid rgba(137, 180, 250, 0.14);
+    border-radius: var(--radius-lg);
+    padding: 0.65rem;
+    box-shadow: var(--shadow-elevated);
+}
+
+@media (max-width: 840px) {
+    .app-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .files-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.6rem;
+    }
+
+    .files-header-buttons {
+        flex-wrap: wrap;
     }
 }
