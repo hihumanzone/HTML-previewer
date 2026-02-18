@@ -45,6 +45,7 @@ const CodePreviewer = {
         sidebarSearchQuery: '',
         selectedFileIds: new Set(),
         selectedFolderPaths: new Set(),
+        sidebarSearchDebounceTimer: null,
         codeModalEditor: null,
         currentCodeModalSource: null,
         activePanelId: 'default-html',
@@ -1274,6 +1275,11 @@ This content is loaded from a markdown file.
                 this.renderPreview('modal');
             }
 
+            if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'k') {
+                e.preventDefault();
+                this.focusSidebarSearch();
+            }
+
             if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'f' && activePanel) {
                 e.preventDefault();
                 this.openPanelSearch(activePanel);
@@ -1653,6 +1659,14 @@ This content is loaded from a markdown file.
         this.state.selectedFolderPaths.clear();
     },
 
+    focusSidebarSearch() {
+        const searchInput = this.dom.fileTreeContainer?.querySelector('.file-tree-search-input');
+        if (!searchInput) return;
+
+        searchInput.focus();
+        searchInput.select();
+    },
+
     /**
      * Render the file tree sidebar
      */
@@ -1660,24 +1674,51 @@ This content is loaded from a markdown file.
         if (!this.dom.fileTreeContainer) return;
 
         const tree = this.buildFolderTree();
+        this.pruneSidebarSelections();
+        const treeHtml = this.renderFolderContents(tree, '');
+        const toolbarHtml = this.renderFileTreeToolbar(tree);
 
-        // Prune selections for files that no longer exist
-        const existingIds = new Set(this.state.files.map(f => f.id));
-        this.state.selectedFileIds.forEach((id) => {
-            if (!existingIds.has(id)) this.state.selectedFileIds.delete(id);
+        this.dom.fileTreeContainer.innerHTML = `
+            ${toolbarHtml}
+            <div class="file-tree-content">
+                ${treeHtml || '<div class="file-tree-empty">No matching files found. Try a different search.</div>'}
+            </div>
+        `;
+    },
+
+    pruneSidebarSelections() {
+        const existingIds = new Set(this.state.files.map(file => file.id));
+        this.state.selectedFileIds.forEach((fileId) => {
+            if (!existingIds.has(fileId)) {
+                this.state.selectedFileIds.delete(fileId);
+            }
         });
 
         const existingFolderPaths = new Set(this.state.folders.map(folder => folder.path));
         this.state.selectedFolderPaths.forEach((folderPath) => {
-            if (!existingFolderPaths.has(folderPath)) this.state.selectedFolderPaths.delete(folderPath);
+            if (!existingFolderPaths.has(folderPath)) {
+                this.state.selectedFolderPaths.delete(folderPath);
+            }
         });
+    },
 
-        const treeHtml = this.renderFolderContents(tree, '');
+    renderFileTreeToolbar(tree) {
         const hasSelection = this.state.selectedFileIds.size > 0 || this.state.selectedFolderPaths.size > 0;
+        const fileCount = this.countFilesInTree(tree);
 
-        this.dom.fileTreeContainer.innerHTML = `
+        return `
             <div class="file-tree-toolbar">
-                <input type="search" class="file-tree-search-input" placeholder="Search files..." value="${this.escapeHtmlAttribute(this.state.sidebarSearchQuery)}" aria-label="Search files in sidebar">
+                <div class="file-tree-search-wrap">
+                    <input
+                        type="search"
+                        class="file-tree-search-input"
+                        placeholder="Search files..."
+                        value="${this.escapeHtmlAttribute(this.state.sidebarSearchQuery)}"
+                        aria-label="Search files in sidebar"
+                    >
+                    <span class="file-tree-search-hint" aria-hidden="true">⌘/Ctrl + K</span>
+                </div>
+                <div class="file-tree-toolbar-meta">${fileCount} file${fileCount === 1 ? '' : 's'}</div>
                 <div class="file-tree-toolbar-actions">
                     <button class="tree-toolbar-btn clear-selection-btn" title="Clear selection" ${hasSelection ? '' : 'disabled'}>Clear</button>
                     <button class="tree-toolbar-btn open-selected-btn" title="Open selected files/folders" ${hasSelection ? '' : 'disabled'}>Open</button>
@@ -1685,10 +1726,12 @@ This content is loaded from a markdown file.
                     <button class="tree-toolbar-btn delete-selected-btn" title="Delete selected files/folders" ${hasSelection ? '' : 'disabled'}>Delete</button>
                 </div>
             </div>
-            <div class="file-tree-content">
-                ${treeHtml || '<div class="file-tree-empty">No files to show.</div>'}
-            </div>
         `;
+    },
+
+    countFilesInTree(node) {
+        const childCount = Object.values(node.children).reduce((total, childNode) => total + this.countFilesInTree(childNode), 0);
+        return node.files.length + childCount;
     },
 
     /**
@@ -1803,8 +1846,14 @@ This content is loaded from a markdown file.
         this.dom.fileTreeContainer.addEventListener('input', (e) => {
             const target = e.target;
             if (target.classList.contains('file-tree-search-input')) {
+                if (this.state.sidebarSearchDebounceTimer) {
+                    clearTimeout(this.state.sidebarSearchDebounceTimer);
+                }
                 this.state.sidebarSearchQuery = target.value.trim().toLowerCase();
-                this.renderFileTree();
+                this.state.sidebarSearchDebounceTimer = setTimeout(() => {
+                    this.renderFileTree();
+                    this.state.sidebarSearchDebounceTimer = null;
+                }, 120);
                 return;
             }
 
