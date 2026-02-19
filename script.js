@@ -63,12 +63,17 @@ const CodePreviewer = {
         previewDockSize: { right: null, bottom: null },
         dockResizeSession: null,
         settingsCloseHandler: null,
+        settingsEscHandler: null,
         settings: {
             lineNumbers: true,
             lineWrapping: true,
             autoFormatOnType: true,
             fontSize: 14,
             theme: 'dracula',
+            tabSize: 4,
+            indentWithTabs: false,
+            autoCloseBrackets: true,
+            matchBrackets: true,
         },
     },
 
@@ -99,12 +104,16 @@ const CodePreviewer = {
             IMPORT_ZIP_BTN: 'import-zip-btn',
             EXPORT_ZIP_BTN: 'export-zip-btn',
             SETTINGS_BTN: 'settings-btn',
-            SETTINGS_PANEL: 'settings-panel',
+            SETTINGS_MODAL: 'settings-modal',
             SETTINGS_LINE_NUMBERS: 'setting-line-numbers',
             SETTINGS_LINE_WRAP: 'setting-line-wrap',
             SETTINGS_AUTO_FORMAT: 'setting-auto-format',
             SETTINGS_FONT_SIZE: 'setting-font-size',
             SETTINGS_EDITOR_THEME: 'setting-editor-theme',
+            SETTINGS_TAB_SIZE: 'setting-tab-size',
+            SETTINGS_INDENT_WITH_TABS: 'setting-indent-with-tabs',
+            SETTINGS_AUTO_CLOSE_BRACKETS: 'setting-auto-close-brackets',
+            SETTINGS_MATCH_BRACKETS: 'setting-match-brackets',
             MAIN_HTML_SELECT: 'main-html-select',
         },
         CONTAINER_IDS: {
@@ -857,6 +866,10 @@ const CodePreviewer = {
     // APPLICATION INITIALIZATION AND LIFECYCLE
     // ============================================================================
     
+    /**
+     * Initialize the Code Previewer application
+     * Sets up DOM elements, loads settings, initializes editors, and binds events
+     */
     init() {
         this.cacheDOMElements();
         this.loadSettings();
@@ -872,6 +885,10 @@ const CodePreviewer = {
         this.updateAdaptiveLayoutMode();
     },
 
+    /**
+     * Cache all DOM element references for performance
+     * @private
+     */
     cacheDOMElements() {
         const { EDITOR_IDS, CONTROL_IDS, MODAL_IDS, CONSOLE_ID, MODAL_CONSOLE_PANEL_ID, CONTAINER_IDS } = this.constants;
         this.dom = {
@@ -892,12 +909,16 @@ const CodePreviewer = {
             importZipBtn: document.getElementById(CONTROL_IDS.IMPORT_ZIP_BTN),
             exportZipBtn: document.getElementById(CONTROL_IDS.EXPORT_ZIP_BTN),
             settingsBtn: document.getElementById(CONTROL_IDS.SETTINGS_BTN),
-            settingsPanel: document.getElementById(CONTROL_IDS.SETTINGS_PANEL),
+            settingsModal: document.getElementById(CONTROL_IDS.SETTINGS_MODAL),
             settingLineNumbers: document.getElementById(CONTROL_IDS.SETTINGS_LINE_NUMBERS),
             settingLineWrap: document.getElementById(CONTROL_IDS.SETTINGS_LINE_WRAP),
             settingAutoFormat: document.getElementById(CONTROL_IDS.SETTINGS_AUTO_FORMAT),
             settingFontSize: document.getElementById(CONTROL_IDS.SETTINGS_FONT_SIZE),
             settingEditorTheme: document.getElementById(CONTROL_IDS.SETTINGS_EDITOR_THEME),
+            settingTabSize: document.getElementById(CONTROL_IDS.SETTINGS_TAB_SIZE),
+            settingIndentWithTabs: document.getElementById(CONTROL_IDS.SETTINGS_INDENT_WITH_TABS),
+            settingAutoCloseBrackets: document.getElementById(CONTROL_IDS.SETTINGS_AUTO_CLOSE_BRACKETS),
+            settingMatchBrackets: document.getElementById(CONTROL_IDS.SETTINGS_MATCH_BRACKETS),
             mainHtmlSelect: document.getElementById(CONTROL_IDS.MAIN_HTML_SELECT),
             mainHtmlSelector: document.getElementById('main-html-selector'),
             mainHtmlDropdown: document.getElementById('main-html-dropdown'),
@@ -1093,12 +1114,20 @@ const CodePreviewer = {
             return;
         }
 
+        // CodeMirror editor configuration with all settings
+        // Note: indentUnit is set to match tabSize regardless of indentWithTabs.
+        // This ensures consistent indentation width whether using spaces or tabs.
         const editorConfig = (mode) => ({
             lineNumbers: !!this.state.settings.lineNumbers,
             mode: mode,
             theme: this.state.settings.theme,
             autoCloseTags: mode === 'htmlmixed',
             lineWrapping: !!this.state.settings.lineWrapping,
+            tabSize: this.state.settings.tabSize,
+            indentUnit: this.state.settings.tabSize,
+            indentWithTabs: !!this.state.settings.indentWithTabs,
+            autoCloseBrackets: !!this.state.settings.autoCloseBrackets,
+            matchBrackets: !!this.state.settings.matchBrackets,
         });
 
         if (this.dom.htmlEditor) {
@@ -1292,6 +1321,10 @@ This content is loaded from a markdown file.
     },
 
 
+    /**
+     * Load user settings from localStorage
+     * @private
+     */
     loadSettings() {
         try {
             const raw = localStorage.getItem(this.constants.SETTINGS_STORAGE_KEY);
@@ -1306,6 +1339,10 @@ This content is loaded from a markdown file.
         }
     },
 
+    /**
+     * Save user settings to localStorage
+     * @private
+     */
     saveSettings() {
         try {
             localStorage.setItem(this.constants.SETTINGS_STORAGE_KEY, JSON.stringify(this.state.settings));
@@ -1317,8 +1354,10 @@ This content is loaded from a markdown file.
     normalizeSettings(nextSettings = {}) {
         const allowedFontSizes = new Set([12, 13, 14, 15, 16, 18]);
         const allowedThemes = new Set(['dracula', 'default']);
+        const allowedTabSizes = new Set([2, 4, 8]);
 
         const fontSize = Number(nextSettings.fontSize);
+        const tabSize = Number(nextSettings.tabSize);
 
         return {
             ...nextSettings,
@@ -1327,6 +1366,10 @@ This content is loaded from a markdown file.
             autoFormatOnType: typeof nextSettings.autoFormatOnType === 'boolean' ? nextSettings.autoFormatOnType : true,
             fontSize: allowedFontSizes.has(fontSize) ? fontSize : 14,
             theme: allowedThemes.has(nextSettings.theme) ? nextSettings.theme : 'dracula',
+            tabSize: allowedTabSizes.has(tabSize) ? tabSize : 4,
+            indentWithTabs: typeof nextSettings.indentWithTabs === 'boolean' ? nextSettings.indentWithTabs : false,
+            autoCloseBrackets: typeof nextSettings.autoCloseBrackets === 'boolean' ? nextSettings.autoCloseBrackets : true,
+            matchBrackets: typeof nextSettings.matchBrackets === 'boolean' ? nextSettings.matchBrackets : true,
         };
     },
 
@@ -1336,6 +1379,10 @@ This content is loaded from a markdown file.
         if (this.dom.settingAutoFormat) this.dom.settingAutoFormat.checked = !!this.state.settings.autoFormatOnType;
         if (this.dom.settingFontSize) this.dom.settingFontSize.value = String(this.state.settings.fontSize);
         if (this.dom.settingEditorTheme) this.dom.settingEditorTheme.value = this.state.settings.theme;
+        if (this.dom.settingTabSize) this.dom.settingTabSize.value = String(this.state.settings.tabSize);
+        if (this.dom.settingIndentWithTabs) this.dom.settingIndentWithTabs.checked = !!this.state.settings.indentWithTabs;
+        if (this.dom.settingAutoCloseBrackets) this.dom.settingAutoCloseBrackets.checked = !!this.state.settings.autoCloseBrackets;
+        if (this.dom.settingMatchBrackets) this.dom.settingMatchBrackets.checked = !!this.state.settings.matchBrackets;
     },
 
     getAllEditors() {
@@ -1354,6 +1401,11 @@ This content is loaded from a markdown file.
             editor.setOption('lineNumbers', !!this.state.settings.lineNumbers);
             editor.setOption('lineWrapping', !!this.state.settings.lineWrapping);
             editor.setOption('theme', this.state.settings.theme);
+            editor.setOption('tabSize', this.state.settings.tabSize);
+            editor.setOption('indentUnit', this.state.settings.tabSize);
+            editor.setOption('indentWithTabs', !!this.state.settings.indentWithTabs);
+            editor.setOption('autoCloseBrackets', !!this.state.settings.autoCloseBrackets);
+            editor.setOption('matchBrackets', !!this.state.settings.matchBrackets);
         }
 
         const wrapper = editor.getWrapperElement ? editor.getWrapperElement() : null;
@@ -1375,16 +1427,16 @@ This content is loaded from a markdown file.
         this.getAllEditors().forEach((editor) => this.applySettingsToEditor(editor));
     },
 
-    isSettingsPanelOpen() {
-        return !!(this.dom.settingsBtn && this.dom.settingsBtn.getAttribute('aria-expanded') === 'true');
+    isSettingsModalOpen() {
+        return !!(this.dom.settingsModal && this.dom.settingsModal.getAttribute('aria-hidden') === 'false');
     },
 
-    toggleSettingsPanel(forceOpen = null) {
-        if (!this.dom.settingsBtn || !this.dom.settingsPanel) return;
-        const isOpen = this.isSettingsPanelOpen();
+    toggleSettingsModal(forceOpen = null) {
+        if (!this.dom.settingsModal) return;
+        const isOpen = this.isSettingsModalOpen();
         const shouldOpen = forceOpen === null ? !isOpen : !!forceOpen;
-        this.dom.settingsBtn.setAttribute('aria-expanded', String(shouldOpen));
-        this.dom.settingsPanel.hidden = !shouldOpen;
+        this.dom.settingsModal.setAttribute('aria-hidden', String(!shouldOpen));
+        this.dom.settingsModal.hidden = !shouldOpen;
     },
 
     bindEvents() {
@@ -1502,26 +1554,40 @@ This content is loaded from a markdown file.
         this.setupMainHtmlDropdownEvents();
 
         if (this.dom.settingsBtn) {
-            this.dom.settingsBtn.addEventListener('click', (event) => {
-                event.stopPropagation();
-                this.toggleSettingsPanel();
+            this.dom.settingsBtn.addEventListener('click', () => {
+                this.toggleSettingsModal(true);
             });
         }
 
-        if (this.dom.settingsPanel) {
-            this.dom.settingsPanel.addEventListener('click', (event) => event.stopPropagation());
+        // Settings modal events
+        if (this.dom.settingsModal) {
+            // Close modal when clicking backdrop
+            this.dom.settingsModal.addEventListener('click', (e) => {
+                if (e.target === this.dom.settingsModal) {
+                    this.toggleSettingsModal(false);
+                }
+            });
+            
+            // Close button
+            const settingsCloseBtn = this.dom.settingsModal.querySelector('.close-btn');
+            if (settingsCloseBtn) {
+                settingsCloseBtn.addEventListener('click', () => {
+                    this.toggleSettingsModal(false);
+                });
+            }
+            
+            // ESC key to close - avoid duplicates
+            if (!this.state.settingsEscHandler) {
+                this.state.settingsEscHandler = (e) => {
+                    if (e.key === 'Escape' && this.isSettingsModalOpen()) {
+                        this.toggleSettingsModal(false);
+                    }
+                };
+                document.addEventListener('keydown', this.state.settingsEscHandler);
+            }
         }
 
-        if (!this.state.settingsCloseHandler) {
-            this.state.settingsCloseHandler = (event) => {
-                if (!this.isSettingsPanelOpen()) return;
-                if (this.dom.settingsBtn?.contains(event.target) || this.dom.settingsPanel?.contains(event.target)) return;
-                this.toggleSettingsPanel(false);
-            };
-            document.addEventListener('pointerdown', this.state.settingsCloseHandler, true);
-        }
-
-        const applySettingAndClose = (updateFn, { refreshEditors = false } = {}) => {
+        const applySetting = (updateFn, { refreshEditors = false } = {}) => {
             updateFn();
             this.state.settings = this.normalizeSettings(this.state.settings);
             this.syncSettingsUI();
@@ -1529,12 +1595,11 @@ This content is loaded from a markdown file.
                 this.applyEditorSettingsToAllEditors();
             }
             this.saveSettings();
-            this.toggleSettingsPanel(false);
         };
 
         if (this.dom.settingLineNumbers) {
             this.dom.settingLineNumbers.addEventListener('change', () => {
-                applySettingAndClose(() => {
+                applySetting(() => {
                     this.state.settings.lineNumbers = this.dom.settingLineNumbers.checked;
                 }, { refreshEditors: true });
             });
@@ -1542,7 +1607,7 @@ This content is loaded from a markdown file.
 
         if (this.dom.settingLineWrap) {
             this.dom.settingLineWrap.addEventListener('change', () => {
-                applySettingAndClose(() => {
+                applySetting(() => {
                     this.state.settings.lineWrapping = this.dom.settingLineWrap.checked;
                 }, { refreshEditors: true });
             });
@@ -1550,7 +1615,7 @@ This content is loaded from a markdown file.
 
         if (this.dom.settingAutoFormat) {
             this.dom.settingAutoFormat.addEventListener('change', () => {
-                applySettingAndClose(() => {
+                applySetting(() => {
                     this.state.settings.autoFormatOnType = this.dom.settingAutoFormat.checked;
                 });
             });
@@ -1558,7 +1623,7 @@ This content is loaded from a markdown file.
 
         if (this.dom.settingFontSize) {
             this.dom.settingFontSize.addEventListener('change', () => {
-                applySettingAndClose(() => {
+                applySetting(() => {
                     this.state.settings.fontSize = Number(this.dom.settingFontSize.value) || 14;
                 }, { refreshEditors: true });
             });
@@ -1566,8 +1631,40 @@ This content is loaded from a markdown file.
 
         if (this.dom.settingEditorTheme) {
             this.dom.settingEditorTheme.addEventListener('change', () => {
-                applySettingAndClose(() => {
+                applySetting(() => {
                     this.state.settings.theme = this.dom.settingEditorTheme.value || 'dracula';
+                }, { refreshEditors: true });
+            });
+        }
+
+        if (this.dom.settingTabSize) {
+            this.dom.settingTabSize.addEventListener('change', () => {
+                applySetting(() => {
+                    this.state.settings.tabSize = Number(this.dom.settingTabSize.value) || 4;
+                }, { refreshEditors: true });
+            });
+        }
+
+        if (this.dom.settingIndentWithTabs) {
+            this.dom.settingIndentWithTabs.addEventListener('change', () => {
+                applySetting(() => {
+                    this.state.settings.indentWithTabs = this.dom.settingIndentWithTabs.checked;
+                }, { refreshEditors: true });
+            });
+        }
+
+        if (this.dom.settingAutoCloseBrackets) {
+            this.dom.settingAutoCloseBrackets.addEventListener('change', () => {
+                applySetting(() => {
+                    this.state.settings.autoCloseBrackets = this.dom.settingAutoCloseBrackets.checked;
+                }, { refreshEditors: true });
+            });
+        }
+
+        if (this.dom.settingMatchBrackets) {
+            this.dom.settingMatchBrackets.addEventListener('change', () => {
+                applySetting(() => {
+                    this.state.settings.matchBrackets = this.dom.settingMatchBrackets.checked;
                 }, { refreshEditors: true });
             });
         }
@@ -2884,12 +2981,19 @@ This content is loaded from a markdown file.
         if (typeof window.CodeMirror !== 'undefined' && textarea) {
             const mode = this.getCodeMirrorMode(fileType);
             
+            // Create CodeMirror editor with all settings
+            // indentUnit matches tabSize for consistent indentation width
             const editor = window.CodeMirror.fromTextArea(textarea, {
                 lineNumbers: !!this.state.settings.lineNumbers,
                 mode: mode,
                 theme: this.state.settings.theme,
                 autoCloseTags: fileType === 'html',
                 lineWrapping: !!this.state.settings.lineWrapping,
+                tabSize: this.state.settings.tabSize,
+                indentUnit: this.state.settings.tabSize,
+                indentWithTabs: !!this.state.settings.indentWithTabs,
+                autoCloseBrackets: !!this.state.settings.autoCloseBrackets,
+                matchBrackets: !!this.state.settings.matchBrackets,
                 readOnly: isBinary ? 'nocursor' : false
             });
             this.applySettingsToEditor(editor);
@@ -3861,20 +3965,49 @@ This content is loaded from a markdown file.
 
     formatCodeByType(content, fileType) {
         try {
+            // Use configured tab size and indent type from settings
+            const indentSize = this.state.settings.tabSize || 4;
+            const indentChar = this.state.settings.indentWithTabs ? '\t' : ' ';
+            
             if (fileType === 'json') {
-                return JSON.stringify(JSON.parse(content), null, 2);
+                // JSON.stringify uses spaces, so we use indentSize directly
+                const formatted = JSON.stringify(JSON.parse(content), null, indentSize);
+                // If using tabs, replace leading spaces with tabs
+                if (this.state.settings.indentWithTabs) {
+                    return formatted.split('\n').map(line => {
+                        const spaces = line.match(/^ +/);
+                        if (spaces) {
+                            const spaceCount = spaces[0].length;
+                            const tabCount = Math.floor(spaceCount / indentSize);
+                            return '\t'.repeat(tabCount) + line.slice(tabCount * indentSize);
+                        }
+                        return line;
+                    }).join('\n');
+                }
+                return formatted;
             }
 
             if ((fileType === 'javascript' || fileType === 'javascript-module') && typeof window.js_beautify === 'function') {
-                return window.js_beautify(content, { indent_size: 2, preserve_newlines: true });
+                return window.js_beautify(content, { 
+                    indent_size: indentSize,
+                    indent_char: indentChar,
+                    preserve_newlines: true 
+                });
             }
 
             if (fileType === 'css' && typeof window.css_beautify === 'function') {
-                return window.css_beautify(content, { indent_size: 2 });
+                return window.css_beautify(content, { 
+                    indent_size: indentSize,
+                    indent_char: indentChar
+                });
             }
 
             if ((fileType === 'html' || fileType === 'xml' || fileType === 'svg') && typeof window.html_beautify === 'function') {
-                return window.html_beautify(content, { indent_size: 2, wrap_line_length: 120 });
+                return window.html_beautify(content, { 
+                    indent_size: indentSize,
+                    indent_char: indentChar,
+                    wrap_line_length: 120 
+                });
             }
 
             if (fileType === 'markdown' || fileType === 'text') {
@@ -4186,6 +4319,8 @@ This content is loaded from a markdown file.
 
             if (window.CodeMirror) {
                 if (!this.state.codeModalEditor) {
+                    // Create modal CodeMirror editor with all settings
+                    // indentUnit matches tabSize for consistent indentation width
                     this.state.codeModalEditor = window.CodeMirror.fromTextArea(editorTextarea, {
                         lineNumbers: true,
                         mode: language,
@@ -4193,6 +4328,11 @@ This content is loaded from a markdown file.
                         readOnly: false,
                         lineWrapping: !!this.state.settings.lineWrapping,
                         autoCloseTags: true,
+                        tabSize: this.state.settings.tabSize,
+                        indentUnit: this.state.settings.tabSize,
+                        indentWithTabs: !!this.state.settings.indentWithTabs,
+                        autoCloseBrackets: !!this.state.settings.autoCloseBrackets,
+                        matchBrackets: !!this.state.settings.matchBrackets,
                         viewportMargin: Infinity,
                         extraKeys: {
                             'Ctrl-S': () => this.saveCodeModal(false),
