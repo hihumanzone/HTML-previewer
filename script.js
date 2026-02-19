@@ -46,6 +46,7 @@ const CodePreviewer = {
         sidebarSearchDebounceTimer: null,
         codeModalEditor: null,
         currentCodeModalSource: null,
+        codeModalSearchState: { query: '', cursorIndex: -1 },
         activePanelId: 'default-html',
         autoFormatTimers: new Map(),
         formattingEditors: new Set(),
@@ -66,8 +67,8 @@ const CodePreviewer = {
         settingsEscHandler: null,
         settings: {
             lineNumbers: true,
-            lineWrapping: true,
-            autoFormatOnType: true,
+            lineWrapping: false,
+            autoFormatOnType: false,
             fontSize: 14,
             theme: 'dracula',
             tabSize: 4,
@@ -932,7 +933,11 @@ const CodePreviewer = {
             consoleOutput: document.getElementById(CONSOLE_ID),
             modalConsolePanel: document.getElementById(MODAL_CONSOLE_PANEL_ID),
             editorGrid: document.querySelector('.editor-grid'),
-            formatCodeBtn: document.getElementById('format-code-btn'),
+            codeModalSearchBtn: document.getElementById('code-modal-search-btn'),
+            codeModalSearch: document.getElementById('code-modal-search'),
+            codeModalSearchInput: document.getElementById('code-modal-search-input'),
+            codeModalSearchNextBtn: document.getElementById('code-modal-search-next-btn'),
+            codeModalSearchCloseBtn: document.getElementById('code-modal-search-close-btn'),
             saveCodeBtn: document.getElementById('save-code-btn'),
             mediaModal: document.getElementById('media-modal'),
             mediaModalContent: document.getElementById('media-modal-content'),
@@ -1362,8 +1367,8 @@ This content is loaded from a markdown file.
         return {
             ...nextSettings,
             lineNumbers: typeof nextSettings.lineNumbers === 'boolean' ? nextSettings.lineNumbers : true,
-            lineWrapping: typeof nextSettings.lineWrapping === 'boolean' ? nextSettings.lineWrapping : true,
-            autoFormatOnType: typeof nextSettings.autoFormatOnType === 'boolean' ? nextSettings.autoFormatOnType : true,
+            lineWrapping: typeof nextSettings.lineWrapping === 'boolean' ? nextSettings.lineWrapping : false,
+            autoFormatOnType: typeof nextSettings.autoFormatOnType === 'boolean' ? nextSettings.autoFormatOnType : false,
             fontSize: allowedFontSizes.has(fontSize) ? fontSize : 14,
             theme: allowedThemes.has(nextSettings.theme) ? nextSettings.theme : 'dracula',
             tabSize: allowedTabSizes.has(tabSize) ? tabSize : 4,
@@ -1466,9 +1471,16 @@ This content is loaded from a markdown file.
                 this.focusSidebarSearch();
             }
 
-            if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'f' && activePanel) {
-                e.preventDefault();
-                this.openPanelSearch(activePanel);
+            if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'f') {
+                const codeModal = document.getElementById('code-modal');
+                const isCodeModalOpen = codeModal && codeModal.getAttribute('aria-hidden') === 'false';
+                if (isCodeModalOpen) {
+                    e.preventDefault();
+                    this.openCodeModalSearch();
+                } else if (activePanel) {
+                    e.preventDefault();
+                    this.openPanelSearch(activePanel);
+                }
             }
 
             if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'e' && activePanel) {
@@ -1476,15 +1488,9 @@ This content is loaded from a markdown file.
                 this.expandCode(activePanel);
             }
 
-            if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
-                const codeModal = document.getElementById('code-modal');
-                if (codeModal && codeModal.getAttribute('aria-hidden') === 'false') {
-                    e.preventDefault();
-                    this.formatCodeModalEditor();
-                } else if (activePanel) {
-                    e.preventDefault();
-                    this.formatPanelCode(activePanel, false);
-                }
+            if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'f' && activePanel) {
+                e.preventDefault();
+                this.formatPanelCode(activePanel, false);
             }
 
             if (e.key === 'Escape') {
@@ -1513,8 +1519,26 @@ This content is loaded from a markdown file.
             codeModalCloseBtn.addEventListener('click', () => this.closeCodeModal());
         }
         
-        if (this.dom.formatCodeBtn) {
-            this.dom.formatCodeBtn.addEventListener('click', () => this.formatCodeModalEditor());
+        if (this.dom.codeModalSearchBtn) {
+            this.dom.codeModalSearchBtn.addEventListener('click', () => this.toggleCodeModalSearch());
+        }
+
+        if (this.dom.codeModalSearchInput) {
+            this.dom.codeModalSearchInput.addEventListener('input', () => this.searchInCodeModal(false));
+            this.dom.codeModalSearchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.searchInCodeModal(true);
+                }
+            });
+        }
+
+        if (this.dom.codeModalSearchNextBtn) {
+            this.dom.codeModalSearchNextBtn.addEventListener('click', () => this.searchInCodeModal(true));
+        }
+
+        if (this.dom.codeModalSearchCloseBtn) {
+            this.dom.codeModalSearchCloseBtn.addEventListener('click', () => this.closeCodeModalSearch());
         }
 
         if (this.dom.saveCodeBtn) {
@@ -1728,8 +1752,8 @@ This content is loaded from a markdown file.
             modalTitle.textContent = isMobile ? displayFileName : `Code View - ${displayFileName}`;
         }
 
-        if (this.dom.formatCodeBtn) {
-            this.dom.formatCodeBtn.textContent = isMobile ? '✨' : '✨ Format';
+        if (this.dom.codeModalSearchBtn) {
+            this.dom.codeModalSearchBtn.textContent = isMobile ? '🔎' : '🔎 Search';
         }
 
         if (this.dom.saveCodeBtn) {
@@ -1999,6 +2023,11 @@ This content is loaded from a markdown file.
     renderFileTree() {
         if (!this.dom.fileTreeContainer) return;
 
+        const activeEl = document.activeElement;
+        const shouldRestoreSidebarSearchFocus = !!(activeEl && activeEl.classList && activeEl.classList.contains('file-tree-search-input'));
+        const sidebarSearchSelectionStart = shouldRestoreSidebarSearchFocus ? activeEl.selectionStart : null;
+        const sidebarSearchSelectionEnd = shouldRestoreSidebarSearchFocus ? activeEl.selectionEnd : null;
+
         const tree = this.buildFolderTree();
         this.pruneSidebarSelections();
         const treeHtml = this.renderFolderContents(tree, '');
@@ -2010,6 +2039,16 @@ This content is loaded from a markdown file.
                 ${treeHtml || '<div class="file-tree-empty">No matching files found. Try a different search.</div>'}
             </div>
         `;
+
+        if (shouldRestoreSidebarSearchFocus) {
+            const searchInput = this.dom.fileTreeContainer.querySelector('.file-tree-search-input');
+            if (searchInput) {
+                searchInput.focus();
+                if (typeof sidebarSearchSelectionStart === 'number' && typeof sidebarSearchSelectionEnd === 'number') {
+                    searchInput.setSelectionRange(sidebarSearchSelectionStart, sidebarSearchSelectionEnd);
+                }
+            }
+        }
     },
 
     pruneSidebarSelections() {
@@ -3096,13 +3135,6 @@ This content is loaded from a markdown file.
         return ['html', 'css', 'javascript', 'javascript-module', 'json', 'xml', 'svg'].includes(fileType);
     },
 
-    updateCodeModalFormattingAction(fileType) {
-        if (!this.dom.formatCodeBtn) return;
-
-        const supportsFormatting = this.supportsFormattingForType(fileType);
-        this.dom.formatCodeBtn.hidden = !supportsFormatting;
-        this.dom.formatCodeBtn.disabled = !supportsFormatting;
-    },
 
     getCodeMirrorMode(fileType) {
         return this.fileTypeUtils.getCodeMirrorMode(fileType);
@@ -4090,7 +4122,7 @@ This content is loaded from a markdown file.
         }
     },
 
-    selectEditorSearchMatch(editor, matchIndex, queryLength) {
+    selectEditorSearchMatch(editor, matchIndex, queryLength, shouldFocus = true) {
         if (editor.posFromIndex && editor.setSelection) {
             const from = editor.posFromIndex(matchIndex);
             const to = editor.posFromIndex(matchIndex + queryLength);
@@ -4098,14 +4130,16 @@ This content is loaded from a markdown file.
             if (editor.scrollIntoView) {
                 editor.scrollIntoView({ from, to }, 100);
             }
-            if (editor.focus) {
+            if (shouldFocus && editor.focus) {
                 editor.focus();
             }
             return true;
         }
 
         if (typeof editor.selectionStart === 'number' && typeof editor.setSelectionRange === 'function') {
-            editor.focus();
+            if (shouldFocus) {
+                editor.focus();
+            }
             editor.setSelectionRange(matchIndex, matchIndex + queryLength);
             return true;
         }
@@ -4144,7 +4178,7 @@ This content is loaded from a markdown file.
             return;
         }
 
-        this.selectEditorSearchMatch(editor, matchIndex, trimmedQuery.length);
+        this.selectEditorSearchMatch(editor, matchIndex, trimmedQuery.length, findNext);
     },
 
     clearEditor(panel) {
@@ -4321,7 +4355,6 @@ This content is loaded from a markdown file.
 
             this.state.currentCodeModalSource = sourcePanel;
             this.setActiveEditorPanel(sourcePanel);
-            this.updateCodeModalFormattingAction(sourcePanel?.dataset.fileType || 'text');
 
             this.updateCodeModalHeaderAndButtons(fileName);
 
@@ -4394,47 +4427,117 @@ This content is loaded from a markdown file.
             modal.setAttribute('aria-hidden', 'true');
         }
         this.state.currentCodeModalSource = null;
+        this.closeCodeModalSearch();
         this.updateDockDividerVisibility();
         this.updateBackgroundScrollLock();
     },
 
 
-    formatCodeModalEditor() {
-        try {
-            if (!this.state.currentCodeModalSource) return;
 
-            const sourceFileType = this.state.currentCodeModalSource.dataset.fileType || 'text';
-            if (!this.supportsFormattingForType(sourceFileType)) return;
-            let currentContent = '';
+    refreshCodeModalEditor() {
+        if (!(window.CodeMirror && this.state.codeModalEditor)) return;
+        setTimeout(() => this.state.codeModalEditor.refresh(), 0);
+    },
 
-            if (window.CodeMirror && this.state.codeModalEditor) {
-                currentContent = this.state.codeModalEditor.getValue();
-            } else {
-                const editorTextarea = document.getElementById('code-modal-editor');
-                currentContent = editorTextarea ? editorTextarea.value : '';
-            }
+    getCodeModalEditorText() {
+        if (window.CodeMirror && this.state.codeModalEditor) {
+            return this.state.codeModalEditor.getValue();
+        }
 
-            const formattedContent = this.formatCodeByType(currentContent, sourceFileType);
-            if (!formattedContent || formattedContent === currentContent) return;
+        const editorTextarea = document.getElementById('code-modal-editor');
+        return editorTextarea ? editorTextarea.value : '';
+    },
 
-            if (window.CodeMirror && this.state.codeModalEditor) {
-                this.state.codeModalEditor.setValue(formattedContent);
-                this.state.codeModalEditor.focus();
-            } else {
-                const editorTextarea = document.getElementById('code-modal-editor');
-                if (editorTextarea) {
-                    editorTextarea.value = formattedContent;
-                    editorTextarea.focus();
-                }
-            }
+    openCodeModalSearch() {
+        if (!this.dom.codeModalSearch || !this.dom.codeModalSearchInput) return;
 
-            this.showNotification('Code formatted', 'success');
-        } catch (error) {
-            console.error('Error formatting code modal content:', error);
-            this.showNotification('Unable to format code', 'error');
+        this.dom.codeModalSearch.hidden = false;
+        this.dom.codeModalSearchBtn?.classList.add('active');
+        this.dom.codeModalSearchBtn?.setAttribute('aria-expanded', 'true');
+        this.dom.codeModalSearchInput.focus();
+        this.dom.codeModalSearchInput.select();
+        this.refreshCodeModalEditor();
+    },
+
+    closeCodeModalSearch() {
+        if (!this.dom.codeModalSearch || !this.dom.codeModalSearchInput) return;
+
+        this.dom.codeModalSearch.hidden = true;
+        this.dom.codeModalSearchInput.value = '';
+        this.dom.codeModalSearchInput.classList.remove('no-match');
+        this.dom.codeModalSearchBtn?.classList.remove('active');
+        this.dom.codeModalSearchBtn?.setAttribute('aria-expanded', 'false');
+        this.state.codeModalSearchState = { query: '', cursorIndex: -1 };
+
+        if (window.CodeMirror && this.state.codeModalEditor) {
+            this.state.codeModalEditor.focus();
+        }
+
+        this.refreshCodeModalEditor();
+    },
+
+    toggleCodeModalSearch() {
+        if (!this.dom.codeModalSearch) return;
+
+        if (this.dom.codeModalSearch.hidden) {
+            this.openCodeModalSearch();
+        } else {
+            this.closeCodeModalSearch();
         }
     },
 
+    searchInCodeModal(findNext = false) {
+        if (!this.dom.codeModalSearchInput) return;
+
+        const query = this.dom.codeModalSearchInput.value;
+        const content = this.getCodeModalEditorText();
+        this.dom.codeModalSearchInput.classList.remove('no-match');
+
+        if (!query) {
+            this.state.codeModalSearchState = { query: '', cursorIndex: -1 };
+            return;
+        }
+
+        const queryLower = query.toLowerCase();
+        const contentLower = content.toLowerCase();
+        const searchState = this.state.codeModalSearchState;
+
+        let startIndex = 0;
+        if (findNext && searchState.query === query) {
+            startIndex = Math.max(searchState.cursorIndex + 1, 0);
+        }
+
+        let matchIndex = contentLower.indexOf(queryLower, startIndex);
+        if (matchIndex === -1 && findNext) {
+            matchIndex = contentLower.indexOf(queryLower, 0);
+        }
+
+        if (matchIndex === -1) {
+            this.dom.codeModalSearchInput.classList.add('no-match');
+            return;
+        }
+
+        const endIndex = matchIndex + query.length;
+        this.state.codeModalSearchState = { query, cursorIndex: matchIndex };
+
+        if (window.CodeMirror && this.state.codeModalEditor) {
+            const startPos = this.state.codeModalEditor.posFromIndex(matchIndex);
+            const endPos = this.state.codeModalEditor.posFromIndex(endIndex);
+            if (findNext) {
+                this.state.codeModalEditor.focus();
+            }
+            this.state.codeModalEditor.setSelection(startPos, endPos);
+            this.state.codeModalEditor.scrollIntoView({ from: startPos, to: endPos }, 60);
+        } else {
+            const editorTextarea = document.getElementById('code-modal-editor');
+            if (editorTextarea) {
+                if (findNext) {
+                    editorTextarea.focus();
+                }
+                editorTextarea.setSelectionRange(matchIndex, endIndex);
+            }
+        }
+    },
     saveCodeModal(closeAfterSave = true) {
         try {
             if (!this.state.currentCodeModalSource) {

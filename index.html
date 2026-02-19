@@ -344,12 +344,17 @@
             <div class="modal-header">
                 <h2 id="code-modal-title">Code View</h2>
                 <div class="modal-controls">
-                    <button id="format-code-btn" class="save-btn" aria-label="Format code" title="Format code">✨ Format</button>
+                    <button id="code-modal-search-btn" class="save-btn" aria-label="Search in code" title="Search in code" aria-expanded="false">🔎 Search</button>
                     <button id="save-code-btn" class="save-btn" aria-label="Save changes" title="Save and close (Ctrl/Cmd+S applies without closing)">💾 Save</button>
                     <button class="close-btn" aria-label="Close code modal">&times;</button>
                 </div>
             </div>
             <div class="modal-body">
+                <div id="code-modal-search" class="code-modal-search" hidden>
+                    <input type="search" id="code-modal-search-input" placeholder="Search in this file" aria-label="Search in expanded code view">
+                    <button id="code-modal-search-next-btn" type="button" aria-label="Find next match">Next</button>
+                    <button id="code-modal-search-close-btn" type="button" aria-label="Close search">✕</button>
+                </div>
                 <div id="code-modal-editor-container">
                     <textarea id="code-modal-editor"></textarea>
                 </div>
@@ -387,11 +392,11 @@
                             <span>Line numbers</span>
                         </label>
                         <label class="settings-option" for="setting-line-wrap">
-                            <input type="checkbox" id="setting-line-wrap" checked>
+                            <input type="checkbox" id="setting-line-wrap">
                             <span>Line wrap</span>
                         </label>
                         <label class="settings-option" for="setting-auto-format">
-                            <input type="checkbox" id="setting-auto-format" checked>
+                            <input type="checkbox" id="setting-auto-format">
                             <span>Auto-format while typing</span>
                         </label>
                     </div>
