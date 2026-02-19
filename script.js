@@ -4517,43 +4517,6 @@ This content is loaded from a markdown file.
             }
         }
     },
-
-    formatCodeModalEditor() {
-        try {
-            if (!this.state.currentCodeModalSource) return;
-
-            const sourceFileType = this.state.currentCodeModalSource.dataset.fileType || 'text';
-            if (!this.supportsFormattingForType(sourceFileType)) return;
-            let currentContent = '';
-
-            if (window.CodeMirror && this.state.codeModalEditor) {
-                currentContent = this.state.codeModalEditor.getValue();
-            } else {
-                const editorTextarea = document.getElementById('code-modal-editor');
-                currentContent = editorTextarea ? editorTextarea.value : '';
-            }
-
-            const formattedContent = this.formatCodeByType(currentContent, sourceFileType);
-            if (!formattedContent || formattedContent === currentContent) return;
-
-            if (window.CodeMirror && this.state.codeModalEditor) {
-                this.state.codeModalEditor.setValue(formattedContent);
-                this.state.codeModalEditor.focus();
-            } else {
-                const editorTextarea = document.getElementById('code-modal-editor');
-                if (editorTextarea) {
-                    editorTextarea.value = formattedContent;
-                    editorTextarea.focus();
-                }
-            }
-
-            this.showNotification('Code formatted', 'success');
-        } catch (error) {
-            console.error('Error formatting code modal content:', error);
-            this.showNotification('Unable to format code', 'error');
-        }
-    },
-
     saveCodeModal(closeAfterSave = true) {
         try {
             if (!this.state.currentCodeModalSource) {
