@@ -63,6 +63,7 @@ const CodePreviewer = {
         previewDockSize: { right: null, bottom: null },
         dockResizeSession: null,
         settingsCloseHandler: null,
+        settingsEscHandler: null,
         settings: {
             lineNumbers: true,
             lineWrapping: true,
@@ -865,6 +866,10 @@ const CodePreviewer = {
     // APPLICATION INITIALIZATION AND LIFECYCLE
     // ============================================================================
     
+    /**
+     * Initialize the Code Previewer application
+     * Sets up DOM elements, loads settings, initializes editors, and binds events
+     */
     init() {
         this.cacheDOMElements();
         this.loadSettings();
@@ -880,6 +885,10 @@ const CodePreviewer = {
         this.updateAdaptiveLayoutMode();
     },
 
+    /**
+     * Cache all DOM element references for performance
+     * @private
+     */
     cacheDOMElements() {
         const { EDITOR_IDS, CONTROL_IDS, MODAL_IDS, CONSOLE_ID, MODAL_CONSOLE_PANEL_ID, CONTAINER_IDS } = this.constants;
         this.dom = {
@@ -1312,6 +1321,10 @@ This content is loaded from a markdown file.
     },
 
 
+    /**
+     * Load user settings from localStorage
+     * @private
+     */
     loadSettings() {
         try {
             const raw = localStorage.getItem(this.constants.SETTINGS_STORAGE_KEY);
@@ -1326,6 +1339,10 @@ This content is loaded from a markdown file.
         }
     },
 
+    /**
+     * Save user settings to localStorage
+     * @private
+     */
     saveSettings() {
         try {
             localStorage.setItem(this.constants.SETTINGS_STORAGE_KEY, JSON.stringify(this.state.settings));
