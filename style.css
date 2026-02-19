@@ -1299,6 +1299,70 @@ body.preview-docked-bottom.is-resizing-preview-dock {
 }
 
 /* Code Modal Styles */
+
+.code-modal-search {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid rgba(69, 71, 90, 0.45);
+    background: linear-gradient(180deg, rgba(24, 24, 37, 0.9) 0%, rgba(24, 24, 37, 0.68) 100%);
+}
+
+.code-modal-search[hidden] {
+    display: none;
+}
+
+#code-modal-search-input {
+    flex: 1;
+    min-width: 0;
+    background: rgba(49, 50, 68, 0.82);
+    border: 1px solid rgba(137, 180, 250, 0.25);
+    color: var(--primary-color);
+    border-radius: 8px;
+    padding: 0.4rem 0.65rem;
+    font-size: 0.82rem;
+}
+
+#code-modal-search-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px rgba(137, 180, 250, 0.18);
+}
+
+#code-modal-search-input.no-match {
+    border-color: var(--error-color);
+    box-shadow: 0 0 0 3px rgba(243, 139, 168, 0.16);
+}
+
+#code-modal-search-next-btn,
+#code-modal-search-close-btn {
+    background: rgba(49, 50, 68, 0.9);
+    border: 1px solid rgba(137, 180, 250, 0.2);
+    color: var(--primary-color);
+    border-radius: 8px;
+    padding: 0.35rem 0.62rem;
+    cursor: pointer;
+    font-size: 0.76rem;
+    font-weight: 600;
+}
+
+#code-modal-search-next-btn:hover,
+#code-modal-search-close-btn:hover {
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+}
+
+#code-modal-search-close-btn {
+    min-width: 2rem;
+}
+
+#code-modal-search-btn.active {
+    background: rgba(137, 180, 250, 0.18);
+    border-color: rgba(137, 180, 250, 0.65);
+    color: var(--accent-color);
+}
+
 #code-modal-editor-container {
     width: 100%;
     height: 100%;
