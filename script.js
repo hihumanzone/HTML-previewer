@@ -1559,12 +1559,15 @@ This content is loaded from a markdown file.
                 });
             }
             
-            // ESC key to close
-            document.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape' && this.isSettingsModalOpen()) {
-                    this.toggleSettingsModal(false);
-                }
-            });
+            // ESC key to close - avoid duplicates
+            if (!this.state.settingsEscHandler) {
+                this.state.settingsEscHandler = (e) => {
+                    if (e.key === 'Escape' && this.isSettingsModalOpen()) {
+                        this.toggleSettingsModal(false);
+                    }
+                };
+                document.addEventListener('keydown', this.state.settingsEscHandler);
+            }
         }
 
         const applySetting = (updateFn, { refreshEditors = false } = {}) => {
@@ -3951,7 +3954,20 @@ This content is loaded from a markdown file.
             
             if (fileType === 'json') {
                 // JSON.stringify uses spaces, so we use indentSize directly
-                return JSON.stringify(JSON.parse(content), null, indentSize);
+                const formatted = JSON.stringify(JSON.parse(content), null, indentSize);
+                // If using tabs, replace leading spaces with tabs
+                if (this.state.settings.indentWithTabs) {
+                    return formatted.split('\n').map(line => {
+                        const spaces = line.match(/^ +/);
+                        if (spaces) {
+                            const spaceCount = spaces[0].length;
+                            const tabCount = Math.floor(spaceCount / indentSize);
+                            return '\t'.repeat(tabCount) + line.slice(tabCount * indentSize);
+                        }
+                        return line;
+                    }).join('\n');
+                }
+                return formatted;
             }
 
             if ((fileType === 'javascript' || fileType === 'javascript-module') && typeof window.js_beautify === 'function') {
