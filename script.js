@@ -3935,20 +3935,36 @@ This content is loaded from a markdown file.
 
     formatCodeByType(content, fileType) {
         try {
+            // Use configured tab size and indent type from settings
+            const indentSize = this.state.settings.tabSize || 4;
+            const indentChar = this.state.settings.indentWithTabs ? '\t' : ' ';
+            
             if (fileType === 'json') {
-                return JSON.stringify(JSON.parse(content), null, 2);
+                // JSON.stringify uses spaces, so we use indentSize directly
+                return JSON.stringify(JSON.parse(content), null, indentSize);
             }
 
             if ((fileType === 'javascript' || fileType === 'javascript-module') && typeof window.js_beautify === 'function') {
-                return window.js_beautify(content, { indent_size: 2, preserve_newlines: true });
+                return window.js_beautify(content, { 
+                    indent_size: indentSize,
+                    indent_char: indentChar,
+                    preserve_newlines: true 
+                });
             }
 
             if (fileType === 'css' && typeof window.css_beautify === 'function') {
-                return window.css_beautify(content, { indent_size: 2 });
+                return window.css_beautify(content, { 
+                    indent_size: indentSize,
+                    indent_char: indentChar
+                });
             }
 
             if ((fileType === 'html' || fileType === 'xml' || fileType === 'svg') && typeof window.html_beautify === 'function') {
-                return window.html_beautify(content, { indent_size: 2, wrap_line_length: 120 });
+                return window.html_beautify(content, { 
+                    indent_size: indentSize,
+                    indent_char: indentChar,
+                    wrap_line_length: 120 
+                });
             }
 
             if (fileType === 'markdown' || fileType === 'text') {
