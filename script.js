@@ -1492,7 +1492,7 @@ This content is loaded from a markdown file.
                     this.toggleModal(false);
                 }
 
-                this.toggleSettingsPanel(false);
+                this.toggleSettingsModal(false);
 
                 const codeModal = document.getElementById('code-modal');
                 if (codeModal && codeModal.getAttribute('aria-hidden') === 'false') {
@@ -4292,6 +4292,7 @@ This content is loaded from a markdown file.
         this.dom.mediaModal.style.display = 'flex';
         this.dom.mediaModal.setAttribute('aria-hidden', 'false');
         this.updateDockDividerVisibility();
+        this.updateBackgroundScrollLock();
     },
 
     closeMediaModal() {
