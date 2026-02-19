@@ -5101,6 +5101,7 @@ This content is loaded from a markdown file.
 
         this.updatePreviewDockButton();
         this.updateAdaptiveLayoutMode();
+        this.updateBackgroundScrollLock();
     },
 
     togglePreviewDock(forceState = null) {
