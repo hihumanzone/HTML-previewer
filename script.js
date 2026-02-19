@@ -4417,6 +4417,11 @@ This content is loaded from a markdown file.
 
 
 
+    refreshCodeModalEditor() {
+        if (!(window.CodeMirror && this.state.codeModalEditor)) return;
+        setTimeout(() => this.state.codeModalEditor.refresh(), 0);
+    },
+
     getCodeModalEditorText() {
         if (window.CodeMirror && this.state.codeModalEditor) {
             return this.state.codeModalEditor.getValue();
@@ -4434,6 +4439,7 @@ This content is loaded from a markdown file.
         this.dom.codeModalSearchBtn?.setAttribute('aria-expanded', 'true');
         this.dom.codeModalSearchInput.focus();
         this.dom.codeModalSearchInput.select();
+        this.refreshCodeModalEditor();
     },
 
     closeCodeModalSearch() {
@@ -4449,6 +4455,8 @@ This content is loaded from a markdown file.
         if (window.CodeMirror && this.state.codeModalEditor) {
             this.state.codeModalEditor.focus();
         }
+
+        this.refreshCodeModalEditor();
     },
 
     toggleCodeModalSearch() {
