@@ -1437,6 +1437,8 @@ This content is loaded from a markdown file.
         const shouldOpen = forceOpen === null ? !isOpen : !!forceOpen;
         this.dom.settingsModal.setAttribute('aria-hidden', String(!shouldOpen));
         this.dom.settingsModal.hidden = !shouldOpen;
+        this.updateDockDividerVisibility();
+        this.updateBackgroundScrollLock();
     },
 
     bindEvents() {
@@ -1490,7 +1492,7 @@ This content is loaded from a markdown file.
                     this.toggleModal(false);
                 }
 
-                this.toggleSettingsPanel(false);
+                this.toggleSettingsModal(false);
 
                 const codeModal = document.getElementById('code-modal');
                 if (codeModal && codeModal.getAttribute('aria-hidden') === 'false') {
@@ -1708,6 +1710,10 @@ This content is loaded from a markdown file.
     },
 
     isMobileViewport() {
+        return window.matchMedia('(max-width: 768px)').matches;
+    },
+
+    isCompactEditorViewport() {
         return this.getAvailableEditorWidth() <= 768;
     },
 
@@ -1732,7 +1738,7 @@ This content is loaded from a markdown file.
     },
 
     updatePanelMoveButtonDirections() {
-        const isMobile = this.isMobileViewport();
+        const isMobile = this.isCompactEditorViewport();
         document.querySelectorAll('.move-panel-btn').forEach((button) => {
             const direction = button.dataset.direction;
             if (direction === 'left') {
@@ -4286,6 +4292,7 @@ This content is loaded from a markdown file.
         this.dom.mediaModal.style.display = 'flex';
         this.dom.mediaModal.setAttribute('aria-hidden', 'false');
         this.updateDockDividerVisibility();
+        this.updateBackgroundScrollLock();
     },
 
     closeMediaModal() {
@@ -4298,6 +4305,7 @@ This content is loaded from a markdown file.
             this.dom.mediaModalContent.innerHTML = '';
         }
         this.updateDockDividerVisibility();
+        this.updateBackgroundScrollLock();
     },
 
     openCodeModal(content, fileName, language, sourcePanel) {
@@ -4367,6 +4375,7 @@ This content is loaded from a markdown file.
             modal.style.display = 'flex';
             modal.setAttribute('aria-hidden', 'false');
             this.updateDockDividerVisibility();
+            this.updateBackgroundScrollLock();
 
             if (window.CodeMirror && this.state.codeModalEditor) {
                 setTimeout(() => {
@@ -4386,6 +4395,7 @@ This content is loaded from a markdown file.
         }
         this.state.currentCodeModalSource = null;
         this.updateDockDividerVisibility();
+        this.updateBackgroundScrollLock();
     },
 
 
@@ -5049,7 +5059,16 @@ This content is loaded from a markdown file.
     isSecondaryModalOpen() {
         const codeOpen = document.getElementById('code-modal')?.getAttribute('aria-hidden') === 'false';
         const mediaOpen = this.dom.mediaModal?.getAttribute('aria-hidden') === 'false';
-        return codeOpen || mediaOpen;
+        const settingsOpen = this.isSettingsModalOpen();
+        return codeOpen || mediaOpen || settingsOpen;
+    },
+
+    updateBackgroundScrollLock() {
+        const previewOpen = this.dom.modalOverlay?.getAttribute('aria-hidden') === 'false';
+        const codeOpen = document.getElementById('code-modal')?.getAttribute('aria-hidden') === 'false';
+        const settingsOpen = this.isSettingsModalOpen();
+        const shouldLock = settingsOpen || codeOpen || (previewOpen && !this.state.isPreviewDocked);
+        document.body.classList.toggle('modal-scroll-lock', shouldLock);
     },
 
     updateDockDividerVisibility() {
@@ -5083,6 +5102,7 @@ This content is loaded from a markdown file.
 
         this.updatePreviewDockButton();
         this.updateAdaptiveLayoutMode();
+        this.updateBackgroundScrollLock();
     },
 
     togglePreviewDock(forceState = null) {
@@ -5201,6 +5221,9 @@ This content is loaded from a markdown file.
             this.console.clear();
             this.cleanupPreviewAssetUrlsIfUnused();
         }
+
+        this.updateDockDividerVisibility();
+        this.updateBackgroundScrollLock();
     },
 
     toggleConsole() {
