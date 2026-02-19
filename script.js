@@ -2023,6 +2023,11 @@ This content is loaded from a markdown file.
     renderFileTree() {
         if (!this.dom.fileTreeContainer) return;
 
+        const activeEl = document.activeElement;
+        const shouldRestoreSidebarSearchFocus = !!(activeEl && activeEl.classList && activeEl.classList.contains('file-tree-search-input'));
+        const sidebarSearchSelectionStart = shouldRestoreSidebarSearchFocus ? activeEl.selectionStart : null;
+        const sidebarSearchSelectionEnd = shouldRestoreSidebarSearchFocus ? activeEl.selectionEnd : null;
+
         const tree = this.buildFolderTree();
         this.pruneSidebarSelections();
         const treeHtml = this.renderFolderContents(tree, '');
@@ -2034,6 +2039,16 @@ This content is loaded from a markdown file.
                 ${treeHtml || '<div class="file-tree-empty">No matching files found. Try a different search.</div>'}
             </div>
         `;
+
+        if (shouldRestoreSidebarSearchFocus) {
+            const searchInput = this.dom.fileTreeContainer.querySelector('.file-tree-search-input');
+            if (searchInput) {
+                searchInput.focus();
+                if (typeof sidebarSearchSelectionStart === 'number' && typeof sidebarSearchSelectionEnd === 'number') {
+                    searchInput.setSelectionRange(sidebarSearchSelectionStart, sidebarSearchSelectionEnd);
+                }
+            }
+        }
     },
 
     pruneSidebarSelections() {
@@ -4107,7 +4122,7 @@ This content is loaded from a markdown file.
         }
     },
 
-    selectEditorSearchMatch(editor, matchIndex, queryLength) {
+    selectEditorSearchMatch(editor, matchIndex, queryLength, shouldFocus = true) {
         if (editor.posFromIndex && editor.setSelection) {
             const from = editor.posFromIndex(matchIndex);
             const to = editor.posFromIndex(matchIndex + queryLength);
@@ -4115,14 +4130,16 @@ This content is loaded from a markdown file.
             if (editor.scrollIntoView) {
                 editor.scrollIntoView({ from, to }, 100);
             }
-            if (editor.focus) {
+            if (shouldFocus && editor.focus) {
                 editor.focus();
             }
             return true;
         }
 
         if (typeof editor.selectionStart === 'number' && typeof editor.setSelectionRange === 'function') {
-            editor.focus();
+            if (shouldFocus) {
+                editor.focus();
+            }
             editor.setSelectionRange(matchIndex, matchIndex + queryLength);
             return true;
         }
@@ -4161,7 +4178,7 @@ This content is loaded from a markdown file.
             return;
         }
 
-        this.selectEditorSearchMatch(editor, matchIndex, trimmedQuery.length);
+        this.selectEditorSearchMatch(editor, matchIndex, trimmedQuery.length, findNext);
     },
 
     clearEditor(panel) {
@@ -4506,13 +4523,17 @@ This content is loaded from a markdown file.
         if (window.CodeMirror && this.state.codeModalEditor) {
             const startPos = this.state.codeModalEditor.posFromIndex(matchIndex);
             const endPos = this.state.codeModalEditor.posFromIndex(endIndex);
-            this.state.codeModalEditor.focus();
+            if (findNext) {
+                this.state.codeModalEditor.focus();
+            }
             this.state.codeModalEditor.setSelection(startPos, endPos);
             this.state.codeModalEditor.scrollIntoView({ from: startPos, to: endPos }, 60);
         } else {
             const editorTextarea = document.getElementById('code-modal-editor');
             if (editorTextarea) {
-                editorTextarea.focus();
+                if (findNext) {
+                    editorTextarea.focus();
+                }
                 editorTextarea.setSelectionRange(matchIndex, endIndex);
             }
         }
