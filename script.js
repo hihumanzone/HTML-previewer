@@ -1105,6 +1105,9 @@ const CodePreviewer = {
             return;
         }
 
+        // CodeMirror editor configuration with all settings
+        // Note: indentUnit is set to match tabSize regardless of indentWithTabs.
+        // This ensures consistent indentation width whether using spaces or tabs.
         const editorConfig = (mode) => ({
             lineNumbers: !!this.state.settings.lineNumbers,
             mode: mode,
@@ -2948,6 +2951,8 @@ This content is loaded from a markdown file.
         if (typeof window.CodeMirror !== 'undefined' && textarea) {
             const mode = this.getCodeMirrorMode(fileType);
             
+            // Create CodeMirror editor with all settings
+            // indentUnit matches tabSize for consistent indentation width
             const editor = window.CodeMirror.fromTextArea(textarea, {
                 lineNumbers: !!this.state.settings.lineNumbers,
                 mode: mode,
@@ -4255,6 +4260,8 @@ This content is loaded from a markdown file.
 
             if (window.CodeMirror) {
                 if (!this.state.codeModalEditor) {
+                    // Create modal CodeMirror editor with all settings
+                    // indentUnit matches tabSize for consistent indentation width
                     this.state.codeModalEditor = window.CodeMirror.fromTextArea(editorTextarea, {
                         lineNumbers: true,
                         mode: language,
