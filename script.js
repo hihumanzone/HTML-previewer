@@ -103,7 +103,7 @@ const CodePreviewer = {
             IMPORT_ZIP_BTN: 'import-zip-btn',
             EXPORT_ZIP_BTN: 'export-zip-btn',
             SETTINGS_BTN: 'settings-btn',
-            SETTINGS_PANEL: 'settings-panel',
+            SETTINGS_MODAL: 'settings-modal',
             SETTINGS_LINE_NUMBERS: 'setting-line-numbers',
             SETTINGS_LINE_WRAP: 'setting-line-wrap',
             SETTINGS_AUTO_FORMAT: 'setting-auto-format',
@@ -900,7 +900,7 @@ const CodePreviewer = {
             importZipBtn: document.getElementById(CONTROL_IDS.IMPORT_ZIP_BTN),
             exportZipBtn: document.getElementById(CONTROL_IDS.EXPORT_ZIP_BTN),
             settingsBtn: document.getElementById(CONTROL_IDS.SETTINGS_BTN),
-            settingsPanel: document.getElementById(CONTROL_IDS.SETTINGS_PANEL),
+            settingsModal: document.getElementById(CONTROL_IDS.SETTINGS_MODAL),
             settingLineNumbers: document.getElementById(CONTROL_IDS.SETTINGS_LINE_NUMBERS),
             settingLineWrap: document.getElementById(CONTROL_IDS.SETTINGS_LINE_WRAP),
             settingAutoFormat: document.getElementById(CONTROL_IDS.SETTINGS_AUTO_FORMAT),
@@ -1410,16 +1410,16 @@ This content is loaded from a markdown file.
         this.getAllEditors().forEach((editor) => this.applySettingsToEditor(editor));
     },
 
-    isSettingsPanelOpen() {
-        return !!(this.dom.settingsBtn && this.dom.settingsBtn.getAttribute('aria-expanded') === 'true');
+    isSettingsModalOpen() {
+        return !!(this.dom.settingsModal && this.dom.settingsModal.getAttribute('aria-hidden') === 'false');
     },
 
-    toggleSettingsPanel(forceOpen = null) {
-        if (!this.dom.settingsBtn || !this.dom.settingsPanel) return;
-        const isOpen = this.isSettingsPanelOpen();
+    toggleSettingsModal(forceOpen = null) {
+        if (!this.dom.settingsModal) return;
+        const isOpen = this.isSettingsModalOpen();
         const shouldOpen = forceOpen === null ? !isOpen : !!forceOpen;
-        this.dom.settingsBtn.setAttribute('aria-expanded', String(shouldOpen));
-        this.dom.settingsPanel.hidden = !shouldOpen;
+        this.dom.settingsModal.setAttribute('aria-hidden', String(!shouldOpen));
+        this.dom.settingsModal.hidden = !shouldOpen;
     },
 
     bindEvents() {
@@ -1537,26 +1537,37 @@ This content is loaded from a markdown file.
         this.setupMainHtmlDropdownEvents();
 
         if (this.dom.settingsBtn) {
-            this.dom.settingsBtn.addEventListener('click', (event) => {
-                event.stopPropagation();
-                this.toggleSettingsPanel();
+            this.dom.settingsBtn.addEventListener('click', () => {
+                this.toggleSettingsModal(true);
             });
         }
 
-        if (this.dom.settingsPanel) {
-            this.dom.settingsPanel.addEventListener('click', (event) => event.stopPropagation());
+        // Settings modal events
+        if (this.dom.settingsModal) {
+            // Close modal when clicking backdrop
+            this.dom.settingsModal.addEventListener('click', (e) => {
+                if (e.target === this.dom.settingsModal) {
+                    this.toggleSettingsModal(false);
+                }
+            });
+            
+            // Close button
+            const settingsCloseBtn = this.dom.settingsModal.querySelector('.close-btn');
+            if (settingsCloseBtn) {
+                settingsCloseBtn.addEventListener('click', () => {
+                    this.toggleSettingsModal(false);
+                });
+            }
+            
+            // ESC key to close
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && this.isSettingsModalOpen()) {
+                    this.toggleSettingsModal(false);
+                }
+            });
         }
 
-        if (!this.state.settingsCloseHandler) {
-            this.state.settingsCloseHandler = (event) => {
-                if (!this.isSettingsPanelOpen()) return;
-                if (this.dom.settingsBtn?.contains(event.target) || this.dom.settingsPanel?.contains(event.target)) return;
-                this.toggleSettingsPanel(false);
-            };
-            document.addEventListener('pointerdown', this.state.settingsCloseHandler, true);
-        }
-
-        const applySettingAndClose = (updateFn, { refreshEditors = false } = {}) => {
+        const applySetting = (updateFn, { refreshEditors = false } = {}) => {
             updateFn();
             this.state.settings = this.normalizeSettings(this.state.settings);
             this.syncSettingsUI();
@@ -1564,12 +1575,11 @@ This content is loaded from a markdown file.
                 this.applyEditorSettingsToAllEditors();
             }
             this.saveSettings();
-            this.toggleSettingsPanel(false);
         };
 
         if (this.dom.settingLineNumbers) {
             this.dom.settingLineNumbers.addEventListener('change', () => {
-                applySettingAndClose(() => {
+                applySetting(() => {
                     this.state.settings.lineNumbers = this.dom.settingLineNumbers.checked;
                 }, { refreshEditors: true });
             });
@@ -1577,7 +1587,7 @@ This content is loaded from a markdown file.
 
         if (this.dom.settingLineWrap) {
             this.dom.settingLineWrap.addEventListener('change', () => {
-                applySettingAndClose(() => {
+                applySetting(() => {
                     this.state.settings.lineWrapping = this.dom.settingLineWrap.checked;
                 }, { refreshEditors: true });
             });
@@ -1585,7 +1595,7 @@ This content is loaded from a markdown file.
 
         if (this.dom.settingAutoFormat) {
             this.dom.settingAutoFormat.addEventListener('change', () => {
-                applySettingAndClose(() => {
+                applySetting(() => {
                     this.state.settings.autoFormatOnType = this.dom.settingAutoFormat.checked;
                 });
             });
@@ -1593,7 +1603,7 @@ This content is loaded from a markdown file.
 
         if (this.dom.settingFontSize) {
             this.dom.settingFontSize.addEventListener('change', () => {
-                applySettingAndClose(() => {
+                applySetting(() => {
                     this.state.settings.fontSize = Number(this.dom.settingFontSize.value) || 14;
                 }, { refreshEditors: true });
             });
@@ -1601,7 +1611,7 @@ This content is loaded from a markdown file.
 
         if (this.dom.settingEditorTheme) {
             this.dom.settingEditorTheme.addEventListener('change', () => {
-                applySettingAndClose(() => {
+                applySetting(() => {
                     this.state.settings.theme = this.dom.settingEditorTheme.value || 'dracula';
                 }, { refreshEditors: true });
             });
@@ -1609,7 +1619,7 @@ This content is loaded from a markdown file.
 
         if (this.dom.settingTabSize) {
             this.dom.settingTabSize.addEventListener('change', () => {
-                applySettingAndClose(() => {
+                applySetting(() => {
                     this.state.settings.tabSize = Number(this.dom.settingTabSize.value) || 4;
                 }, { refreshEditors: true });
             });
@@ -1617,7 +1627,7 @@ This content is loaded from a markdown file.
 
         if (this.dom.settingIndentWithTabs) {
             this.dom.settingIndentWithTabs.addEventListener('change', () => {
-                applySettingAndClose(() => {
+                applySetting(() => {
                     this.state.settings.indentWithTabs = this.dom.settingIndentWithTabs.checked;
                 }, { refreshEditors: true });
             });
@@ -1625,7 +1635,7 @@ This content is loaded from a markdown file.
 
         if (this.dom.settingAutoCloseBrackets) {
             this.dom.settingAutoCloseBrackets.addEventListener('change', () => {
-                applySettingAndClose(() => {
+                applySetting(() => {
                     this.state.settings.autoCloseBrackets = this.dom.settingAutoCloseBrackets.checked;
                 }, { refreshEditors: true });
             });
@@ -1633,7 +1643,7 @@ This content is loaded from a markdown file.
 
         if (this.dom.settingMatchBrackets) {
             this.dom.settingMatchBrackets.addEventListener('change', () => {
-                applySettingAndClose(() => {
+                applySetting(() => {
                     this.state.settings.matchBrackets = this.dom.settingMatchBrackets.checked;
                 }, { refreshEditors: true });
             });

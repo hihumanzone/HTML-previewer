@@ -27,59 +27,7 @@
                     <span>Files</span>
                     <div class="files-header-buttons">
                     <div class="settings-menu" id="settings-menu">
-                        <button id="settings-btn" class="settings-btn" aria-label="Open settings" aria-expanded="false" aria-controls="settings-panel">⚙️ Settings</button>
-                        <div id="settings-panel" class="settings-panel" role="menu" aria-label="Editor settings" hidden>
-                            <label class="settings-option" for="setting-line-numbers">
-                                <input type="checkbox" id="setting-line-numbers" checked>
-                                <span>Line numbers</span>
-                            </label>
-                            <label class="settings-option" for="setting-line-wrap">
-                                <input type="checkbox" id="setting-line-wrap" checked>
-                                <span>Line wrap</span>
-                            </label>
-                            <label class="settings-option" for="setting-auto-format">
-                                <input type="checkbox" id="setting-auto-format" checked>
-                                <span>Auto-format while typing</span>
-                            </label>
-                            <label class="settings-option settings-select" for="setting-font-size">
-                                <span>Editor font size</span>
-                                <select id="setting-font-size">
-                                    <option value="12">12px</option>
-                                    <option value="13">13px</option>
-                                    <option value="14" selected>14px</option>
-                                    <option value="15">15px</option>
-                                    <option value="16">16px</option>
-                                    <option value="18">18px</option>
-                                </select>
-                            </label>
-                            <label class="settings-option settings-select" for="setting-editor-theme">
-                                <span>Editor theme</span>
-                                <select id="setting-editor-theme">
-                                    <option value="dracula" selected>Dracula</option>
-                                    <option value="default">Default</option>
-                                </select>
-                            </label>
-                            <label class="settings-option settings-select" for="setting-tab-size">
-                                <span>Tab size</span>
-                                <select id="setting-tab-size">
-                                    <option value="2">2</option>
-                                    <option value="4" selected>4</option>
-                                    <option value="8">8</option>
-                                </select>
-                            </label>
-                            <label class="settings-option" for="setting-indent-with-tabs">
-                                <input type="checkbox" id="setting-indent-with-tabs">
-                                <span>Indent with tabs</span>
-                            </label>
-                            <label class="settings-option" for="setting-auto-close-brackets">
-                                <input type="checkbox" id="setting-auto-close-brackets" checked>
-                                <span>Auto-close brackets</span>
-                            </label>
-                            <label class="settings-option" for="setting-match-brackets">
-                                <input type="checkbox" id="setting-match-brackets" checked>
-                                <span>Match brackets</span>
-                            </label>
-                        </div>
+                        <button id="settings-btn" class="settings-btn" aria-label="Open settings">⚙️ Settings</button>
                     </div>
                         <button id="clear-all-files-btn" class="clear-all-files-btn" aria-label="Clear all files">🗑️ Clear All</button>
                         <button id="import-zip-btn" class="import-zip-btn" aria-label="Import ZIP project">📦 Import ZIP</button>
@@ -419,6 +367,85 @@
             </div>
             <div class="modal-body">
                 <div id="media-modal-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal-overlay settings-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title" aria-hidden="true" hidden>
+        <div class="modal-content settings-modal-content">
+            <div class="modal-header">
+                <h2 id="settings-modal-title">⚙️ Editor Settings</h2>
+                <button class="close-btn" aria-label="Close settings">&times;</button>
+            </div>
+            <div class="modal-body settings-modal-body">
+                <div class="settings-grid">
+                    <div class="settings-section">
+                        <h3 class="settings-section-title">Display</h3>
+                        <label class="settings-option" for="setting-line-numbers">
+                            <input type="checkbox" id="setting-line-numbers" checked>
+                            <span>Line numbers</span>
+                        </label>
+                        <label class="settings-option" for="setting-line-wrap">
+                            <input type="checkbox" id="setting-line-wrap" checked>
+                            <span>Line wrap</span>
+                        </label>
+                        <label class="settings-option" for="setting-auto-format">
+                            <input type="checkbox" id="setting-auto-format" checked>
+                            <span>Auto-format while typing</span>
+                        </label>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3 class="settings-section-title">Appearance</h3>
+                        <label class="settings-option settings-select" for="setting-font-size">
+                            <span>Font size</span>
+                            <select id="setting-font-size">
+                                <option value="12">12px</option>
+                                <option value="13">13px</option>
+                                <option value="14" selected>14px</option>
+                                <option value="15">15px</option>
+                                <option value="16">16px</option>
+                                <option value="18">18px</option>
+                            </select>
+                        </label>
+                        <label class="settings-option settings-select" for="setting-editor-theme">
+                            <span>Editor theme</span>
+                            <select id="setting-editor-theme">
+                                <option value="dracula" selected>Dracula</option>
+                                <option value="default">Default</option>
+                            </select>
+                        </label>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3 class="settings-section-title">Indentation</h3>
+                        <label class="settings-option settings-select" for="setting-tab-size">
+                            <span>Tab size</span>
+                            <select id="setting-tab-size">
+                                <option value="2">2</option>
+                                <option value="4" selected>4</option>
+                                <option value="8">8</option>
+                            </select>
+                        </label>
+                        <label class="settings-option" for="setting-indent-with-tabs">
+                            <input type="checkbox" id="setting-indent-with-tabs">
+                            <span>Indent with tabs</span>
+                        </label>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3 class="settings-section-title">Editing</h3>
+                        <label class="settings-option" for="setting-auto-close-brackets">
+                            <input type="checkbox" id="setting-auto-close-brackets" checked>
+                            <span>Auto-close brackets</span>
+                        </label>
+                        <label class="settings-option" for="setting-match-brackets">
+                            <input type="checkbox" id="setting-match-brackets" checked>
+                            <span>Match brackets</span>
+                        </label>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
