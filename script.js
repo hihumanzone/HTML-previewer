@@ -69,6 +69,10 @@ const CodePreviewer = {
             autoFormatOnType: true,
             fontSize: 14,
             theme: 'dracula',
+            tabSize: 4,
+            indentWithTabs: false,
+            autoCloseBrackets: true,
+            matchBrackets: true,
         },
     },
 
@@ -105,6 +109,10 @@ const CodePreviewer = {
             SETTINGS_AUTO_FORMAT: 'setting-auto-format',
             SETTINGS_FONT_SIZE: 'setting-font-size',
             SETTINGS_EDITOR_THEME: 'setting-editor-theme',
+            SETTINGS_TAB_SIZE: 'setting-tab-size',
+            SETTINGS_INDENT_WITH_TABS: 'setting-indent-with-tabs',
+            SETTINGS_AUTO_CLOSE_BRACKETS: 'setting-auto-close-brackets',
+            SETTINGS_MATCH_BRACKETS: 'setting-match-brackets',
             MAIN_HTML_SELECT: 'main-html-select',
         },
         CONTAINER_IDS: {
@@ -898,6 +906,10 @@ const CodePreviewer = {
             settingAutoFormat: document.getElementById(CONTROL_IDS.SETTINGS_AUTO_FORMAT),
             settingFontSize: document.getElementById(CONTROL_IDS.SETTINGS_FONT_SIZE),
             settingEditorTheme: document.getElementById(CONTROL_IDS.SETTINGS_EDITOR_THEME),
+            settingTabSize: document.getElementById(CONTROL_IDS.SETTINGS_TAB_SIZE),
+            settingIndentWithTabs: document.getElementById(CONTROL_IDS.SETTINGS_INDENT_WITH_TABS),
+            settingAutoCloseBrackets: document.getElementById(CONTROL_IDS.SETTINGS_AUTO_CLOSE_BRACKETS),
+            settingMatchBrackets: document.getElementById(CONTROL_IDS.SETTINGS_MATCH_BRACKETS),
             mainHtmlSelect: document.getElementById(CONTROL_IDS.MAIN_HTML_SELECT),
             mainHtmlSelector: document.getElementById('main-html-selector'),
             mainHtmlDropdown: document.getElementById('main-html-dropdown'),
@@ -1099,6 +1111,11 @@ const CodePreviewer = {
             theme: this.state.settings.theme,
             autoCloseTags: mode === 'htmlmixed',
             lineWrapping: !!this.state.settings.lineWrapping,
+            tabSize: this.state.settings.tabSize,
+            indentUnit: this.state.settings.tabSize,
+            indentWithTabs: !!this.state.settings.indentWithTabs,
+            autoCloseBrackets: !!this.state.settings.autoCloseBrackets,
+            matchBrackets: !!this.state.settings.matchBrackets,
         });
 
         if (this.dom.htmlEditor) {
@@ -1317,8 +1334,10 @@ This content is loaded from a markdown file.
     normalizeSettings(nextSettings = {}) {
         const allowedFontSizes = new Set([12, 13, 14, 15, 16, 18]);
         const allowedThemes = new Set(['dracula', 'default']);
+        const allowedTabSizes = new Set([2, 4, 8]);
 
         const fontSize = Number(nextSettings.fontSize);
+        const tabSize = Number(nextSettings.tabSize);
 
         return {
             ...nextSettings,
@@ -1327,6 +1346,10 @@ This content is loaded from a markdown file.
             autoFormatOnType: typeof nextSettings.autoFormatOnType === 'boolean' ? nextSettings.autoFormatOnType : true,
             fontSize: allowedFontSizes.has(fontSize) ? fontSize : 14,
             theme: allowedThemes.has(nextSettings.theme) ? nextSettings.theme : 'dracula',
+            tabSize: allowedTabSizes.has(tabSize) ? tabSize : 4,
+            indentWithTabs: typeof nextSettings.indentWithTabs === 'boolean' ? nextSettings.indentWithTabs : false,
+            autoCloseBrackets: typeof nextSettings.autoCloseBrackets === 'boolean' ? nextSettings.autoCloseBrackets : true,
+            matchBrackets: typeof nextSettings.matchBrackets === 'boolean' ? nextSettings.matchBrackets : true,
         };
     },
 
@@ -1336,6 +1359,10 @@ This content is loaded from a markdown file.
         if (this.dom.settingAutoFormat) this.dom.settingAutoFormat.checked = !!this.state.settings.autoFormatOnType;
         if (this.dom.settingFontSize) this.dom.settingFontSize.value = String(this.state.settings.fontSize);
         if (this.dom.settingEditorTheme) this.dom.settingEditorTheme.value = this.state.settings.theme;
+        if (this.dom.settingTabSize) this.dom.settingTabSize.value = String(this.state.settings.tabSize);
+        if (this.dom.settingIndentWithTabs) this.dom.settingIndentWithTabs.checked = !!this.state.settings.indentWithTabs;
+        if (this.dom.settingAutoCloseBrackets) this.dom.settingAutoCloseBrackets.checked = !!this.state.settings.autoCloseBrackets;
+        if (this.dom.settingMatchBrackets) this.dom.settingMatchBrackets.checked = !!this.state.settings.matchBrackets;
     },
 
     getAllEditors() {
@@ -1354,6 +1381,11 @@ This content is loaded from a markdown file.
             editor.setOption('lineNumbers', !!this.state.settings.lineNumbers);
             editor.setOption('lineWrapping', !!this.state.settings.lineWrapping);
             editor.setOption('theme', this.state.settings.theme);
+            editor.setOption('tabSize', this.state.settings.tabSize);
+            editor.setOption('indentUnit', this.state.settings.tabSize);
+            editor.setOption('indentWithTabs', !!this.state.settings.indentWithTabs);
+            editor.setOption('autoCloseBrackets', !!this.state.settings.autoCloseBrackets);
+            editor.setOption('matchBrackets', !!this.state.settings.matchBrackets);
         }
 
         const wrapper = editor.getWrapperElement ? editor.getWrapperElement() : null;
@@ -1568,6 +1600,38 @@ This content is loaded from a markdown file.
             this.dom.settingEditorTheme.addEventListener('change', () => {
                 applySettingAndClose(() => {
                     this.state.settings.theme = this.dom.settingEditorTheme.value || 'dracula';
+                }, { refreshEditors: true });
+            });
+        }
+
+        if (this.dom.settingTabSize) {
+            this.dom.settingTabSize.addEventListener('change', () => {
+                applySettingAndClose(() => {
+                    this.state.settings.tabSize = Number(this.dom.settingTabSize.value) || 4;
+                }, { refreshEditors: true });
+            });
+        }
+
+        if (this.dom.settingIndentWithTabs) {
+            this.dom.settingIndentWithTabs.addEventListener('change', () => {
+                applySettingAndClose(() => {
+                    this.state.settings.indentWithTabs = this.dom.settingIndentWithTabs.checked;
+                }, { refreshEditors: true });
+            });
+        }
+
+        if (this.dom.settingAutoCloseBrackets) {
+            this.dom.settingAutoCloseBrackets.addEventListener('change', () => {
+                applySettingAndClose(() => {
+                    this.state.settings.autoCloseBrackets = this.dom.settingAutoCloseBrackets.checked;
+                }, { refreshEditors: true });
+            });
+        }
+
+        if (this.dom.settingMatchBrackets) {
+            this.dom.settingMatchBrackets.addEventListener('change', () => {
+                applySettingAndClose(() => {
+                    this.state.settings.matchBrackets = this.dom.settingMatchBrackets.checked;
                 }, { refreshEditors: true });
             });
         }
@@ -2890,6 +2954,11 @@ This content is loaded from a markdown file.
                 theme: this.state.settings.theme,
                 autoCloseTags: fileType === 'html',
                 lineWrapping: !!this.state.settings.lineWrapping,
+                tabSize: this.state.settings.tabSize,
+                indentUnit: this.state.settings.tabSize,
+                indentWithTabs: !!this.state.settings.indentWithTabs,
+                autoCloseBrackets: !!this.state.settings.autoCloseBrackets,
+                matchBrackets: !!this.state.settings.matchBrackets,
                 readOnly: isBinary ? 'nocursor' : false
             });
             this.applySettingsToEditor(editor);
@@ -4193,6 +4262,11 @@ This content is loaded from a markdown file.
                         readOnly: false,
                         lineWrapping: !!this.state.settings.lineWrapping,
                         autoCloseTags: true,
+                        tabSize: this.state.settings.tabSize,
+                        indentUnit: this.state.settings.tabSize,
+                        indentWithTabs: !!this.state.settings.indentWithTabs,
+                        autoCloseBrackets: !!this.state.settings.autoCloseBrackets,
+                        matchBrackets: !!this.state.settings.matchBrackets,
                         viewportMargin: Infinity,
                         extraKeys: {
                             'Ctrl-S': () => this.saveCodeModal(false),
