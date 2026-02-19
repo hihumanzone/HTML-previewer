@@ -67,8 +67,8 @@ const CodePreviewer = {
         settingsEscHandler: null,
         settings: {
             lineNumbers: true,
-            lineWrapping: true,
-            autoFormatOnType: true,
+            lineWrapping: false,
+            autoFormatOnType: false,
             fontSize: 14,
             theme: 'dracula',
             tabSize: 4,
@@ -1367,8 +1367,8 @@ This content is loaded from a markdown file.
         return {
             ...nextSettings,
             lineNumbers: typeof nextSettings.lineNumbers === 'boolean' ? nextSettings.lineNumbers : true,
-            lineWrapping: typeof nextSettings.lineWrapping === 'boolean' ? nextSettings.lineWrapping : true,
-            autoFormatOnType: typeof nextSettings.autoFormatOnType === 'boolean' ? nextSettings.autoFormatOnType : true,
+            lineWrapping: typeof nextSettings.lineWrapping === 'boolean' ? nextSettings.lineWrapping : false,
+            autoFormatOnType: typeof nextSettings.autoFormatOnType === 'boolean' ? nextSettings.autoFormatOnType : false,
             fontSize: allowedFontSizes.has(fontSize) ? fontSize : 14,
             theme: allowedThemes.has(nextSettings.theme) ? nextSettings.theme : 'dracula',
             tabSize: allowedTabSizes.has(tabSize) ? tabSize : 4,
