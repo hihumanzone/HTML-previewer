@@ -4235,7 +4235,21 @@ This content is loaded from a markdown file.
 
             mimeType = this.fileTypeUtils.getMimeTypeFromFileType(fileType) || 'text/plain';
 
-            const blob = new Blob([content], { type: mimeType });
+            const fileId = panel.dataset.fileId;
+            const fileInfo = this.state.files.find(f => f.id === fileId);
+            if (!fileInfo) {
+                console.warn('exportFile: file info not found for fileId', fileId);
+            }
+            const isBinary = fileInfo ? fileInfo.isBinary : false;
+
+            let blob;
+            const commaIndex = content.indexOf(',');
+            if (isBinary && content.startsWith('data:') && commaIndex !== -1) {
+                const base64Data = content.slice(commaIndex + 1);
+                blob = new Blob([this.base64ToUint8Array(base64Data)], { type: mimeType });
+            } else {
+                blob = new Blob([content], { type: mimeType });
+            }
             const url = URL.createObjectURL(blob);
             
             const downloadLink = document.createElement('a');
