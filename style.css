@@ -13,8 +13,8 @@
     --modal-bg: rgba(17, 17, 27, 0.75);
     --transition-speed: 0.2s;
     --file-panel-size: 420px;
-    --panel-mobile-min-height: 50vh;
-    --panel-mobile-max-height: 75vh;
+    --panel-mobile-min-height: 60vh;
+    --panel-mobile-max-height: 90vh;
     --surface-elevated: rgba(24, 24, 37, 0.88);
     --surface-muted: rgba(49, 50, 68, 0.55);
     --shadow-elevated: 0 18px 42px rgba(0, 0, 0, 0.32);
@@ -2449,7 +2449,7 @@ body.preview-docked-bottom.is-resizing-preview-dock {
     .editor-panel {
         min-width: 0;
         aspect-ratio: auto;
-        height: 60vh;
+        height: 80vh;
         max-height: var(--panel-mobile-max-height);
         min-height: var(--panel-mobile-min-height);
     }
@@ -2477,7 +2477,7 @@ body.compact-editor-layout .editor-grid {
 body.compact-editor-layout .editor-panel {
     min-width: 0;
     aspect-ratio: auto;
-    height: 60vh;
+    height: 80vh;
     max-height: var(--panel-mobile-max-height);
     min-height: var(--panel-mobile-min-height);
 }
@@ -2555,9 +2555,9 @@ body.compact-editor-layout .editor-panel {
 
 @media (max-width: 600px) {
     .editor-panel {
-        height: 55vh;
-        min-height: 45vh;
-        max-height: 70vh;
+        height: 75vh;
+        min-height: 60vh;
+        max-height: 85vh;
     }
 }
 
