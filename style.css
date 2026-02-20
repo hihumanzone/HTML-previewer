@@ -1748,7 +1748,7 @@ body.preview-docked-bottom.is-resizing-preview-dock {
     min-height: var(--file-panel-size);\
     height: auto;
     resize: horizontal;
-    overflow: hidden;
+    overflow: hidden auto;
     flex: 0 0 auto;
     background-color: var(--secondary-color);
     border: 1px solid var(--border-color);
@@ -1853,7 +1853,6 @@ body.preview-docked-bottom.is-resizing-preview-dock {
     overflow-y: auto;
     min-height: 0;
     padding-right: 0.1rem;
-    overscroll-behavior: contain;
 }
 
 .file-tree-empty {
