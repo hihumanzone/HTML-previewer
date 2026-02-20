@@ -3243,7 +3243,10 @@ This content is loaded from a markdown file.
                     const previousExtension = this.fileTypeUtils.getExtension(fileInfo.fileName);
                     const nextExtension = this.fileTypeUtils.getExtension(filename);
                     const suggestedType = this.fileTypeUtils.getTypeFromExtension(filename);
-                    const shouldAutoChangeType = previousExtension !== nextExtension && suggestedType !== 'binary' && suggestedType !== typeSelector.value;
+                    const extensionChanged = previousExtension !== nextExtension;
+                    const isValidDetectedType = suggestedType !== 'binary';
+                    const typeDiffers = suggestedType !== typeSelector.value;
+                    const shouldAutoChangeType = extensionChanged && isValidDetectedType && typeDiffers;
 
                     if (shouldAutoChangeType) {
                         this.applyFileTypeChange(panel, fileId, suggestedType);
@@ -3360,6 +3363,14 @@ This content is loaded from a markdown file.
         };
     },
 
+    getCurrentFileType(panel, fileInfo) {
+        return panel?.dataset.fileType || fileInfo?.type || 'text';
+    },
+
+    getSavedFileType(savedState, fileInfo) {
+        return savedState?.fileType || fileInfo?.type || 'text';
+    },
+
     /**
      * Check if a file has been modified from its saved state
      * @param {string} fileId - The file ID
@@ -3379,12 +3390,12 @@ This content is loaded from a markdown file.
         const fileNameInput = panel.querySelector('.file-name-input');
         const currentFileName = fileNameInput ? fileNameInput.value : '';
         const currentContent = (fileInfo.editor && fileInfo.editor.getValue) ? fileInfo.editor.getValue() : '';
-        const currentFileType = panel.dataset.fileType || fileInfo.type || 'text';
+        const currentFileType = this.getCurrentFileType(panel, fileInfo);
         
         let isModified = false;
         
         if (savedState) {
-            const savedFileType = savedState.fileType || fileInfo.type || 'text';
+            const savedFileType = this.getSavedFileType(savedState, fileInfo);
             isModified = currentContent !== savedState.content || currentFileName !== savedState.fileName || currentFileType !== savedFileType;
         } else {
             // Initialize saved state if it doesn't exist (for files created before tracking was added)
@@ -3487,7 +3498,7 @@ This content is loaded from a markdown file.
         const fileNameInput = panel.querySelector('.file-name-input');
         const currentFileName = fileNameInput ? fileNameInput.value : '';
         const currentContent = fileInfo.editor ? fileInfo.editor.getValue() : '';
-        const currentFileType = panel.dataset.fileType || fileInfo.type || 'text';
+        const currentFileType = this.getCurrentFileType(panel, fileInfo);
         
         // Update saved state
         this.state.savedFileStates[fileId] = {
@@ -3528,8 +3539,8 @@ This content is loaded from a markdown file.
             fileNameInput.value = savedState.fileName;
         }
 
-        const savedFileType = savedState.fileType || fileInfo.type || 'text';
-        if ((panel.dataset.fileType || fileInfo.type) !== savedFileType) {
+        const savedFileType = this.getSavedFileType(savedState, fileInfo);
+        if (this.getCurrentFileType(panel, fileInfo) !== savedFileType) {
             this.applyFileTypeChange(panel, fileId, savedFileType);
         }
         
