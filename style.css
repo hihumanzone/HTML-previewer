@@ -2448,6 +2448,7 @@ body.preview-docked-bottom.is-resizing-preview-dock {
         aspect-ratio: auto;
         max-height: var(--panel-mobile-max-height);
         min-height: var(--panel-mobile-min-height);
+        overflow-y: auto;
     }
 }
 
