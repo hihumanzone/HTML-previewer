@@ -1390,6 +1390,7 @@ body.preview-docked-bottom.is-resizing-preview-dock {
 
 @media (max-width: 900px) {
     .editor-panel .CodeMirror { height: 100%; }
+    .editor-panel .CodeMirror-scroll { overscroll-behavior: contain; }
     
     #code-modal-editor-container .CodeMirror {
         height: 100%;
@@ -1846,9 +1847,11 @@ body.preview-docked-bottom.is-resizing-preview-dock {
 }
 
 .file-tree-content {
+    flex: 1;
     overflow-y: auto;
     min-height: 0;
     padding-right: 0.1rem;
+    overscroll-behavior: contain;
 }
 
 .file-tree-empty {
@@ -2446,6 +2449,7 @@ body.preview-docked-bottom.is-resizing-preview-dock {
     .editor-panel {
         min-width: 0;
         aspect-ratio: auto;
+        height: var(--panel-mobile-min-height);
         max-height: var(--panel-mobile-max-height);
         min-height: var(--panel-mobile-min-height);
     }
@@ -2473,6 +2477,7 @@ body.compact-editor-layout .editor-grid {
 body.compact-editor-layout .editor-panel {
     min-width: 0;
     aspect-ratio: auto;
+    height: var(--panel-mobile-min-height);
     max-height: var(--panel-mobile-max-height);
     min-height: var(--panel-mobile-min-height);
 }
@@ -2550,6 +2555,7 @@ body.compact-editor-layout .editor-panel {
 
 @media (max-width: 600px) {
     .editor-panel {
+        height: 300px;
         min-height: 300px;
         max-height: 136vh;
     }
