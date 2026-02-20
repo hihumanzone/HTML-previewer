@@ -2462,7 +2462,6 @@ body.preview-docked-bottom.is-resizing-preview-dock {
         overflow-y: auto;
         overscroll-behavior: contain;
         -webkit-overflow-scrolling: touch;
-        touch-action: pan-y;
     }
 }
 
