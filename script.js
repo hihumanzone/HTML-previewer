@@ -259,11 +259,12 @@ const CodePreviewer = {
             }
             
             if (mimeType) {
-                if (mimeType === 'image/svg+xml') {
+                const normalizedMimeType = mimeType.toLowerCase().split(';')[0].trim();
+                if (normalizedMimeType === 'image/svg+xml' || normalizedMimeType === 'application/json' || normalizedMimeType.endsWith('+json')) {
                     return false;
                 }
 
-                return this.hasBinaryMimePrefix(mimeType);
+                return this.hasBinaryMimePrefix(normalizedMimeType);
             }
             
             return false;
