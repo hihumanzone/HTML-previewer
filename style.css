@@ -13,8 +13,7 @@
     --modal-bg: rgba(17, 17, 27, 0.75);
     --transition-speed: 0.2s;
     --file-panel-size: 420px;
-    --panel-mobile-min-height: 340px;
-    --panel-mobile-max-height: 144vh;
+    --panel-mobile-height: clamp(60vh, 80vh, 90vh);
     --surface-elevated: rgba(24, 24, 37, 0.88);
     --surface-muted: rgba(49, 50, 68, 0.55);
     --shadow-elevated: 0 18px 42px rgba(0, 0, 0, 0.32);
@@ -1390,6 +1389,7 @@ body.preview-docked-bottom.is-resizing-preview-dock {
 
 @media (max-width: 900px) {
     .editor-panel .CodeMirror { height: 100%; }
+    .editor-panel .CodeMirror-scroll { overscroll-behavior: contain; }
     
     #code-modal-editor-container .CodeMirror {
         height: 100%;
@@ -1846,9 +1846,11 @@ body.preview-docked-bottom.is-resizing-preview-dock {
 }
 
 .file-tree-content {
+    flex: 1;
     overflow-y: auto;
     min-height: 0;
     padding-right: 0.1rem;
+    overscroll-behavior: contain;
 }
 
 .file-tree-empty {
@@ -2446,8 +2448,9 @@ body.preview-docked-bottom.is-resizing-preview-dock {
     .editor-panel {
         min-width: 0;
         aspect-ratio: auto;
-        max-height: var(--panel-mobile-max-height);
-        min-height: var(--panel-mobile-min-height);
+        height: var(--panel-mobile-height);
+        min-height: 0;
+        max-height: none;
     }
 }
 
@@ -2473,8 +2476,9 @@ body.compact-editor-layout .editor-grid {
 body.compact-editor-layout .editor-panel {
     min-width: 0;
     aspect-ratio: auto;
-    max-height: var(--panel-mobile-max-height);
-    min-height: var(--panel-mobile-min-height);
+    height: var(--panel-mobile-height);
+    min-height: 0;
+    max-height: none;
 }
 
 @media (max-width: 768px) {
@@ -2549,9 +2553,8 @@ body.compact-editor-layout .editor-panel {
 }
 
 @media (max-width: 600px) {
-    .editor-panel {
-        min-height: 300px;
-        max-height: 136vh;
+    :root {
+        --panel-mobile-height: clamp(60vh, 75vh, 85vh);
     }
 }
 
