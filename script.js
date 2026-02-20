@@ -987,7 +987,7 @@ const CodePreviewer = {
      * @returns {string} The file content
      */
     getFileContent(file) {
-        return file.content || (file.editor && file.editor.getValue ? file.editor.getValue() : '');
+        return (file.editor && file.editor.getValue ? file.editor.getValue() : file.content) || '';
     },
 
     createObjectUrlFromDataUrl(dataUrl) {
