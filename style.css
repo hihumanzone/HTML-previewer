@@ -2449,6 +2449,22 @@ body.preview-docked-bottom.is-resizing-preview-dock {
         max-height: var(--panel-mobile-max-height);
         min-height: var(--panel-mobile-min-height);
         overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .editor-panel .editor-wrapper,
+    .editor-panel .CodeMirror,
+    .editor-panel .CodeMirror-scroll,
+    .editor-panel textarea {
+        min-height: 0;
+    }
+
+    .editor-panel .CodeMirror-scroll,
+    .editor-panel textarea {
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-y;
     }
 }
 
@@ -2476,6 +2492,9 @@ body.compact-editor-layout .editor-panel {
     aspect-ratio: auto;
     max-height: var(--panel-mobile-max-height);
     min-height: var(--panel-mobile-min-height);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
 }
 
 @media (max-width: 768px) {
