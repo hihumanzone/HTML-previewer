@@ -1745,8 +1745,7 @@ body.preview-docked-bottom.is-resizing-preview-dock {
 .file-tree-container {
     width: 280px;
     min-width: 220px;
-    min-height: var(--file-panel-size);
-    max-height: var(--file-panel-size);
+    min-height: var(--file-panel-size);\
     height: auto;
     resize: horizontal;
     overflow: hidden;
