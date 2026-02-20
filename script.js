@@ -37,7 +37,7 @@ const CodePreviewer = {
         nextFolderId: 1,
         expandedFolders: new Set(),
         openPanels: new Set(), // Track which file panels are currently open/visible
-        savedFileStates: {}, // Track saved states for files: { fileId: { content: string, fileName: string } }
+        savedFileStates: {}, // Track saved states for files: { fileId: { content: string, fileName: string, fileType: string } }
         modifiedFiles: new Set(),
         sidebarShowModifiedOnly: false,
         sidebarSearchQuery: '',
@@ -1314,7 +1314,7 @@ This content is loaded from a markdown file.
             fileName,
         });
 
-        this.initFileSavedState(fileId, content, fileName);
+        this.initFileSavedState(fileId, content, fileName, 'markdown');
         this.setupEditorChangeListener(fileId, editor);
         this.state.openPanels.add(fileId);
 
@@ -2440,7 +2440,7 @@ This content is loaded from a markdown file.
         });
         
         // Initialize saved state and set up change listener
-        this.initFileSavedState(fileId, content, fileName);
+        this.initFileSavedState(fileId, content, fileName, 'html');
         this.setupEditorChangeListener(fileId, newEditor);
         
         // Mark panel as open
@@ -2917,7 +2917,7 @@ This content is loaded from a markdown file.
         });
         
         // Initialize saved state and set up change listener
-        this.initFileSavedState(fileId, content, fileName);
+        this.initFileSavedState(fileId, content, fileName, fileType);
         this.setupEditorChangeListener(fileId, newEditor);
         
         // Mark panel as open
@@ -3240,10 +3240,12 @@ This content is loaded from a markdown file.
                 const fileInfo = this.state.files.find(f => f.id === fileId);
                 
                 if (fileInfo && typeSelector) {
-                    const currentContent = fileInfo.editor.getValue();
-                    const suggestedType = this.autoDetectFileType(filename, currentContent);
-                    
-                    if (suggestedType !== typeSelector.value) {
+                    const previousExtension = this.fileTypeUtils.getExtension(fileInfo.fileName);
+                    const nextExtension = this.fileTypeUtils.getExtension(filename);
+                    const suggestedType = this.fileTypeUtils.getTypeFromExtension(filename);
+                    const shouldAutoChangeType = previousExtension !== nextExtension && suggestedType !== 'binary' && suggestedType !== typeSelector.value;
+
+                    if (shouldAutoChangeType) {
                         this.applyFileTypeChange(panel, fileId, suggestedType);
                     } else {
                         // Update file tree and main HTML selector when filename changes
@@ -3269,6 +3271,7 @@ This content is loaded from a markdown file.
         if (typeSelector) {
             typeSelector.addEventListener('change', (e) => {
                 this.applyFileTypeChange(panel, fileId, e.target.value);
+                this.checkFileModified(fileId, panel);
             });
         }
 
@@ -3284,6 +3287,7 @@ This content is loaded from a markdown file.
                 const option = event.target.closest('.file-type-dropdown-option');
                 if (!option) return;
                 this.applyFileTypeChange(panel, fileId, option.dataset.value);
+                this.checkFileModified(fileId, panel);
                 this.closeAllFileTypeDropdowns();
             });
 
@@ -3348,10 +3352,11 @@ This content is loaded from a markdown file.
      * @param {string} content - The initial content
      * @param {string} fileName - The initial file name
      */
-    initFileSavedState(fileId, content, fileName) {
+    initFileSavedState(fileId, content, fileName, fileType) {
         this.state.savedFileStates[fileId] = {
             content: content || '',
-            fileName: fileName || ''
+            fileName: fileName || '',
+            fileType: fileType || 'text'
         };
     },
 
@@ -3374,14 +3379,16 @@ This content is loaded from a markdown file.
         const fileNameInput = panel.querySelector('.file-name-input');
         const currentFileName = fileNameInput ? fileNameInput.value : '';
         const currentContent = (fileInfo.editor && fileInfo.editor.getValue) ? fileInfo.editor.getValue() : '';
+        const currentFileType = panel.dataset.fileType || fileInfo.type || 'text';
         
         let isModified = false;
         
         if (savedState) {
-            isModified = currentContent !== savedState.content || currentFileName !== savedState.fileName;
+            const savedFileType = savedState.fileType || fileInfo.type || 'text';
+            isModified = currentContent !== savedState.content || currentFileName !== savedState.fileName || currentFileType !== savedFileType;
         } else {
             // Initialize saved state if it doesn't exist (for files created before tracking was added)
-            this.initFileSavedState(fileId, currentContent, currentFileName);
+            this.initFileSavedState(fileId, currentContent, currentFileName, currentFileType);
         }
         
         // Update UI to show/hide apply/discard buttons
@@ -3480,11 +3487,13 @@ This content is loaded from a markdown file.
         const fileNameInput = panel.querySelector('.file-name-input');
         const currentFileName = fileNameInput ? fileNameInput.value : '';
         const currentContent = fileInfo.editor ? fileInfo.editor.getValue() : '';
+        const currentFileType = panel.dataset.fileType || fileInfo.type || 'text';
         
         // Update saved state
         this.state.savedFileStates[fileId] = {
             content: currentContent,
-            fileName: currentFileName
+            fileName: currentFileName,
+            fileType: currentFileType
         };
         
         // Update file info
@@ -3517,6 +3526,11 @@ This content is loaded from a markdown file.
         const fileNameInput = panel.querySelector('.file-name-input');
         if (fileNameInput) {
             fileNameInput.value = savedState.fileName;
+        }
+
+        const savedFileType = savedState.fileType || fileInfo.type || 'text';
+        if ((panel.dataset.fileType || fileInfo.type) !== savedFileType) {
+            this.applyFileTypeChange(panel, fileId, savedFileType);
         }
         
         // Revert content
@@ -3794,7 +3808,7 @@ This content is loaded from a markdown file.
                     
                     // Initialize saved state for existing files
                     const content = editor.getValue ? editor.getValue() : '';
-                    this.initFileSavedState(fileId, content, fileName);
+                    this.initFileSavedState(fileId, content, fileName, fileType);
                     this.setupEditorChangeListener(fileId, editor);
                 }
             }
