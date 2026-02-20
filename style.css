@@ -2459,9 +2459,10 @@ body.preview-docked-bottom.is-resizing-preview-dock {
 
     .editor-panel .CodeMirror-scroll,
     .editor-panel textarea {
-        overflow-y: auto;
+        overflow-y: auto !important;
         overscroll-behavior: contain;
         -webkit-overflow-scrolling: touch;
+        touch-action: auto;
     }
 }
 
