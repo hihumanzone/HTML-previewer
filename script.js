@@ -6002,7 +6002,7 @@ This content is loaded from a markdown file.
 
         try {
             const zip = await JSZip.loadAsync(file);
-            const zipEntries = Object.entries(zip.files).filter(([, e]) => !e.dir);
+            const zipEntries = Object.entries(zip.files).filter(([, zipEntry]) => !zipEntry.dir);
             const entries = zipEntries.map(([relativePath, zipEntry]) => ({
                 path: relativePath,
                 readBinary: () => zipEntry.async('base64'),
