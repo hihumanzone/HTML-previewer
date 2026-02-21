@@ -5506,7 +5506,17 @@ This content is loaded from a markdown file.
         const content = this.generatePreviewContent();
 
         if (isModalOpen && this.dom.previewFrame) {
+            const activeEl = document.activeElement;
             this.dom.previewFrame.srcdoc = content;
+            if (activeEl && activeEl !== document.body && activeEl !== this.dom.previewFrame) {
+                const restoreFocus = () => {
+                    if (document.contains(activeEl) &&
+                        (document.activeElement === this.dom.previewFrame || document.activeElement === document.body)) {
+                        activeEl.focus();
+                    }
+                };
+                this.dom.previewFrame.addEventListener('load', restoreFocus, { once: true });
+            }
         }
 
         if (isTabOpen) {
