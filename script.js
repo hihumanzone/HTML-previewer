@@ -5234,6 +5234,7 @@ This content is loaded from a markdown file.
     },
 
     replaceAssetReferences(htmlContent, fileSystem, currentFilePath = '', processedHtmlFiles = null) {
+        if (!processedHtmlFiles) processedHtmlFiles = new Map();
         htmlContent = this.assetReplacers.replaceAllConfigBased(htmlContent, fileSystem, currentFilePath);
         htmlContent = this.assetReplacers.replaceDownloadLinks(htmlContent, fileSystem, currentFilePath, processedHtmlFiles);
         htmlContent = this.assetReplacers.replaceStyleTags(htmlContent, fileSystem, currentFilePath);
@@ -5288,7 +5289,8 @@ This content is loaded from a markdown file.
         
         const fileSystem = this.createVirtualFileSystem();
         const mainHtmlPath = this.getFileNameFromPanel(mainHtmlFile.id) || 'index.html';
-        const processedHtmlFiles = new Set([mainHtmlPath]);
+        const processedHtmlFiles = new Map();
+        processedHtmlFiles.set(mainHtmlPath, null);
         let processedHtml = this.replaceAssetReferences(mainHtmlFile.editor.getValue(), fileSystem, mainHtmlPath, processedHtmlFiles);
         
         return this.injectConsoleScript(processedHtml, fileSystem, mainHtmlPath);
@@ -6465,7 +6467,7 @@ This content is loaded from a markdown file.
         },
 
         replaceDownloadLinks(htmlContent, fileSystem, currentFilePath, processedHtmlFiles) {
-            if (!processedHtmlFiles) processedHtmlFiles = new Set();
+            if (!processedHtmlFiles) processedHtmlFiles = new Map();
             return htmlContent.replace(/<a([^>]*?)href\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
                 if (match.includes('download') || !filename.includes('://')) {
                     const file = CodePreviewer.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
@@ -6474,13 +6476,18 @@ This content is loaded from a markdown file.
                             const resolvedPath = currentFilePath
                                 ? CodePreviewer.fileSystemUtils.resolvePath(currentFilePath, filename)
                                 : filename;
+                            const cachedUrl = processedHtmlFiles.get(resolvedPath);
+                            if (cachedUrl) {
+                                return match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${cachedUrl}"`);
+                            }
                             if (!processedHtmlFiles.has(resolvedPath)) {
-                                processedHtmlFiles.add(resolvedPath);
+                                processedHtmlFiles.set(resolvedPath, null);
                                 let processedContent = CodePreviewer.replaceAssetReferences(file.content, fileSystem, resolvedPath, processedHtmlFiles);
                                 processedContent = CodePreviewer.injectConsoleScript(processedContent, fileSystem, resolvedPath);
                                 const blob = new Blob([processedContent], { type: 'text/html' });
                                 const blobUrl = URL.createObjectURL(blob);
                                 CodePreviewer.state.previewAssetUrls.add(blobUrl);
+                                processedHtmlFiles.set(resolvedPath, blobUrl);
                                 return match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${blobUrl}"`);
                             }
                         }
