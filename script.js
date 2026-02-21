@@ -5502,10 +5502,6 @@ This content is loaded from a markdown file.
         const availability = this.getPreviewAvailability();
         if (!availability.allowed) return;
 
-        const activeElement = document.activeElement;
-        const focusedPanel = activeElement?.closest?.('.editor-panel[data-file-id]');
-        const focusedFileId = focusedPanel?.dataset?.fileId || null;
-
         this.revokeTrackedObjectUrls(this.state.previewAssetUrls);
         const content = this.generatePreviewContent();
 
@@ -5522,14 +5518,6 @@ This content is loaded from a markdown file.
             }
         }
 
-        if (focusedFileId && !document.activeElement?.closest?.('.editor-panel[data-file-id]')) {
-            const focusedFile = this.state.files.find(file => file.id === focusedFileId);
-            if (focusedFile?.editor?.focus) {
-                focusedFile.editor.focus();
-            } else {
-                focusedPanel?.querySelector('.CodeMirror textarea, textarea')?.focus();
-            }
-        }
     },
 
     renderPreview(target) {
