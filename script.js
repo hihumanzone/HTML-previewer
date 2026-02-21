@@ -1796,11 +1796,11 @@ This content is loaded from a markdown file.
         }
 
         if (this.dom.codeModalSearchBtn) {
-            this.dom.codeModalSearchBtn.textContent = isMobile ? '🔎' : '🔎 Search';
+            this.dom.codeModalSearchBtn.innerHTML = isMobile ? SVG_ICONS.search : SVG_ICONS.search + ' Search';
         }
 
         if (this.dom.saveCodeBtn) {
-            this.dom.saveCodeBtn.textContent = isMobile ? '💾' : '💾 Save';
+            this.dom.saveCodeBtn.innerHTML = isMobile ? SVG_ICONS.save : SVG_ICONS.save + ' Save';
         }
     },
 
@@ -2252,21 +2252,21 @@ This content is loaded from a markdown file.
             const openFolderFileIds = folderFileIds.filter(fileId => this.state.openPanels.has(fileId));
             const hasOpenFolderPanels = openFolderFileIds.length > 0;
             const closeFolderPanelsLabel = 'Collapse all file panels in folder';
-            const closeFolderPanelsIcon = '📁−';
+            const closeFolderPanelsIcon = SVG_ICONS.folderMinus;
 
             html += `
                 <div class="tree-folder ${isExpanded ? 'expanded' : ''} ${isFolderSelected ? 'folder-selected-in-sidebar' : ''}" data-folder-path="${folderPath}">
                     <div class="tree-folder-header">
                         <input type="checkbox" class="tree-folder-checkbox" aria-label="Select folder ${this.escapeHtmlAttribute(folderPath)}" ${isFolderSelected ? 'checked' : ''}>
-                        <span class="folder-icon">${isExpanded ? '📂' : '📁'}</span>
+                        <span class="folder-icon">${isExpanded ? SVG_ICONS.folderOpen : SVG_ICONS.folder}</span>
                         <span class="folder-name">${folderName}</span>
                         <div class="folder-actions">
                             ${hasOpenFolderPanels
                                 ? `<button class="close-folder-panels-btn" title="${closeFolderPanelsLabel}" aria-label="${closeFolderPanelsLabel}">${closeFolderPanelsIcon}</button>`
                                 : ''}
                             <button class="add-file-to-folder-btn" title="Add file to folder">+</button>
-                            <button class="add-subfolder-btn" title="Add subfolder">📁+</button>
-                            <button class="delete-folder-btn" title="Delete folder">🗑️</button>
+                            <button class="add-subfolder-btn" title="Add subfolder">${SVG_ICONS.folderPlus}</button>
+                            <button class="delete-folder-btn" title="Delete folder">${SVG_ICONS.trash}</button>
                         </div>
                     </div>
                     <div class="tree-folder-contents" style="display: ${isExpanded ? 'block' : 'none'}">
@@ -2296,9 +2296,9 @@ This content is loaded from a markdown file.
                     <span class="file-icon">${fileIcon}</span>
                     <span class="file-name">${file.displayName}</span>
                     <div class="file-actions">
-                        <button class="open-file-btn" title="${isOpen ? 'Focus file' : 'Open file'}" aria-label="${isOpen ? 'Focus file' : 'Open file'}">${isOpen ? '👁️' : '📝'}</button>
-                        <button class="move-file-btn" title="Move file" aria-label="Move file">📂➡️</button>
-                        <button class="delete-file-btn" title="Delete file" aria-label="Delete file">🗑️</button>
+                        <button class="open-file-btn" title="${isOpen ? 'Focus file' : 'Open file'}" aria-label="${isOpen ? 'Focus file' : 'Open file'}">${isOpen ? SVG_ICONS.eye : SVG_ICONS.pencil}</button>
+                        <button class="move-file-btn" title="Move file" aria-label="Move file">${SVG_ICONS.move}</button>
+                        <button class="delete-file-btn" title="Delete file" aria-label="Delete file">${SVG_ICONS.trash}</button>
                     </div>
                 </div>
             `;
@@ -2310,27 +2310,27 @@ This content is loaded from a markdown file.
     /**
      * Get the appropriate icon for a file type
      * @param {string} fileType - The file type
-     * @returns {string} Emoji icon
+     * @returns {string} SVG icon
      */
     getFileIcon(fileType) {
         const icons = {
-            'html': '🌐',
-            'css': '🎨',
-            'javascript': '📜',
-            'javascript-module': '📦',
-            'json': '📋',
-            'xml': '📄',
-            'markdown': '📝',
-            'text': '📃',
-            'svg': '🖼️',
-            'image': '🖼️',
-            'audio': '🔊',
-            'video': '🎬',
-            'font': '🔤',
-            'pdf': '📕',
-            'binary': '📦'
+            'html': SVG_ICONS.fileHtml,
+            'css': SVG_ICONS.fileCss,
+            'javascript': SVG_ICONS.fileJs,
+            'javascript-module': SVG_ICONS.package,
+            'json': SVG_ICONS.fileJson,
+            'xml': SVG_ICONS.fileXml,
+            'markdown': SVG_ICONS.fileMarkdown,
+            'text': SVG_ICONS.fileText,
+            'svg': SVG_ICONS.fileImage,
+            'image': SVG_ICONS.fileImage,
+            'audio': SVG_ICONS.fileAudio,
+            'video': SVG_ICONS.fileVideo,
+            'font': SVG_ICONS.fileFont,
+            'pdf': SVG_ICONS.filePdf,
+            'binary': SVG_ICONS.fileBinary
         };
-        return icons[fileType] || '📄';
+        return icons[fileType] || SVG_ICONS.document;
     },
 
     /**
@@ -3217,23 +3217,23 @@ This content is loaded from a markdown file.
         let toolbarHTML = '<div class="editor-toolbar">';
         
         if (isEditable) {
-            toolbarHTML += this.htmlGenerators.toolbarButton('🗑️', 'Clear', 'clear-btn', 'Clear content', 'Clear');
-            toolbarHTML += this.htmlGenerators.toolbarButton('📋', 'Paste', 'paste-btn', 'Paste from clipboard', 'Paste');
-            toolbarHTML += this.htmlGenerators.toolbarButton('📄', 'Copy', 'copy-btn', 'Copy to clipboard', 'Copy');
-            toolbarHTML += this.htmlGenerators.toolbarButton('🔎', 'Search', 'search-btn', 'Search in file', 'Search in file');
+            toolbarHTML += this.htmlGenerators.toolbarButton(SVG_ICONS.trash, 'Clear', 'clear-btn', 'Clear content', 'Clear');
+            toolbarHTML += this.htmlGenerators.toolbarButton(SVG_ICONS.clipboard, 'Paste', 'paste-btn', 'Paste from clipboard', 'Paste');
+            toolbarHTML += this.htmlGenerators.toolbarButton(SVG_ICONS.document, 'Copy', 'copy-btn', 'Copy to clipboard', 'Copy');
+            toolbarHTML += this.htmlGenerators.toolbarButton(SVG_ICONS.search, 'Search', 'search-btn', 'Search in file', 'Search in file');
             if (supportsFormatting) {
-                toolbarHTML += this.htmlGenerators.toolbarButton('✨', 'Format', 'format-btn', 'Format code', 'Format code');
+                toolbarHTML += this.htmlGenerators.toolbarButton(SVG_ICONS.format, 'Format', 'format-btn', 'Format code', 'Format code');
             }
         }
         
         if (hasExpandPreview) {
             const expandLabel = isEditable ? "Expand code view" : "View media";
             const expandTitle = isEditable ? "Expand" : "View";
-            toolbarHTML += this.htmlGenerators.toolbarButton('🔍', expandTitle, 'expand-btn', expandLabel, expandTitle);
+            toolbarHTML += this.htmlGenerators.toolbarButton(SVG_ICONS.expand, expandTitle, 'expand-btn', expandLabel, expandTitle);
         }
         
-        toolbarHTML += this.htmlGenerators.toolbarButton('💾', 'Export', 'export-btn', 'Export file', 'Export');
-        toolbarHTML += this.htmlGenerators.toolbarButton('📁', 'Collapse', 'collapse-btn', 'Collapse/Expand editor', 'Collapse/Expand');
+        toolbarHTML += this.htmlGenerators.toolbarButton(SVG_ICONS.save, 'Export', 'export-btn', 'Export file', 'Export');
+        toolbarHTML += this.htmlGenerators.toolbarButton(SVG_ICONS.folder, 'Collapse', 'collapse-btn', 'Collapse/Expand editor', 'Collapse/Expand');
 
         toolbarHTML += '</div>';
 
@@ -3242,7 +3242,7 @@ This content is loaded from a markdown file.
                 <div class="panel-search" hidden>
                     <input type="search" class="panel-search-input" placeholder="Search in this file" aria-label="Search in this file">
                     <button class="panel-search-next-btn" aria-label="Find next match" title="Find next">Next</button>
-                    <button class="panel-search-close-btn" aria-label="Close search" title="Close search">✕</button>
+                    <button class="panel-search-close-btn" aria-label="Close search" title="Close search">${SVG_ICONS.close}</button>
                 </div>
             `;
         }
@@ -3576,7 +3576,7 @@ This content is loaded from a markdown file.
                 applyBtn.className = 'toolbar-btn apply-changes-btn';
                 applyBtn.setAttribute('aria-label', 'Apply changes');
                 applyBtn.setAttribute('title', 'Apply changes');
-                applyBtn.innerHTML = '<span class="btn-icon">✓</span> Apply';
+                applyBtn.innerHTML = '<span class="btn-icon">' + SVG_ICONS.check + '</span> Apply';
                 applyBtn.addEventListener('click', () => this.applyFileChanges(fileId));
                 toolbar.insertBefore(applyBtn, toolbar.firstChild);
             }
@@ -3586,7 +3586,7 @@ This content is loaded from a markdown file.
                 discardBtn.className = 'toolbar-btn discard-changes-btn';
                 discardBtn.setAttribute('aria-label', 'Discard changes');
                 discardBtn.setAttribute('title', 'Discard changes');
-                discardBtn.innerHTML = '<span class="btn-icon">✕</span> Discard';
+                discardBtn.innerHTML = '<span class="btn-icon">' + SVG_ICONS.close + '</span> Discard';
                 discardBtn.addEventListener('click', () => this.discardFileChanges(fileId));
                 toolbar.insertBefore(discardBtn, applyBtn.nextSibling);
             }
@@ -4766,8 +4766,8 @@ This content is loaded from a markdown file.
         collapseBtn.classList.toggle('collapsed', willCollapse);
         collapseBtn.setAttribute('aria-expanded', willCollapse ? 'false' : 'true');
         collapseBtn.innerHTML = willCollapse
-            ? '<span class="btn-icon">📂</span> Actions'
-            : '<span class="btn-icon">📁</span> Collapse';
+            ? '<span class="btn-icon">' + SVG_ICONS.folderOpen + '</span> Actions'
+            : '<span class="btn-icon">' + SVG_ICONS.folder + '</span> Collapse';
 
         toolbarButtons.forEach((btn) => {
             btn.hidden = willCollapse;
@@ -5309,7 +5309,7 @@ This content is loaded from a markdown file.
         if (!this.dom.dockPreviewBtn) return;
         const isDocked = this.state.isPreviewDocked;
         this.dom.dockPreviewBtn.classList.toggle('active', isDocked);
-        this.dom.dockPreviewBtn.textContent = isDocked ? '🧲 Undock' : '🧲 Dock';
+        this.dom.dockPreviewBtn.innerHTML = isDocked ? SVG_ICONS.dock + ' Undock' : SVG_ICONS.dock + ' Dock';
         this.dom.dockPreviewBtn.setAttribute('aria-label', isDocked ? 'Undock preview panel' : 'Dock preview panel');
     },
 
@@ -5475,7 +5475,7 @@ This content is loaded from a markdown file.
             this.applyPreviewDockLayout();
             this.dom.modalConsolePanel.classList.add('hidden');
             this.dom.toggleConsoleBtn.classList.remove('active');
-            this.dom.toggleConsoleBtn.textContent = '📋 Console';
+            this.dom.toggleConsoleBtn.innerHTML = SVG_ICONS.clipboard + ' Console';
         } else {
             this.togglePreviewDock(false);
             if (this.state.previewRefreshTimer) {
@@ -5513,11 +5513,11 @@ This content is loaded from a markdown file.
         if (isHidden) {
             this.dom.modalConsolePanel.classList.remove('hidden');
             this.dom.toggleConsoleBtn.classList.add('active');
-            this.dom.toggleConsoleBtn.textContent = '📋 Hide Console';
+            this.dom.toggleConsoleBtn.innerHTML = SVG_ICONS.clipboard + ' Hide Console';
         } else {
             this.dom.modalConsolePanel.classList.add('hidden');
             this.dom.toggleConsoleBtn.classList.remove('active');
-            this.dom.toggleConsoleBtn.textContent = '📋 Console';
+            this.dom.toggleConsoleBtn.innerHTML = SVG_ICONS.clipboard + ' Console';
         }
     },
 
@@ -5742,7 +5742,7 @@ This content is loaded from a markdown file.
                     </object>
                 </div>`,
                 default: `<div class="file-preview binary-preview">
-                    <p>📁 Binary file: Cannot display content</p>
+                    <p>${SVG_ICONS.fileBinary} Binary file: Cannot display content</p>
                     <p>File can be referenced in HTML code</p>
                 </div>`
             };
@@ -5817,7 +5817,7 @@ This content is loaded from a markdown file.
             notification.innerHTML = `
                 <div class="notification-header">
                     <span class="notification-message">${CodePreviewer.escapeHtml(message)}</span>
-                    <button class="notification-close-btn" aria-label="Close notification" title="Close">✕</button>
+                    <button class="notification-close-btn" aria-label="Close notification" title="Close">${SVG_ICONS.close}</button>
                 </div>
             `;
 
@@ -5848,7 +5848,7 @@ This content is loaded from a markdown file.
             notification.innerHTML = `
                 <div class="notification-header">
                     <span class="notification-message">${CodePreviewer.escapeHtml(message)}</span>
-                    <button class="notification-close-btn" aria-label="Close notification" title="Close">✕</button>
+                    <button class="notification-close-btn" aria-label="Close notification" title="Close">${SVG_ICONS.close}</button>
                 </div>
                 <div class="notification-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="${Math.max(total, 1)}" aria-valuenow="0">
                     <div class="notification-progress-fill"></div>
@@ -6194,19 +6194,19 @@ This content is loaded from a markdown file.
             filterContainer.className = 'console-filters';
             filterContainer.innerHTML = `
                 <button class="console-filter-btn active" data-filter="log" title="Show logs">
-                    <span class="filter-icon">📝</span>
+                    <span class="filter-icon">${SVG_ICONS.pencil}</span>
                     <span class="filter-count" data-count="log">0</span>
                 </button>
                 <button class="console-filter-btn active" data-filter="info" title="Show info">
-                    <span class="filter-icon">ℹ️</span>
+                    <span class="filter-icon">${SVG_ICONS.info}</span>
                     <span class="filter-count" data-count="info">0</span>
                 </button>
                 <button class="console-filter-btn active" data-filter="warn" title="Show warnings">
-                    <span class="filter-icon">⚠️</span>
+                    <span class="filter-icon">${SVG_ICONS.warning}</span>
                     <span class="filter-count" data-count="warn">0</span>
                 </button>
                 <button class="console-filter-btn active" data-filter="error" title="Show errors">
-                    <span class="filter-icon">❌</span>
+                    <span class="filter-icon">${SVG_ICONS.xCircle}</span>
                     <span class="filter-count" data-count="error">0</span>
                 </button>
             `;
@@ -6288,12 +6288,12 @@ This content is loaded from a markdown file.
         
         getIcon(level) {
             const icons = {
-                log: '📝',
-                info: 'ℹ️',
-                warn: '⚠️',
-                error: '❌'
+                log: SVG_ICONS.pencil,
+                info: SVG_ICONS.info,
+                warn: SVG_ICONS.warning,
+                error: SVG_ICONS.xCircle
             };
-            return icons[level] || '📝';
+            return icons[level] || SVG_ICONS.pencil;
         },
         
         getTimestamp() {
@@ -6326,7 +6326,7 @@ This content is loaded from a markdown file.
                 <span class="log-icon" aria-hidden="true">${this.getIcon(level)}</span>
                 <span class="log-timestamp">${this.getTimestamp()}</span>
                 <span class="log-content">${messageContent}</span>
-                <button class="log-copy-btn" title="Copy message" aria-label="Copy message to clipboard">📋</button>
+                <button class="log-copy-btn" title="Copy message" aria-label="Copy message to clipboard">${SVG_ICONS.clipboard}</button>
             `;
             
             // Add copy functionality with accessibility support
@@ -6340,17 +6340,17 @@ This content is loaded from a markdown file.
                     return String(arg);
                 }).join(' ');
                 navigator.clipboard.writeText(text).then(() => {
-                    copyBtn.textContent = '✅';
+                    copyBtn.innerHTML = SVG_ICONS.checkCircle;
                     copyBtn.setAttribute('aria-label', 'Copied to clipboard');
                     setTimeout(() => {
-                        copyBtn.textContent = '📋';
+                        copyBtn.innerHTML = SVG_ICONS.clipboard;
                         copyBtn.setAttribute('aria-label', 'Copy message to clipboard');
                     }, this.COPY_FEEDBACK_DURATION);
                 }).catch(() => {
-                    copyBtn.textContent = '❌';
+                    copyBtn.innerHTML = SVG_ICONS.xCircle;
                     copyBtn.setAttribute('aria-label', 'Failed to copy');
                     setTimeout(() => {
-                        copyBtn.textContent = '📋';
+                        copyBtn.innerHTML = SVG_ICONS.clipboard;
                         copyBtn.setAttribute('aria-label', 'Copy message to clipboard');
                     }, this.COPY_FEEDBACK_DURATION);
                 });
