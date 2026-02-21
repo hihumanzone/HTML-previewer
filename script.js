@@ -6057,6 +6057,10 @@ This content is loaded from a markdown file.
                     message: `Importing ${processedCount}/${entries.length}: ${entry.name}`
                 });
 
+                if (processedCount % 5 === 0) {
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
+
                 const result = await this._resolveImportConflict(entry.name, resolution);
                 if (result === 'skipped') {
                     skippedCount++;
@@ -6384,7 +6388,7 @@ This content is loaded from a markdown file.
             const progressBar = notification.querySelector('.notification-progress-track');
             const progressFill = notification.querySelector('.notification-progress-fill');
             const closeBtn = notification.querySelector('.notification-close-btn');
-            const maxValue = Math.max(total, 1);
+            let maxValue = Math.max(total, 1);
             let currentValue = 0;
 
             const dismiss = () => {
@@ -6397,7 +6401,11 @@ This content is loaded from a markdown file.
                 closeBtn.addEventListener('click', () => dismiss());
             }
 
-            const update = ({ current, message: nextMessage, type: nextType } = {}) => {
+            const update = ({ current, total: nextTotal, message: nextMessage, type: nextType } = {}) => {
+                if (typeof nextTotal === 'number' && nextTotal >= 1) {
+                    maxValue = nextTotal;
+                    progressBar.setAttribute('aria-valuemax', String(maxValue));
+                }
                 if (typeof current === 'number') {
                     currentValue = Math.max(0, Math.min(current, maxValue));
                     const percentage = (currentValue / maxValue) * 100;
