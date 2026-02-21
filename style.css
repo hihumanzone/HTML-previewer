@@ -784,8 +784,8 @@ body {
 }
 
 .file-tree-container {
-    width: 280px;
-    min-width: 220px;
+    width: 320px;
+    min-width: 240px;
     min-height: var(--file-panel-size);
     height: auto;
     resize: horizontal;
