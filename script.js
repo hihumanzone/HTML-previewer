@@ -20,6 +20,48 @@
  * - console: Console capture and logging
  * 
  */
+const SVG_ICONS = {
+    // UI Action Icons
+    settings: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="14" y2="8"/><line x1="2" y1="12" x2="14" y2="12"/><circle cx="5" cy="4" r="1.5" fill="currentColor"/><circle cx="10" cy="8" r="1.5" fill="currentColor"/><circle cx="7" cy="12" r="1.5" fill="currentColor"/></svg>',
+    trash: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h10l-1 10H4L3 4z"/><path d="M1 4h14"/><path d="M6 4V2.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5V4"/><line x1="6.5" y1="7" x2="6.5" y2="11"/><line x1="9.5" y1="7" x2="9.5" y2="11"/></svg>',
+    package: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1L14 4v8l-6 3L2 12V4l6-3z"/><path d="M8 8v7"/><path d="M2 4l6 4 6-4"/></svg>',
+    folder: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5h4l2 2h7v8h-13v-10z"/></svg>',
+    folderOpen: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5h4l2 2h7v2"/><path d="M1.5 13.5l2-6h12l-2 6h-12z"/></svg>',
+    folderTabs: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5h4l2 2h7v8h-13v-10z"/><path d="M5 3.5V1.5h4v2"/></svg>',
+    clipboard: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="2.5" width="10" height="12" rx="1"/><path d="M5.5 2.5V2a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 .5.5v.5"/><line x1="5.5" y1="7" x2="10.5" y2="7"/><line x1="5.5" y1="9.5" x2="10.5" y2="9.5"/><line x1="5.5" y1="12" x2="8.5" y2="12"/></svg>',
+    document: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 1.5h5.5L13 5v9.5H4V1.5z"/><path d="M9 1.5v4h4"/></svg>',
+    search: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.5" cy="6.5" r="4.5"/><line x1="10" y1="10" x2="14.5" y2="14.5"/></svg>',
+    format: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="13" x2="10" y2="2"/><path d="M10 2l1.5 3"/><path d="M1 6l2-2 2 2"/><circle cx="12.5" cy="3.5" r="0.75" fill="currentColor" stroke="none"/></svg>',
+    expand: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="10,2 14,2 14,6"/><polyline points="6,14 2,14 2,10"/><line x1="14" y1="2" x2="9.5" y2="6.5"/><line x1="2" y1="14" x2="6.5" y2="9.5"/></svg>',
+    save: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 1.5h9.5L14 4v10.5H2V1.5z"/><rect x="4.5" y="1.5" width="5" height="4"/><rect x="4.5" y="9.5" width="7" height="5"/></svg>',
+    close: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg>',
+    dock: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="2" width="13" height="12" rx="1"/><line x1="10" y1="2" x2="10" y2="14"/></svg>',
+    eye: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z"/><circle cx="8" cy="8" r="2"/></svg>',
+    pencil: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 1.5l3 3-9 9H2.5v-3l9-9z"/></svg>',
+    move: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="8" x2="14" y2="8"/><polyline points="10,4 14,8 10,12"/></svg>',
+    check: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,8.5 6.5,12 13,4"/></svg>',
+    checkCircle: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><polyline points="5,8.5 7,10.5 11,5.5"/></svg>',
+    xCircle: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><line x1="5.5" y1="5.5" x2="10.5" y2="10.5"/><line x1="10.5" y1="5.5" x2="5.5" y2="10.5"/></svg>',
+    info: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><line x1="8" y1="7.5" x2="8" y2="11.5"/><circle cx="8" cy="5" r="0.75" fill="currentColor" stroke="none"/></svg>',
+    warning: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5L1 14h14L8 1.5z"/><line x1="8" y1="6" x2="8" y2="10"/><circle cx="8" cy="12" r="0.75" fill="currentColor" stroke="none"/></svg>',
+    folderPlus: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5h4l2 2h7v8h-13v-10z"/><line x1="8" y1="7.5" x2="8" y2="11.5"/><line x1="6" y1="9.5" x2="10" y2="9.5"/></svg>',
+    folderMinus: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5h4l2 2h7v8h-13v-10z"/><line x1="6" y1="9.5" x2="10" y2="9.5"/></svg>',
+    // File Type Icons
+    fileHtml: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><ellipse cx="8" cy="8" rx="3" ry="6.5"/><path d="M1.5 8h13"/></svg>',
+    fileCss: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 14l-1-4 3-2-3-2 1-4"/><circle cx="12" cy="4" r="2"/><line x1="12" y1="6" x2="12" y2="12"/><path d="M10 12a2 2 0 1 0 4 0"/></svg>',
+    fileJs: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,4 1.5,8 4,12"/><polyline points="12,4 14.5,8 12,12"/></svg>',
+    fileJson: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2c-2 0-2 2-2 3v1.5c0 1-1 1.5-1.5 1.5 .5 0 1.5.5 1.5 1.5V11c0 1 0 3 2 3"/><path d="M11 2c2 0 2 2 2 3v1.5c0 1 1 1.5 1.5 1.5-.5 0-1.5.5-1.5 1.5V11c0 1 0 3-2 3"/></svg>',
+    fileXml: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 1.5h5.5L13 5v9.5H4V1.5z"/><path d="M9 1.5v4h4"/><polyline points="6,9 5,11 6,13"/><polyline points="10,9 11,11 10,13"/></svg>',
+    fileMarkdown: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 1.5h5.5L13 5v9.5H4V1.5z"/><path d="M9 1.5v4h4"/><path d="M6.5 9v4h1v-2.5L9 12l1.5-1.5V13h1V9"/></svg>',
+    fileText: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 1.5h5.5L13 5v9.5H4V1.5z"/><path d="M9 1.5v4h4"/><line x1="6" y1="8" x2="11" y2="8"/><line x1="6" y1="10.5" x2="11" y2="10.5"/><line x1="6" y1="13" x2="9" y2="13"/></svg>',
+    fileImage: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="2" width="13" height="12" rx="1"/><circle cx="5" cy="5.5" r="1.5"/><path d="M1.5 12l4-4 3 3 2-2 4 4"/></svg>',
+    fileAudio: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6v4h3l4 3V3L5 6H2z"/><path d="M11 5.5a3.5 3.5 0 0 1 0 5"/><path d="M12.5 3.5a6 6 0 0 1 0 9"/></svg>',
+    fileVideo: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="3" width="13" height="10" rx="1"/><path d="M6 6.5v3l3-1.5-3-1.5z"/></svg>',
+    fileFont: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14l4-12 4 12"/><line x1="5.5" y1="10" x2="10.5" y2="10"/><line x1="3" y1="14" x2="5" y2="14"/><line x1="11" y1="14" x2="13" y2="14"/></svg>',
+    filePdf: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 1.5h5.5L13 5v9.5H4V1.5z"/><path d="M9 1.5v4h4"/><path d="M6 9h1.5a1.25 1.25 0 0 0 0-2.5H6v6"/></svg>',
+    fileBinary: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1L14 4v8l-6 3L2 12V4l6-3z"/><path d="M8 8v7"/><path d="M2 4l6 4 6-4"/></svg>',
+};
+
 const CodePreviewer = {
     // ============================================================================
     // APPLICATION STATE
@@ -1754,11 +1796,11 @@ This content is loaded from a markdown file.
         }
 
         if (this.dom.codeModalSearchBtn) {
-            this.dom.codeModalSearchBtn.textContent = isMobile ? '🔎' : '🔎 Search';
+            this.dom.codeModalSearchBtn.innerHTML = isMobile ? SVG_ICONS.search : SVG_ICONS.search + ' Search';
         }
 
         if (this.dom.saveCodeBtn) {
-            this.dom.saveCodeBtn.textContent = isMobile ? '💾' : '💾 Save';
+            this.dom.saveCodeBtn.innerHTML = isMobile ? SVG_ICONS.save : SVG_ICONS.save + ' Save';
         }
     },
 
@@ -2210,21 +2252,21 @@ This content is loaded from a markdown file.
             const openFolderFileIds = folderFileIds.filter(fileId => this.state.openPanels.has(fileId));
             const hasOpenFolderPanels = openFolderFileIds.length > 0;
             const closeFolderPanelsLabel = 'Collapse all file panels in folder';
-            const closeFolderPanelsIcon = '📁−';
+            const closeFolderPanelsIcon = SVG_ICONS.folderMinus;
 
             html += `
                 <div class="tree-folder ${isExpanded ? 'expanded' : ''} ${isFolderSelected ? 'folder-selected-in-sidebar' : ''}" data-folder-path="${folderPath}">
                     <div class="tree-folder-header">
                         <input type="checkbox" class="tree-folder-checkbox" aria-label="Select folder ${this.escapeHtmlAttribute(folderPath)}" ${isFolderSelected ? 'checked' : ''}>
-                        <span class="folder-icon">${isExpanded ? '📂' : '📁'}</span>
+                        <span class="folder-icon">${isExpanded ? SVG_ICONS.folderOpen : SVG_ICONS.folder}</span>
                         <span class="folder-name">${folderName}</span>
                         <div class="folder-actions">
                             ${hasOpenFolderPanels
                                 ? `<button class="close-folder-panels-btn" title="${closeFolderPanelsLabel}" aria-label="${closeFolderPanelsLabel}">${closeFolderPanelsIcon}</button>`
                                 : ''}
                             <button class="add-file-to-folder-btn" title="Add file to folder">+</button>
-                            <button class="add-subfolder-btn" title="Add subfolder">📁+</button>
-                            <button class="delete-folder-btn" title="Delete folder">🗑️</button>
+                            <button class="add-subfolder-btn" title="Add subfolder">${SVG_ICONS.folderPlus}</button>
+                            <button class="delete-folder-btn" title="Delete folder">${SVG_ICONS.trash}</button>
                         </div>
                     </div>
                     <div class="tree-folder-contents" style="display: ${isExpanded ? 'block' : 'none'}">
@@ -2254,9 +2296,9 @@ This content is loaded from a markdown file.
                     <span class="file-icon">${fileIcon}</span>
                     <span class="file-name">${file.displayName}</span>
                     <div class="file-actions">
-                        <button class="open-file-btn" title="${isOpen ? 'Focus file' : 'Open file'}" aria-label="${isOpen ? 'Focus file' : 'Open file'}">${isOpen ? '👁️' : '📝'}</button>
-                        <button class="move-file-btn" title="Move file" aria-label="Move file">📂➡️</button>
-                        <button class="delete-file-btn" title="Delete file" aria-label="Delete file">🗑️</button>
+                        <button class="open-file-btn" title="${isOpen ? 'Focus file' : 'Open file'}" aria-label="${isOpen ? 'Focus file' : 'Open file'}">${isOpen ? SVG_ICONS.eye : SVG_ICONS.pencil}</button>
+                        <button class="move-file-btn" title="Move file" aria-label="Move file">${SVG_ICONS.move}</button>
+                        <button class="delete-file-btn" title="Delete file" aria-label="Delete file">${SVG_ICONS.trash}</button>
                     </div>
                 </div>
             `;
@@ -2268,27 +2310,27 @@ This content is loaded from a markdown file.
     /**
      * Get the appropriate icon for a file type
      * @param {string} fileType - The file type
-     * @returns {string} Emoji icon
+     * @returns {string} SVG icon
      */
     getFileIcon(fileType) {
         const icons = {
-            'html': '🌐',
-            'css': '🎨',
-            'javascript': '📜',
-            'javascript-module': '📦',
-            'json': '📋',
-            'xml': '📄',
-            'markdown': '📝',
-            'text': '📃',
-            'svg': '🖼️',
-            'image': '🖼️',
-            'audio': '🔊',
-            'video': '🎬',
-            'font': '🔤',
-            'pdf': '📕',
-            'binary': '📦'
+            'html': SVG_ICONS.fileHtml,
+            'css': SVG_ICONS.fileCss,
+            'javascript': SVG_ICONS.fileJs,
+            'javascript-module': SVG_ICONS.package,
+            'json': SVG_ICONS.fileJson,
+            'xml': SVG_ICONS.fileXml,
+            'markdown': SVG_ICONS.fileMarkdown,
+            'text': SVG_ICONS.fileText,
+            'svg': SVG_ICONS.fileImage,
+            'image': SVG_ICONS.fileImage,
+            'audio': SVG_ICONS.fileAudio,
+            'video': SVG_ICONS.fileVideo,
+            'font': SVG_ICONS.fileFont,
+            'pdf': SVG_ICONS.filePdf,
+            'binary': SVG_ICONS.fileBinary
         };
-        return icons[fileType] || '📄';
+        return icons[fileType] || SVG_ICONS.document;
     },
 
     /**
@@ -3175,23 +3217,23 @@ This content is loaded from a markdown file.
         let toolbarHTML = '<div class="editor-toolbar">';
         
         if (isEditable) {
-            toolbarHTML += this.htmlGenerators.toolbarButton('🗑️', 'Clear', 'clear-btn', 'Clear content', 'Clear');
-            toolbarHTML += this.htmlGenerators.toolbarButton('📋', 'Paste', 'paste-btn', 'Paste from clipboard', 'Paste');
-            toolbarHTML += this.htmlGenerators.toolbarButton('📄', 'Copy', 'copy-btn', 'Copy to clipboard', 'Copy');
-            toolbarHTML += this.htmlGenerators.toolbarButton('🔎', 'Search', 'search-btn', 'Search in file', 'Search in file');
+            toolbarHTML += this.htmlGenerators.toolbarButton(SVG_ICONS.trash, 'Clear', 'clear-btn', 'Clear content', 'Clear');
+            toolbarHTML += this.htmlGenerators.toolbarButton(SVG_ICONS.clipboard, 'Paste', 'paste-btn', 'Paste from clipboard', 'Paste');
+            toolbarHTML += this.htmlGenerators.toolbarButton(SVG_ICONS.document, 'Copy', 'copy-btn', 'Copy to clipboard', 'Copy');
+            toolbarHTML += this.htmlGenerators.toolbarButton(SVG_ICONS.search, 'Search', 'search-btn', 'Search in file', 'Search in file');
             if (supportsFormatting) {
-                toolbarHTML += this.htmlGenerators.toolbarButton('✨', 'Format', 'format-btn', 'Format code', 'Format code');
+                toolbarHTML += this.htmlGenerators.toolbarButton(SVG_ICONS.format, 'Format', 'format-btn', 'Format code', 'Format code');
             }
         }
         
         if (hasExpandPreview) {
             const expandLabel = isEditable ? "Expand code view" : "View media";
             const expandTitle = isEditable ? "Expand" : "View";
-            toolbarHTML += this.htmlGenerators.toolbarButton('🔍', expandTitle, 'expand-btn', expandLabel, expandTitle);
+            toolbarHTML += this.htmlGenerators.toolbarButton(SVG_ICONS.expand, expandTitle, 'expand-btn', expandLabel, expandTitle);
         }
         
-        toolbarHTML += this.htmlGenerators.toolbarButton('💾', 'Export', 'export-btn', 'Export file', 'Export');
-        toolbarHTML += this.htmlGenerators.toolbarButton('📁', 'Collapse', 'collapse-btn', 'Collapse/Expand editor', 'Collapse/Expand');
+        toolbarHTML += this.htmlGenerators.toolbarButton(SVG_ICONS.save, 'Export', 'export-btn', 'Export file', 'Export');
+        toolbarHTML += this.htmlGenerators.toolbarButton(SVG_ICONS.folder, 'Collapse', 'collapse-btn', 'Collapse/Expand editor', 'Collapse/Expand');
 
         toolbarHTML += '</div>';
 
@@ -3200,7 +3242,7 @@ This content is loaded from a markdown file.
                 <div class="panel-search" hidden>
                     <input type="search" class="panel-search-input" placeholder="Search in this file" aria-label="Search in this file">
                     <button class="panel-search-next-btn" aria-label="Find next match" title="Find next">Next</button>
-                    <button class="panel-search-close-btn" aria-label="Close search" title="Close search">✕</button>
+                    <button class="panel-search-close-btn" aria-label="Close search" title="Close search">${SVG_ICONS.close}</button>
                 </div>
             `;
         }
@@ -3534,7 +3576,7 @@ This content is loaded from a markdown file.
                 applyBtn.className = 'toolbar-btn apply-changes-btn';
                 applyBtn.setAttribute('aria-label', 'Apply changes');
                 applyBtn.setAttribute('title', 'Apply changes');
-                applyBtn.innerHTML = '<span class="btn-icon">✓</span> Apply';
+                applyBtn.innerHTML = '<span class="btn-icon">' + SVG_ICONS.check + '</span> Apply';
                 applyBtn.addEventListener('click', () => this.applyFileChanges(fileId));
                 toolbar.insertBefore(applyBtn, toolbar.firstChild);
             }
@@ -3544,7 +3586,7 @@ This content is loaded from a markdown file.
                 discardBtn.className = 'toolbar-btn discard-changes-btn';
                 discardBtn.setAttribute('aria-label', 'Discard changes');
                 discardBtn.setAttribute('title', 'Discard changes');
-                discardBtn.innerHTML = '<span class="btn-icon">✕</span> Discard';
+                discardBtn.innerHTML = '<span class="btn-icon">' + SVG_ICONS.close + '</span> Discard';
                 discardBtn.addEventListener('click', () => this.discardFileChanges(fileId));
                 toolbar.insertBefore(discardBtn, applyBtn.nextSibling);
             }
@@ -4724,8 +4766,8 @@ This content is loaded from a markdown file.
         collapseBtn.classList.toggle('collapsed', willCollapse);
         collapseBtn.setAttribute('aria-expanded', willCollapse ? 'false' : 'true');
         collapseBtn.innerHTML = willCollapse
-            ? '<span class="btn-icon">📂</span> Actions'
-            : '<span class="btn-icon">📁</span> Collapse';
+            ? '<span class="btn-icon">' + SVG_ICONS.folderOpen + '</span> Actions'
+            : '<span class="btn-icon">' + SVG_ICONS.folder + '</span> Collapse';
 
         toolbarButtons.forEach((btn) => {
             btn.hidden = willCollapse;
@@ -5267,7 +5309,7 @@ This content is loaded from a markdown file.
         if (!this.dom.dockPreviewBtn) return;
         const isDocked = this.state.isPreviewDocked;
         this.dom.dockPreviewBtn.classList.toggle('active', isDocked);
-        this.dom.dockPreviewBtn.textContent = isDocked ? '🧲 Undock' : '🧲 Dock';
+        this.dom.dockPreviewBtn.innerHTML = isDocked ? SVG_ICONS.dock + ' Undock' : SVG_ICONS.dock + ' Dock';
         this.dom.dockPreviewBtn.setAttribute('aria-label', isDocked ? 'Undock preview panel' : 'Dock preview panel');
     },
 
@@ -5433,7 +5475,7 @@ This content is loaded from a markdown file.
             this.applyPreviewDockLayout();
             this.dom.modalConsolePanel.classList.add('hidden');
             this.dom.toggleConsoleBtn.classList.remove('active');
-            this.dom.toggleConsoleBtn.textContent = '📋 Console';
+            this.dom.toggleConsoleBtn.innerHTML = SVG_ICONS.clipboard + ' Console';
         } else {
             this.togglePreviewDock(false);
             if (this.state.previewRefreshTimer) {
@@ -5471,11 +5513,11 @@ This content is loaded from a markdown file.
         if (isHidden) {
             this.dom.modalConsolePanel.classList.remove('hidden');
             this.dom.toggleConsoleBtn.classList.add('active');
-            this.dom.toggleConsoleBtn.textContent = '📋 Hide Console';
+            this.dom.toggleConsoleBtn.innerHTML = SVG_ICONS.clipboard + ' Hide Console';
         } else {
             this.dom.modalConsolePanel.classList.add('hidden');
             this.dom.toggleConsoleBtn.classList.remove('active');
-            this.dom.toggleConsoleBtn.textContent = '📋 Console';
+            this.dom.toggleConsoleBtn.innerHTML = SVG_ICONS.clipboard + ' Console';
         }
     },
 
@@ -5700,7 +5742,7 @@ This content is loaded from a markdown file.
                     </object>
                 </div>`,
                 default: `<div class="file-preview binary-preview">
-                    <p>📁 Binary file: Cannot display content</p>
+                    <p>${SVG_ICONS.fileBinary} Binary file: Cannot display content</p>
                     <p>File can be referenced in HTML code</p>
                 </div>`
             };
@@ -5775,7 +5817,7 @@ This content is loaded from a markdown file.
             notification.innerHTML = `
                 <div class="notification-header">
                     <span class="notification-message">${CodePreviewer.escapeHtml(message)}</span>
-                    <button class="notification-close-btn" aria-label="Close notification" title="Close">✕</button>
+                    <button class="notification-close-btn" aria-label="Close notification" title="Close">${SVG_ICONS.close}</button>
                 </div>
             `;
 
@@ -5806,7 +5848,7 @@ This content is loaded from a markdown file.
             notification.innerHTML = `
                 <div class="notification-header">
                     <span class="notification-message">${CodePreviewer.escapeHtml(message)}</span>
-                    <button class="notification-close-btn" aria-label="Close notification" title="Close">✕</button>
+                    <button class="notification-close-btn" aria-label="Close notification" title="Close">${SVG_ICONS.close}</button>
                 </div>
                 <div class="notification-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="${Math.max(total, 1)}" aria-valuenow="0">
                     <div class="notification-progress-fill"></div>
@@ -6152,19 +6194,19 @@ This content is loaded from a markdown file.
             filterContainer.className = 'console-filters';
             filterContainer.innerHTML = `
                 <button class="console-filter-btn active" data-filter="log" title="Show logs">
-                    <span class="filter-icon">📝</span>
+                    <span class="filter-icon">${SVG_ICONS.pencil}</span>
                     <span class="filter-count" data-count="log">0</span>
                 </button>
                 <button class="console-filter-btn active" data-filter="info" title="Show info">
-                    <span class="filter-icon">ℹ️</span>
+                    <span class="filter-icon">${SVG_ICONS.info}</span>
                     <span class="filter-count" data-count="info">0</span>
                 </button>
                 <button class="console-filter-btn active" data-filter="warn" title="Show warnings">
-                    <span class="filter-icon">⚠️</span>
+                    <span class="filter-icon">${SVG_ICONS.warning}</span>
                     <span class="filter-count" data-count="warn">0</span>
                 </button>
                 <button class="console-filter-btn active" data-filter="error" title="Show errors">
-                    <span class="filter-icon">❌</span>
+                    <span class="filter-icon">${SVG_ICONS.xCircle}</span>
                     <span class="filter-count" data-count="error">0</span>
                 </button>
             `;
@@ -6246,12 +6288,12 @@ This content is loaded from a markdown file.
         
         getIcon(level) {
             const icons = {
-                log: '📝',
-                info: 'ℹ️',
-                warn: '⚠️',
-                error: '❌'
+                log: SVG_ICONS.pencil,
+                info: SVG_ICONS.info,
+                warn: SVG_ICONS.warning,
+                error: SVG_ICONS.xCircle
             };
-            return icons[level] || '📝';
+            return icons[level] || SVG_ICONS.pencil;
         },
         
         getTimestamp() {
@@ -6284,7 +6326,7 @@ This content is loaded from a markdown file.
                 <span class="log-icon" aria-hidden="true">${this.getIcon(level)}</span>
                 <span class="log-timestamp">${this.getTimestamp()}</span>
                 <span class="log-content">${messageContent}</span>
-                <button class="log-copy-btn" title="Copy message" aria-label="Copy message to clipboard">📋</button>
+                <button class="log-copy-btn" title="Copy message" aria-label="Copy message to clipboard">${SVG_ICONS.clipboard}</button>
             `;
             
             // Add copy functionality with accessibility support
@@ -6298,17 +6340,17 @@ This content is loaded from a markdown file.
                     return String(arg);
                 }).join(' ');
                 navigator.clipboard.writeText(text).then(() => {
-                    copyBtn.textContent = '✅';
+                    copyBtn.innerHTML = SVG_ICONS.checkCircle;
                     copyBtn.setAttribute('aria-label', 'Copied to clipboard');
                     setTimeout(() => {
-                        copyBtn.textContent = '📋';
+                        copyBtn.innerHTML = SVG_ICONS.clipboard;
                         copyBtn.setAttribute('aria-label', 'Copy message to clipboard');
                     }, this.COPY_FEEDBACK_DURATION);
                 }).catch(() => {
-                    copyBtn.textContent = '❌';
+                    copyBtn.innerHTML = SVG_ICONS.xCircle;
                     copyBtn.setAttribute('aria-label', 'Failed to copy');
                     setTimeout(() => {
-                        copyBtn.textContent = '📋';
+                        copyBtn.innerHTML = SVG_ICONS.clipboard;
                         copyBtn.setAttribute('aria-label', 'Copy message to clipboard');
                     }, this.COPY_FEEDBACK_DURATION);
                 });

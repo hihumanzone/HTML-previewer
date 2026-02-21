@@ -373,6 +373,12 @@ body {
     font-size: var(--text-base);
 }
 
+button > svg,
+[class$="-icon"] > svg {
+    display: inline-block;
+    vertical-align: -0.125em;
+}
+
 .close-btn {
     font-size: 1.75rem;
     font-weight: bold;
