@@ -5517,7 +5517,6 @@ This content is loaded from a markdown file.
                 this.clearPreviewTabState();
             }
         }
-
     },
 
     renderPreview(target) {
