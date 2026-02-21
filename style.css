@@ -130,6 +130,24 @@ body {
 }
 
 
+
+.icon-svg {
+    width: 1em;
+    height: 1em;
+    flex-shrink: 0;
+    vertical-align: -0.125em;
+}
+
+.icon-label {
+    display: inline;
+}
+
+:is(.clear-all-files-btn, .import-zip-btn, .export-zip-btn, .import-file-btn, .add-folder-btn, .add-file-btn, .settings-btn, .toggle-console-btn, .save-btn, .panel-search-close-btn, .notification-close-btn, .log-copy-btn, .folder-actions button, .file-actions button, .toolbar-btn) {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.38rem;
+}
+
 /* ==========================================================================
    LAYOUT
    ========================================================================== */
@@ -370,6 +388,8 @@ body {
 }
 
 .toolbar-btn .btn-icon {
+    display: inline-flex;
+    align-items: center;
     font-size: var(--text-base);
 }
 
@@ -933,6 +953,8 @@ body {
 }
 
 .folder-icon {
+    display: inline-flex;
+    align-items: center;
     font-size: 1rem;
     flex-shrink: 0;
 }
@@ -1006,6 +1028,8 @@ body {
 }
 
 .file-icon {
+    display: inline-flex;
+    align-items: center;
     font-size: var(--text-md);
     flex-shrink: 0;
 }
@@ -1917,6 +1941,8 @@ body.preview-docked-bottom.is-resizing-preview-dock {
 }
 
 .filter-icon {
+    display: inline-flex;
+    align-items: center;
     font-size: var(--text-md);
 }
 
@@ -1954,6 +1980,8 @@ body.preview-docked-bottom.is-resizing-preview-dock {
 }
 
 .log-icon {
+    display: inline-flex;
+    align-items: center;
     font-size: var(--text-md);
     flex-shrink: 0;
 }

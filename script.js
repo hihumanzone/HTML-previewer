@@ -217,6 +217,53 @@ const CodePreviewer = {
         }
     },
 
+    iconUtils: {
+        baseAttributes: 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"',
+
+        paths: {
+            settings: '<circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a2 2 0 0 1 0 2.8l-.1.1a2 2 0 0 1-2.8 0l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a2 2 0 0 1-2 2h-1.4a2 2 0 0 1-2-2v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a2 2 0 0 1-2.8 0l-.1-.1a2 2 0 0 1 0-2.8l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a2 2 0 0 1-2-2v-1.4a2 2 0 0 1 2-2h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a2 2 0 0 1 0-2.8l.1-.1a2 2 0 0 1 2.8 0l.1.1a1 1 0 0 0 1.1.2h.1a1 1 0 0 0 .6-.9V4a2 2 0 0 1 2-2h1.4a2 2 0 0 1 2 2v.2a1 1 0 0 0 .6.9h.1a1 1 0 0 0 1.1-.2l.1-.1a2 2 0 0 1 2.8 0l.1.1a2 2 0 0 1 0 2.8l-.1.1a1 1 0 0 0-.2 1.1v.1a1 1 0 0 0 .9.6h.2a2 2 0 0 1 2 2v1.4a2 2 0 0 1-2 2h-.2a1 1 0 0 0-.9.6z"></path>',
+            trash: '<path d="M4 7h16"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13"></path><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"></path>',
+            package: '<path d="M12 3l8 4.5-8 4.5-8-4.5L12 3z"></path><path d="M4 7.5V16.5L12 21l8-4.5V7.5"></path><path d="M12 12v9"></path>',
+            folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"></path>',
+            folders: '<path d="M4 6a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v1"></path><path d="M3 10a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-8z"></path>',
+            clipboard: '<rect x="8" y="4" width="8" height="4" rx="1"></rect><path d="M9 6H7a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-2"></path>',
+            copy: '<rect x="9" y="9" width="10" height="12" rx="2"></rect><path d="M15 9V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"></path>',
+            search: '<circle cx="11" cy="11" r="6"></circle><path d="m20 20-4.2-4.2"></path>',
+            magic: '<path d="M6 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1 1-2z"></path><path d="M16 6l.8 1.6L18.5 9l-1.7 1.4L16 12l-.8-1.6L13.5 9l1.7-1.4L16 6z"></path><path d="M11 12l6 6"></path><path d="m8 19 2.5-2.5"></path>',
+            expand: '<path d="M9 3H3v6"></path><path d="M3 3l7 7"></path><path d="M15 21h6v-6"></path><path d="m21 21-7-7"></path>',
+            collapse: '<path d="M3 9V3h6"></path><path d="m3 3 7 7"></path><path d="M21 15v6h-6"></path><path d="m21 21-7-7"></path>',
+            save: '<path d="M5 4h11l3 3v13H5z"></path><path d="M8 4v6h8V4"></path><path d="M8 20v-6h8v6"></path>',
+            magnet: '<path d="M7 4v7a5 5 0 1 0 10 0V4"></path><path d="M7 4h3"></path><path d="M14 4h3"></path><path d="M7 8h3"></path><path d="M14 8h3"></path>',
+            close: '<path d="M6 6l12 12"></path><path d="M18 6 6 18"></path>',
+            folderOpen: '<path d="M3 8a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 1.9 2.6l-1.8 6A2 2 0 0 1 17.2 18H5a2 2 0 0 1-2-2V8z"></path>',
+            folderAdd: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v1"></path><path d="M3 10a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7z"></path><path d="M12 12v4"></path><path d="M10 14h4"></path>',
+            eye: '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"></path><circle cx="12" cy="12" r="2.5"></circle>',
+            edit: '<path d="M4 20h4l10-10-4-4L4 16v4z"></path><path d="M13 7l4 4"></path>',
+            move: '<path d="M3 12h18"></path><path d="m14 7 5 5-5 5"></path><path d="m10 7-5 5 5 5"></path>',
+            globe: '<circle cx="12" cy="12" r="9"></circle><path d="M3 12h18"></path><path d="M12 3a14 14 0 0 1 0 18"></path><path d="M12 3a14 14 0 0 0 0 18"></path>',
+            palette: '<path d="M12 3a9 9 0 1 0 0 18h1a2 2 0 0 0 0-4h-1a2 2 0 0 1 0-4h3a4 4 0 0 0 0-8h-3z"></path><circle cx="7.5" cy="10" r="1"></circle><circle cx="9" cy="7" r="1"></circle><circle cx="13" cy="7" r="1"></circle>',
+            codeFile: '<path d="M6 3h9l5 5v13H6z"></path><path d="M15 3v5h5"></path><path d="m10 13-2 2 2 2"></path><path d="m14 13 2 2-2 2"></path>',
+            image: '<rect x="3" y="5" width="18" height="14" rx="2"></rect><circle cx="9" cy="10" r="1.5"></circle><path d="m21 16-4.5-4.5L8 19"></path>',
+            volume: '<path d="M4 10v4h3l4 4V6L7 10H4z"></path><path d="M15 9a4 4 0 0 1 0 6"></path><path d="M17.5 6.5a7.5 7.5 0 0 1 0 11"></path>',
+            video: '<rect x="3" y="6" width="13" height="12" rx="2"></rect><path d="m16 10 5-3v10l-5-3"></path>',
+            type: '<path d="M4 6h16"></path><path d="M12 6v12"></path><path d="M8 18h8"></path>',
+            book: '<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 0-3 3z"></path><path d="M8 4v19"></path>',
+            alert: '<path d="M12 4 3 20h18L12 4z"></path><path d="M12 10v5"></path><circle cx="12" cy="17" r="1"></circle>',
+            info: '<circle cx="12" cy="12" r="9"></circle><path d="M12 10v6"></path><circle cx="12" cy="7" r="1"></circle>',
+            check: '<path d="M5 12l4 4L19 6"></path>'
+        },
+
+        icon(name, extraClass = '') {
+            const paths = this.paths[name] || this.paths.codeFile;
+            const className = `icon-svg${extraClass ? ` ${extraClass}` : ''}`;
+            return `<svg class="${className}" ${this.baseAttributes}>${paths}</svg>`;
+        },
+
+        withLabel(name, label, extraClass = '') {
+            return `${this.icon(name, extraClass)}<span class="icon-label">${label}</span>`;
+        }
+    },
+
     // ============================================================================
     // FILE TYPE UTILITIES
     // ============================================================================
@@ -1754,11 +1801,11 @@ This content is loaded from a markdown file.
         }
 
         if (this.dom.codeModalSearchBtn) {
-            this.dom.codeModalSearchBtn.textContent = isMobile ? '🔎' : '🔎 Search';
+            this.dom.codeModalSearchBtn.innerHTML = isMobile ? this.iconUtils.icon('search') : this.iconUtils.withLabel('search', 'Search');
         }
 
         if (this.dom.saveCodeBtn) {
-            this.dom.saveCodeBtn.textContent = isMobile ? '💾' : '💾 Save';
+            this.dom.saveCodeBtn.innerHTML = isMobile ? this.iconUtils.icon('save') : this.iconUtils.withLabel('save', 'Save');
         }
     },
 
@@ -2210,21 +2257,21 @@ This content is loaded from a markdown file.
             const openFolderFileIds = folderFileIds.filter(fileId => this.state.openPanels.has(fileId));
             const hasOpenFolderPanels = openFolderFileIds.length > 0;
             const closeFolderPanelsLabel = 'Collapse all file panels in folder';
-            const closeFolderPanelsIcon = '📁−';
+            const closeFolderPanelsIcon = `${this.iconUtils.icon('folder')}<span class="icon-label">−</span>`;
 
             html += `
                 <div class="tree-folder ${isExpanded ? 'expanded' : ''} ${isFolderSelected ? 'folder-selected-in-sidebar' : ''}" data-folder-path="${folderPath}">
                     <div class="tree-folder-header">
                         <input type="checkbox" class="tree-folder-checkbox" aria-label="Select folder ${this.escapeHtmlAttribute(folderPath)}" ${isFolderSelected ? 'checked' : ''}>
-                        <span class="folder-icon">${isExpanded ? '📂' : '📁'}</span>
+                        <span class="folder-icon">${isExpanded ? this.iconUtils.icon('folderOpen') : this.iconUtils.icon('folder')}</span>
                         <span class="folder-name">${folderName}</span>
                         <div class="folder-actions">
                             ${hasOpenFolderPanels
                                 ? `<button class="close-folder-panels-btn" title="${closeFolderPanelsLabel}" aria-label="${closeFolderPanelsLabel}">${closeFolderPanelsIcon}</button>`
                                 : ''}
                             <button class="add-file-to-folder-btn" title="Add file to folder">+</button>
-                            <button class="add-subfolder-btn" title="Add subfolder">📁+</button>
-                            <button class="delete-folder-btn" title="Delete folder">🗑️</button>
+                            <button class="add-subfolder-btn" title="Add subfolder">${this.iconUtils.icon('folderAdd')}</button>
+                            <button class="delete-folder-btn" title="Delete folder">${this.iconUtils.icon('trash')}</button>
                         </div>
                     </div>
                     <div class="tree-folder-contents" style="display: ${isExpanded ? 'block' : 'none'}">
@@ -2254,9 +2301,9 @@ This content is loaded from a markdown file.
                     <span class="file-icon">${fileIcon}</span>
                     <span class="file-name">${file.displayName}</span>
                     <div class="file-actions">
-                        <button class="open-file-btn" title="${isOpen ? 'Focus file' : 'Open file'}" aria-label="${isOpen ? 'Focus file' : 'Open file'}">${isOpen ? '👁️' : '📝'}</button>
-                        <button class="move-file-btn" title="Move file" aria-label="Move file">📂➡️</button>
-                        <button class="delete-file-btn" title="Delete file" aria-label="Delete file">🗑️</button>
+                        <button class="open-file-btn" title="${isOpen ? 'Focus file' : 'Open file'}" aria-label="${isOpen ? 'Focus file' : 'Open file'}">${isOpen ? this.iconUtils.icon('eye') : this.iconUtils.icon('edit')}</button>
+                        <button class="move-file-btn" title="Move file" aria-label="Move file">${this.iconUtils.icon('move')}</button>
+                        <button class="delete-file-btn" title="Delete file" aria-label="Delete file">${this.iconUtils.icon('trash')}</button>
                     </div>
                 </div>
             `;
@@ -2268,27 +2315,27 @@ This content is loaded from a markdown file.
     /**
      * Get the appropriate icon for a file type
      * @param {string} fileType - The file type
-     * @returns {string} Emoji icon
+     * @returns {string} SVG icon markup
      */
     getFileIcon(fileType) {
         const icons = {
-            'html': '🌐',
-            'css': '🎨',
-            'javascript': '📜',
-            'javascript-module': '📦',
-            'json': '📋',
-            'xml': '📄',
-            'markdown': '📝',
-            'text': '📃',
-            'svg': '🖼️',
-            'image': '🖼️',
-            'audio': '🔊',
-            'video': '🎬',
-            'font': '🔤',
-            'pdf': '📕',
-            'binary': '📦'
+            'html': 'globe',
+            'css': 'palette',
+            'javascript': 'codeFile',
+            'javascript-module': 'package',
+            'json': 'clipboard',
+            'xml': 'copy',
+            'markdown': 'edit',
+            'text': 'copy',
+            'svg': 'image',
+            'image': 'image',
+            'audio': 'volume',
+            'video': 'video',
+            'font': 'type',
+            'pdf': 'book',
+            'binary': 'package'
         };
-        return icons[fileType] || '📄';
+        return this.iconUtils.icon(icons[fileType] || 'copy');
     },
 
     /**
@@ -3175,23 +3222,23 @@ This content is loaded from a markdown file.
         let toolbarHTML = '<div class="editor-toolbar">';
         
         if (isEditable) {
-            toolbarHTML += this.htmlGenerators.toolbarButton('🗑️', 'Clear', 'clear-btn', 'Clear content', 'Clear');
-            toolbarHTML += this.htmlGenerators.toolbarButton('📋', 'Paste', 'paste-btn', 'Paste from clipboard', 'Paste');
-            toolbarHTML += this.htmlGenerators.toolbarButton('📄', 'Copy', 'copy-btn', 'Copy to clipboard', 'Copy');
-            toolbarHTML += this.htmlGenerators.toolbarButton('🔎', 'Search', 'search-btn', 'Search in file', 'Search in file');
+            toolbarHTML += this.htmlGenerators.toolbarButton('trash', 'Clear', 'clear-btn', 'Clear content', 'Clear');
+            toolbarHTML += this.htmlGenerators.toolbarButton('clipboard', 'Paste', 'paste-btn', 'Paste from clipboard', 'Paste');
+            toolbarHTML += this.htmlGenerators.toolbarButton('copy', 'Copy', 'copy-btn', 'Copy to clipboard', 'Copy');
+            toolbarHTML += this.htmlGenerators.toolbarButton('search', 'Search', 'search-btn', 'Search in file', 'Search in file');
             if (supportsFormatting) {
-                toolbarHTML += this.htmlGenerators.toolbarButton('✨', 'Format', 'format-btn', 'Format code', 'Format code');
+                toolbarHTML += this.htmlGenerators.toolbarButton('magic', 'Format', 'format-btn', 'Format code', 'Format code');
             }
         }
         
         if (hasExpandPreview) {
             const expandLabel = isEditable ? "Expand code view" : "View media";
             const expandTitle = isEditable ? "Expand" : "View";
-            toolbarHTML += this.htmlGenerators.toolbarButton('🔍', expandTitle, 'expand-btn', expandLabel, expandTitle);
+            toolbarHTML += this.htmlGenerators.toolbarButton('expand', expandTitle, 'expand-btn', expandLabel, expandTitle);
         }
         
-        toolbarHTML += this.htmlGenerators.toolbarButton('💾', 'Export', 'export-btn', 'Export file', 'Export');
-        toolbarHTML += this.htmlGenerators.toolbarButton('📁', 'Collapse', 'collapse-btn', 'Collapse/Expand editor', 'Collapse/Expand');
+        toolbarHTML += this.htmlGenerators.toolbarButton('save', 'Export', 'export-btn', 'Export file', 'Export');
+        toolbarHTML += this.htmlGenerators.toolbarButton('collapse', 'Collapse', 'collapse-btn', 'Collapse/Expand editor', 'Collapse/Expand');
 
         toolbarHTML += '</div>';
 
@@ -3200,7 +3247,7 @@ This content is loaded from a markdown file.
                 <div class="panel-search" hidden>
                     <input type="search" class="panel-search-input" placeholder="Search in this file" aria-label="Search in this file">
                     <button class="panel-search-next-btn" aria-label="Find next match" title="Find next">Next</button>
-                    <button class="panel-search-close-btn" aria-label="Close search" title="Close search">✕</button>
+                    <button class="panel-search-close-btn" aria-label="Close search" title="Close search">${this.iconUtils.icon('close')}</button>
                 </div>
             `;
         }
@@ -3534,7 +3581,7 @@ This content is loaded from a markdown file.
                 applyBtn.className = 'toolbar-btn apply-changes-btn';
                 applyBtn.setAttribute('aria-label', 'Apply changes');
                 applyBtn.setAttribute('title', 'Apply changes');
-                applyBtn.innerHTML = '<span class="btn-icon">✓</span> Apply';
+                applyBtn.innerHTML = `<span class="btn-icon">${this.iconUtils.icon('check')}</span> Apply`;
                 applyBtn.addEventListener('click', () => this.applyFileChanges(fileId));
                 toolbar.insertBefore(applyBtn, toolbar.firstChild);
             }
@@ -3544,7 +3591,7 @@ This content is loaded from a markdown file.
                 discardBtn.className = 'toolbar-btn discard-changes-btn';
                 discardBtn.setAttribute('aria-label', 'Discard changes');
                 discardBtn.setAttribute('title', 'Discard changes');
-                discardBtn.innerHTML = '<span class="btn-icon">✕</span> Discard';
+                discardBtn.innerHTML = `<span class="btn-icon">${this.iconUtils.icon('close')}</span> Discard`;
                 discardBtn.addEventListener('click', () => this.discardFileChanges(fileId));
                 toolbar.insertBefore(discardBtn, applyBtn.nextSibling);
             }
@@ -4724,8 +4771,8 @@ This content is loaded from a markdown file.
         collapseBtn.classList.toggle('collapsed', willCollapse);
         collapseBtn.setAttribute('aria-expanded', willCollapse ? 'false' : 'true');
         collapseBtn.innerHTML = willCollapse
-            ? '<span class="btn-icon">📂</span> Actions'
-            : '<span class="btn-icon">📁</span> Collapse';
+            ? `<span class="btn-icon">${this.iconUtils.icon('folderOpen')}</span> Actions`
+            : `<span class="btn-icon">${this.iconUtils.icon('folder')}</span> Collapse`;
 
         toolbarButtons.forEach((btn) => {
             btn.hidden = willCollapse;
@@ -5267,7 +5314,7 @@ This content is loaded from a markdown file.
         if (!this.dom.dockPreviewBtn) return;
         const isDocked = this.state.isPreviewDocked;
         this.dom.dockPreviewBtn.classList.toggle('active', isDocked);
-        this.dom.dockPreviewBtn.textContent = isDocked ? '🧲 Undock' : '🧲 Dock';
+        this.dom.dockPreviewBtn.innerHTML = isDocked ? this.iconUtils.withLabel('magnet', 'Undock') : this.iconUtils.withLabel('magnet', 'Dock');
         this.dom.dockPreviewBtn.setAttribute('aria-label', isDocked ? 'Undock preview panel' : 'Dock preview panel');
     },
 
@@ -5433,7 +5480,7 @@ This content is loaded from a markdown file.
             this.applyPreviewDockLayout();
             this.dom.modalConsolePanel.classList.add('hidden');
             this.dom.toggleConsoleBtn.classList.remove('active');
-            this.dom.toggleConsoleBtn.textContent = '📋 Console';
+            this.dom.toggleConsoleBtn.innerHTML = this.iconUtils.withLabel('clipboard', 'Console');
         } else {
             this.togglePreviewDock(false);
             if (this.state.previewRefreshTimer) {
@@ -5471,11 +5518,11 @@ This content is loaded from a markdown file.
         if (isHidden) {
             this.dom.modalConsolePanel.classList.remove('hidden');
             this.dom.toggleConsoleBtn.classList.add('active');
-            this.dom.toggleConsoleBtn.textContent = '📋 Hide Console';
+            this.dom.toggleConsoleBtn.innerHTML = this.iconUtils.withLabel('clipboard', 'Hide Console');
         } else {
             this.dom.modalConsolePanel.classList.add('hidden');
             this.dom.toggleConsoleBtn.classList.remove('active');
-            this.dom.toggleConsoleBtn.textContent = '📋 Console';
+            this.dom.toggleConsoleBtn.innerHTML = this.iconUtils.withLabel('clipboard', 'Console');
         }
     },
 
@@ -5667,9 +5714,9 @@ This content is loaded from a markdown file.
     // HTML GENERATION UTILITIES
     // ============================================================================
     htmlGenerators: {
-        toolbarButton(icon, text, className, ariaLabel, title) {
+        toolbarButton(iconName, text, className, ariaLabel, title) {
             return `<button class="toolbar-btn ${className}" aria-label="${ariaLabel}" title="${title}">
-                <span class="btn-icon">${icon}</span> ${text}
+                <span class="btn-icon">${CodePreviewer.iconUtils.icon(iconName)}</span> ${text}
             </button>`;
         },
 
@@ -5700,7 +5747,7 @@ This content is loaded from a markdown file.
                     </object>
                 </div>`,
                 default: `<div class="file-preview binary-preview">
-                    <p>📁 Binary file: Cannot display content</p>
+                    <p>${CodePreviewer.iconUtils.icon('folder')} Binary file: Cannot display content</p>
                     <p>File can be referenced in HTML code</p>
                 </div>`
             };
@@ -5775,7 +5822,7 @@ This content is loaded from a markdown file.
             notification.innerHTML = `
                 <div class="notification-header">
                     <span class="notification-message">${CodePreviewer.escapeHtml(message)}</span>
-                    <button class="notification-close-btn" aria-label="Close notification" title="Close">✕</button>
+                    <button class="notification-close-btn" aria-label="Close notification" title="Close">${CodePreviewer.iconUtils.icon('close')}</button>
                 </div>
             `;
 
@@ -5806,7 +5853,7 @@ This content is loaded from a markdown file.
             notification.innerHTML = `
                 <div class="notification-header">
                     <span class="notification-message">${CodePreviewer.escapeHtml(message)}</span>
-                    <button class="notification-close-btn" aria-label="Close notification" title="Close">✕</button>
+                    <button class="notification-close-btn" aria-label="Close notification" title="Close">${CodePreviewer.iconUtils.icon('close')}</button>
                 </div>
                 <div class="notification-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="${Math.max(total, 1)}" aria-valuenow="0">
                     <div class="notification-progress-fill"></div>
@@ -6152,19 +6199,19 @@ This content is loaded from a markdown file.
             filterContainer.className = 'console-filters';
             filterContainer.innerHTML = `
                 <button class="console-filter-btn active" data-filter="log" title="Show logs">
-                    <span class="filter-icon">📝</span>
+                    <span class="filter-icon">${CodePreviewer.iconUtils.icon('edit')}</span>
                     <span class="filter-count" data-count="log">0</span>
                 </button>
                 <button class="console-filter-btn active" data-filter="info" title="Show info">
-                    <span class="filter-icon">ℹ️</span>
+                    <span class="filter-icon">${CodePreviewer.iconUtils.icon('info')}</span>
                     <span class="filter-count" data-count="info">0</span>
                 </button>
                 <button class="console-filter-btn active" data-filter="warn" title="Show warnings">
-                    <span class="filter-icon">⚠️</span>
+                    <span class="filter-icon">${CodePreviewer.iconUtils.icon('alert')}</span>
                     <span class="filter-count" data-count="warn">0</span>
                 </button>
                 <button class="console-filter-btn active" data-filter="error" title="Show errors">
-                    <span class="filter-icon">❌</span>
+                    <span class="filter-icon">${CodePreviewer.iconUtils.icon('close')}</span>
                     <span class="filter-count" data-count="error">0</span>
                 </button>
             `;
@@ -6246,12 +6293,12 @@ This content is loaded from a markdown file.
         
         getIcon(level) {
             const icons = {
-                log: '📝',
-                info: 'ℹ️',
-                warn: '⚠️',
-                error: '❌'
+                log: 'edit',
+                info: 'info',
+                warn: 'alert',
+                error: 'close'
             };
-            return icons[level] || '📝';
+            return CodePreviewer.iconUtils.icon(icons[level] || 'edit');
         },
         
         getTimestamp() {
@@ -6284,7 +6331,7 @@ This content is loaded from a markdown file.
                 <span class="log-icon" aria-hidden="true">${this.getIcon(level)}</span>
                 <span class="log-timestamp">${this.getTimestamp()}</span>
                 <span class="log-content">${messageContent}</span>
-                <button class="log-copy-btn" title="Copy message" aria-label="Copy message to clipboard">📋</button>
+                <button class="log-copy-btn" title="Copy message" aria-label="Copy message to clipboard">${CodePreviewer.iconUtils.icon('clipboard')}</button>
             `;
             
             // Add copy functionality with accessibility support
@@ -6298,17 +6345,17 @@ This content is loaded from a markdown file.
                     return String(arg);
                 }).join(' ');
                 navigator.clipboard.writeText(text).then(() => {
-                    copyBtn.textContent = '✅';
+                    copyBtn.innerHTML = CodePreviewer.iconUtils.icon('check');
                     copyBtn.setAttribute('aria-label', 'Copied to clipboard');
                     setTimeout(() => {
-                        copyBtn.textContent = '📋';
+                        copyBtn.innerHTML = CodePreviewer.iconUtils.icon('clipboard');
                         copyBtn.setAttribute('aria-label', 'Copy message to clipboard');
                     }, this.COPY_FEEDBACK_DURATION);
                 }).catch(() => {
-                    copyBtn.textContent = '❌';
+                    copyBtn.innerHTML = CodePreviewer.iconUtils.icon('close');
                     copyBtn.setAttribute('aria-label', 'Failed to copy');
                     setTimeout(() => {
-                        copyBtn.textContent = '📋';
+                        copyBtn.innerHTML = CodePreviewer.iconUtils.icon('clipboard');
                         copyBtn.setAttribute('aria-label', 'Copy message to clipboard');
                     }, this.COPY_FEEDBACK_DURATION);
                 });
