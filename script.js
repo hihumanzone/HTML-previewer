@@ -5984,7 +5984,10 @@ This content is loaded from a markdown file.
         let binary = '';
         const chunkSize = 8192;
         for (let i = 0; i < bytes.length; i += chunkSize) {
-            binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+            const chunk = bytes.subarray(i, i + chunkSize);
+            for (let j = 0; j < chunk.length; j++) {
+                binary += String.fromCharCode(chunk[j]);
+            }
         }
         return btoa(binary);
     },
@@ -6122,7 +6125,10 @@ This content is loaded from a markdown file.
             if (obj[key] instanceof File) {
                 entries.push({ path: prefix + key, file: obj[key] });
             } else if (obj[key] && typeof obj[key] === 'object') {
-                entries.push.apply(entries, this._flattenArchiveTree(obj[key], prefix + key + '/'));
+                const nested = this._flattenArchiveTree(obj[key], prefix + key + '/');
+                for (let i = 0; i < nested.length; i++) {
+                    entries.push(nested[i]);
+                }
             }
         }
         return entries;
@@ -6133,7 +6139,11 @@ This content is loaded from a markdown file.
 
         const CDN_BASE = 'https://cdn.jsdelivr.net/npm/libarchive.js@2.0.2/dist/';
 
-        const workerText = await fetch(CDN_BASE + 'worker-bundle.js').then(function(r) { return r.text(); });
+        const workerResponse = await fetch(CDN_BASE + 'worker-bundle.js');
+        if (!workerResponse.ok) {
+            throw new Error('Failed to load archive library from CDN (status ' + workerResponse.status + ')');
+        }
+        const workerText = await workerResponse.text();
         const patched = workerText.replace(/import\.meta\.url/g, JSON.stringify(CDN_BASE + 'worker-bundle.js'));
         const blob = new Blob([patched], { type: 'text/javascript' });
         const blobUrl = URL.createObjectURL(blob);
