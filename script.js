@@ -1453,9 +1453,11 @@ This content is loaded from a markdown file.
             dropdown.dataset.settingsDropdown = 'true';
             dropdown.dataset.selectId = select.id;
 
+            const listId = `${select.id}-custom-listbox`;
+
             dropdown.innerHTML = `
-                <button type="button" class="settings-select-dropdown-trigger" aria-haspopup="listbox" aria-expanded="false"></button>
-                <ul class="settings-select-dropdown-list" role="listbox" tabindex="-1" hidden>
+                <button type="button" class="settings-select-dropdown-trigger" aria-haspopup="listbox" aria-controls="${this.escapeHtmlAttribute(listId)}" aria-expanded="false"></button>
+                <ul id="${this.escapeHtmlAttribute(listId)}" class="settings-select-dropdown-list" role="listbox" tabindex="-1" hidden>
                     ${Array.from(select.options).map((option) => `<li role="option" aria-selected="false"><button type="button" class="settings-select-dropdown-option" data-value="${this.escapeHtmlAttribute(option.value)}">${this.escapeHtml(option.textContent || '')}</button></li>`).join('')}
                 </ul>
             `;
@@ -1517,6 +1519,71 @@ This content is loaded from a markdown file.
         });
     },
 
+    toggleSettingsSelectDropdown(dropdown, forceOpen = null) {
+        if (!dropdown) {
+            return;
+        }
+
+        const trigger = dropdown.querySelector('.settings-select-dropdown-trigger');
+        const list = dropdown.querySelector('.settings-select-dropdown-list');
+        if (!trigger || !list) {
+            return;
+        }
+
+        const isExpanded = trigger.getAttribute('aria-expanded') === 'true';
+        const shouldOpen = forceOpen === null ? !isExpanded : !!forceOpen;
+
+        this.closeAllSettingsSelectDropdowns(shouldOpen ? dropdown : null);
+        trigger.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        list.hidden = !shouldOpen;
+
+        if (shouldOpen) {
+            const selectedOption = dropdown.querySelector('.settings-select-dropdown-option.is-selected')
+                || dropdown.querySelector('.settings-select-dropdown-option');
+            selectedOption?.focus();
+        }
+    },
+
+    selectSettingsDropdownOption(dropdown, optionButton) {
+        if (!dropdown || !optionButton) {
+            return;
+        }
+
+        const selectId = dropdown.dataset.selectId;
+        const select = document.getElementById(selectId);
+        if (!select) {
+            return;
+        }
+
+        const newValue = optionButton.dataset.value || '';
+        if (select.value !== newValue) {
+            select.value = newValue;
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+        } else {
+            this.updateSettingsSelectDropdownUI(select);
+        }
+
+        this.toggleSettingsSelectDropdown(dropdown, false);
+        dropdown.querySelector('.settings-select-dropdown-trigger')?.focus();
+    },
+
+    moveSettingsDropdownFocus(dropdown, direction) {
+        if (!dropdown || !direction) {
+            return;
+        }
+
+        const options = Array.from(dropdown.querySelectorAll('.settings-select-dropdown-option'));
+        if (!options.length) {
+            return;
+        }
+
+        const currentIndex = options.findIndex((option) => option === document.activeElement);
+        const selectedIndex = options.findIndex((option) => option.classList.contains('is-selected'));
+        const startIndex = currentIndex >= 0 ? currentIndex : (selectedIndex >= 0 ? selectedIndex : 0);
+        const nextIndex = (startIndex + direction + options.length) % options.length;
+        options[nextIndex].focus();
+    },
+
     getAllEditors() {
         const editors = Object.values(this.state.editors || {}).filter(Boolean);
         this.state.files.forEach(file => {
@@ -1569,6 +1636,11 @@ This content is loaded from a markdown file.
         const shouldOpen = forceOpen === null ? !isOpen : !!forceOpen;
         this.dom.settingsModal.setAttribute('aria-hidden', String(!shouldOpen));
         this.dom.settingsModal.hidden = !shouldOpen;
+
+        if (!shouldOpen) {
+            this.closeAllSettingsSelectDropdowns();
+        }
+
         this.updateDockDividerVisibility();
         this.updateBackgroundScrollLock();
     },
@@ -1726,40 +1798,49 @@ This content is loaded from a markdown file.
                 const trigger = e.target.closest('.settings-select-dropdown-trigger');
                 if (trigger) {
                     const dropdown = trigger.closest('.settings-select-dropdown');
-                    const list = dropdown?.querySelector('.settings-select-dropdown-list');
-                    if (!dropdown || !list) {
-                        return;
-                    }
-
-                    const isExpanded = trigger.getAttribute('aria-expanded') === 'true';
-                    this.closeAllSettingsSelectDropdowns(dropdown);
-                    trigger.setAttribute('aria-expanded', isExpanded ? 'false' : 'true');
-                    list.hidden = isExpanded;
+                    this.toggleSettingsSelectDropdown(dropdown);
                     return;
                 }
 
                 const option = e.target.closest('.settings-select-dropdown-option');
                 if (option) {
                     const dropdown = option.closest('.settings-select-dropdown');
-                    if (!dropdown) {
+                    this.selectSettingsDropdownOption(dropdown, option);
+                }
+            });
+
+            this.dom.settingsModal.addEventListener('keydown', (e) => {
+                const dropdown = e.target.closest('.settings-select-dropdown');
+                if (!dropdown) {
+                    return;
+                }
+
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    this.toggleSettingsSelectDropdown(dropdown, true);
+                    this.moveSettingsDropdownFocus(dropdown, 1);
+                    return;
+                }
+
+                if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    this.toggleSettingsSelectDropdown(dropdown, true);
+                    this.moveSettingsDropdownFocus(dropdown, -1);
+                    return;
+                }
+
+                if (e.key === 'Enter' || e.key === ' ') {
+                    const option = e.target.closest('.settings-select-dropdown-option');
+                    if (option) {
+                        e.preventDefault();
+                        this.selectSettingsDropdownOption(dropdown, option);
                         return;
                     }
 
-                    const selectId = dropdown.dataset.selectId;
-                    const select = document.getElementById(selectId);
-                    if (!select) {
-                        return;
+                    if (e.target.closest('.settings-select-dropdown-trigger')) {
+                        e.preventDefault();
+                        this.toggleSettingsSelectDropdown(dropdown);
                     }
-
-                    const newValue = option.dataset.value || '';
-                    if (select.value !== newValue) {
-                        select.value = newValue;
-                        select.dispatchEvent(new Event('change', { bubbles: true }));
-                    } else {
-                        this.updateSettingsSelectDropdownUI(select);
-                    }
-
-                    this.closeAllSettingsSelectDropdowns();
                 }
             });
 
@@ -1775,6 +1856,12 @@ This content is loaded from a markdown file.
             if (!this.state.settingsEscHandler) {
                 this.state.settingsEscHandler = (e) => {
                     if (e.key === 'Escape' && this.isSettingsModalOpen()) {
+                        const hasOpenDropdown = !!this.dom.settingsModal?.querySelector('.settings-select-dropdown-trigger[aria-expanded="true"]');
+                        if (hasOpenDropdown) {
+                            this.closeAllSettingsSelectDropdowns();
+                            return;
+                        }
+
                         this.toggleSettingsModal(false);
                     }
                 };
