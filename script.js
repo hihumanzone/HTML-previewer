@@ -101,6 +101,7 @@ const CodePreviewer = {
         mediaPreviewUrls: new Set(),
         filePanelPreviewUrls: new Map(),
         previewRefreshTimer: null,
+        previewRefreshDelay: 1000,
         isPreviewDocked: false,
         previewDockOrientation: 'right',
         previewDockSize: { right: null, bottom: null },
@@ -3991,7 +3992,7 @@ This content is loaded from a markdown file.
         this.state.previewRefreshTimer = setTimeout(() => {
             this.state.previewRefreshTimer = null;
             this.refreshOpenPreviews();
-        }, 120);
+        }, this.state.previewRefreshDelay);
     },
 
     closePanel(fileId) {
