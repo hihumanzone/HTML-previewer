@@ -5919,63 +5919,98 @@ This content is loaded from a markdown file.
         });
     },
 
+    /**
+     * Shared import loop for all archive formats.
+     * @param {Array<{path: string, readBinary: function, readText: function}>} entries
+     *   Normalized entries where readBinary() returns base64 content and readText() returns text content.
+     * @param {string} label - Human-readable archive type label (e.g. 'ZIP archive')
+     * @param {Object} [options]
+     * @param {Object} [options.progress] - Existing progress notification to reuse (e.g. from libarchive loading phase)
+     */
+    async _importEntries(entries, label, { progress } = {}) {
+        try {
+            if (entries.length === 0) {
+                if (progress) progress.fail('No files found in archive.');
+                this.showNotification('The archive appears to be empty.', 'warn');
+                return;
+            }
+
+            if (progress) {
+                progress.update({ total: entries.length, message: `Found ${entries.length} files in archive` });
+            } else {
+                progress = this.showProgressNotification(`Importing ${label} contents…`, {
+                    total: Math.max(entries.length, 1),
+                    type: 'info'
+                });
+            }
+
+            const resolution = { action: null };
+            let importedCount = 0;
+            let skippedCount = 0;
+
+            for (let i = 0; i < entries.length; i++) {
+                const entry = entries[i];
+                const processedCount = i + 1;
+
+                progress.update({
+                    current: processedCount,
+                    message: `Importing ${processedCount}/${entries.length}: ${entry.path}`
+                });
+
+                if (processedCount % 5 === 0) {
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
+
+                const result = await this._resolveImportConflict(entry.path, resolution);
+                if (result === 'skipped') {
+                    skippedCount++;
+                    continue;
+                }
+
+                const extension = entry.path.split('.').pop().toLowerCase();
+                const isBinary = this.fileTypeUtils.isBinaryFile(entry.path, '');
+                let content;
+
+                if (isBinary) {
+                    const base64Content = await entry.readBinary();
+                    const mimeType = this.fileTypeUtils.getMimeTypeFromExtension(extension);
+                    content = `data:${mimeType};base64,${base64Content}`;
+                } else {
+                    content = await entry.readText();
+                }
+
+                const fileType = this.fileTypeUtils.getTypeFromExtension(extension);
+                this.addNewFileWithContent(entry.path, fileType, content, isBinary);
+                importedCount++;
+            }
+
+            progress.complete(label + ' import complete.');
+            this._showImportSummary(importedCount, skippedCount, label + ' imported successfully!');
+
+        } catch (error) {
+            console.error('Error importing ' + label + ':', error);
+            if (progress) progress.fail(label + ' import failed.');
+            this.showNotification('Failed to import ' + label.toLowerCase(), 'error');
+        }
+    },
+
     async _importFromZip(file) {
         if (typeof JSZip === 'undefined') {
             this.showNotification('JSZip library not available', 'error');
             return;
         }
 
-        let progress = null;
-
         try {
             const zip = await JSZip.loadAsync(file);
-            const zipEntries = Object.entries(zip.files).filter(([, zipEntry]) => !zipEntry.dir);
-            progress = this.showProgressNotification('Reading ZIP contents…', {
-                total: Math.max(zipEntries.length, 1),
-                type: 'info'
-            });
-
-            const resolution = { action: null };
-            let importedCount = 0;
-            let skippedCount = 0;
-            let processedCount = 0;
-
-            for (const [relativePath, zipEntry] of zipEntries) {
-                processedCount++;
-                progress.update({
-                    current: processedCount,
-                    message: `Importing ${processedCount}/${zipEntries.length}: ${relativePath}`
-                });
-
-                const result = await this._resolveImportConflict(relativePath, resolution);
-                if (result === 'skipped') {
-                    skippedCount++;
-                    continue;
-                }
-
-                const extension = relativePath.split('.').pop().toLowerCase();
-                const isBinary = this.fileTypeUtils.isBinaryFile(relativePath, '');
-                let content;
-
-                if (isBinary) {
-                    const base64Content = await zipEntry.async('base64');
-                    const mimeType = this.fileTypeUtils.getMimeTypeFromExtension(extension);
-                    content = `data:${mimeType};base64,${base64Content}`;
-                } else {
-                    content = await zipEntry.async('string');
-                }
-
-                const fileType = this.fileTypeUtils.getTypeFromExtension(extension);
-                this.addNewFileWithContent(relativePath, fileType, content, isBinary);
-                importedCount++;
-            }
-            progress.complete('ZIP import complete.');
-
-            this._showImportSummary(importedCount, skippedCount, 'ZIP project imported successfully!');
-
+            const zipEntries = Object.entries(zip.files).filter(([, e]) => !e.dir);
+            const entries = zipEntries.map(([relativePath, zipEntry]) => ({
+                path: relativePath,
+                readBinary: () => zipEntry.async('base64'),
+                readText: () => zipEntry.async('string')
+            }));
+            await this._importEntries(entries, 'ZIP archive');
         } catch (error) {
             console.error('Error processing ZIP file:', error);
-            if (progress) progress.fail('ZIP import failed.');
             this.showNotification('Failed to import ZIP file', 'error');
         }
     },
@@ -6031,74 +6066,19 @@ This content is loaded from a markdown file.
         return files;
     },
 
-    async _importTarEntries(entries, label) {
-        let progress = null;
-
-        try {
-            if (entries.length === 0) {
-                this.showNotification('The archive appears to be empty.', 'warn');
-                return;
-            }
-
-            progress = this.showProgressNotification('Importing archive contents…', {
-                total: Math.max(entries.length, 1),
-                type: 'info'
-            });
-
-            const resolution = { action: null };
-            let importedCount = 0;
-            let skippedCount = 0;
-            let processedCount = 0;
-
-            for (const entry of entries) {
-                processedCount++;
-                progress.update({
-                    current: processedCount,
-                    message: `Importing ${processedCount}/${entries.length}: ${entry.name}`
-                });
-
-                if (processedCount % 5 === 0) {
-                    await new Promise(resolve => setTimeout(resolve, 0));
-                }
-
-                const result = await this._resolveImportConflict(entry.name, resolution);
-                if (result === 'skipped') {
-                    skippedCount++;
-                    continue;
-                }
-
-                const extension = entry.name.split('.').pop().toLowerCase();
-                const isBinary = this.fileTypeUtils.isBinaryFile(entry.name, '');
-                let content;
-
-                if (isBinary) {
-                    const base64Content = this._uint8ArrayToBase64(entry.data);
-                    const mimeType = this.fileTypeUtils.getMimeTypeFromExtension(extension);
-                    content = `data:${mimeType};base64,${base64Content}`;
-                } else {
-                    content = new TextDecoder().decode(entry.data);
-                }
-
-                const fileType = this.fileTypeUtils.getTypeFromExtension(extension);
-                this.addNewFileWithContent(entry.name, fileType, content, isBinary);
-                importedCount++;
-            }
-
-            progress.complete(label + ' import complete.');
-            this._showImportSummary(importedCount, skippedCount, label + ' imported successfully!');
-
-        } catch (error) {
-            console.error('Error importing archive entries:', error);
-            if (progress) progress.fail(label + ' import failed.');
-            this.showNotification('Failed to import ' + label.toLowerCase(), 'error');
-        }
+    _normalizeTarEntries(tarFiles) {
+        return tarFiles.map(f => ({
+            path: f.name,
+            readBinary: () => this._uint8ArrayToBase64(f.data),
+            readText: () => new TextDecoder().decode(f.data)
+        }));
     },
 
     async _importFromTar(file) {
         try {
             const buffer = await file.arrayBuffer();
-            const entries = this._parseTar(buffer);
-            await this._importTarEntries(entries, 'TAR archive');
+            const entries = this._normalizeTarEntries(this._parseTar(buffer));
+            await this._importEntries(entries, 'TAR archive');
         } catch (error) {
             console.error('Error processing TAR file:', error);
             this.showNotification('Failed to import TAR file', 'error');
@@ -6114,8 +6094,8 @@ This content is loaded from a markdown file.
         try {
             const buffer = await file.arrayBuffer();
             const decompressed = pako.ungzip(new Uint8Array(buffer));
-            const entries = this._parseTar(decompressed.buffer);
-            await this._importTarEntries(entries, 'TAR.GZ archive');
+            const entries = this._normalizeTarEntries(this._parseTar(decompressed.buffer));
+            await this._importEntries(entries, 'TAR.GZ archive');
         } catch (error) {
             console.error('Error processing TAR.GZ file:', error);
             this.showNotification('Failed to import TAR.GZ file', 'error');
@@ -6168,62 +6148,22 @@ This content is loaded from a markdown file.
             progress = this.showProgressNotification('Loading archive library…', { type: 'info' });
 
             const Archive = await this._loadLibArchive();
-
             progress.update({ message: 'Extracting archive…' });
 
             const archive = await Archive.open(file);
             const obj = await archive.extractFiles();
-            const entries = this._flattenArchiveTree(obj);
+            const flatEntries = this._flattenArchiveTree(obj);
 
-            if (entries.length === 0) {
-                progress.fail('No files found in archive.');
-                this.showNotification('The archive appears to be empty.', 'warn');
-                return;
-            }
+            const entries = flatEntries.map(e => ({
+                path: e.path,
+                readBinary: async () => {
+                    const arrayBuffer = await e.file.arrayBuffer();
+                    return this._uint8ArrayToBase64(new Uint8Array(arrayBuffer));
+                },
+                readText: () => e.file.text()
+            }));
 
-            progress.update({
-                total: entries.length,
-                message: 'Found ' + entries.length + ' files in archive'
-            });
-
-            const resolution = { action: null };
-            let importedCount = 0;
-            let skippedCount = 0;
-            let processedCount = 0;
-
-            for (const entry of entries) {
-                processedCount++;
-                progress.update({
-                    current: processedCount,
-                    message: 'Importing ' + processedCount + '/' + entries.length + ': ' + entry.path
-                });
-
-                const result = await this._resolveImportConflict(entry.path, resolution);
-                if (result === 'skipped') {
-                    skippedCount++;
-                    continue;
-                }
-
-                const extension = entry.path.split('.').pop().toLowerCase();
-                const isBinary = this.fileTypeUtils.isBinaryFile(entry.path, '');
-                let content;
-
-                if (isBinary) {
-                    const arrayBuffer = await entry.file.arrayBuffer();
-                    const base64Content = this._uint8ArrayToBase64(new Uint8Array(arrayBuffer));
-                    const mimeType = this.fileTypeUtils.getMimeTypeFromExtension(extension);
-                    content = 'data:' + mimeType + ';base64,' + base64Content;
-                } else {
-                    content = await entry.file.text();
-                }
-
-                const fileType = this.fileTypeUtils.getTypeFromExtension(extension);
-                this.addNewFileWithContent(entry.path, fileType, content, isBinary);
-                importedCount++;
-            }
-
-            progress.complete('Archive import complete.');
-            this._showImportSummary(importedCount, skippedCount, 'Archive imported successfully!');
+            await this._importEntries(entries, 'archive', { progress });
 
         } catch (error) {
             console.error('Error processing archive:', error);
