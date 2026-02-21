@@ -5233,9 +5233,9 @@ This content is loaded from a markdown file.
         return htmlContent;
     },
 
-    replaceAssetReferences(htmlContent, fileSystem, currentFilePath = '') {
+    replaceAssetReferences(htmlContent, fileSystem, currentFilePath = '', processedHtmlFiles = null) {
         htmlContent = this.assetReplacers.replaceAllConfigBased(htmlContent, fileSystem, currentFilePath);
-        htmlContent = this.assetReplacers.replaceDownloadLinks(htmlContent, fileSystem, currentFilePath);
+        htmlContent = this.assetReplacers.replaceDownloadLinks(htmlContent, fileSystem, currentFilePath, processedHtmlFiles);
         htmlContent = this.assetReplacers.replaceStyleTags(htmlContent, fileSystem, currentFilePath);
         
         const workerFileNames = this.extractWorkerFileNames(htmlContent);
@@ -5288,7 +5288,8 @@ This content is loaded from a markdown file.
         
         const fileSystem = this.createVirtualFileSystem();
         const mainHtmlPath = this.getFileNameFromPanel(mainHtmlFile.id) || 'index.html';
-        let processedHtml = this.replaceAssetReferences(mainHtmlFile.editor.getValue(), fileSystem, mainHtmlPath);
+        const processedHtmlFiles = new Set([mainHtmlPath]);
+        let processedHtml = this.replaceAssetReferences(mainHtmlFile.editor.getValue(), fileSystem, mainHtmlPath, processedHtmlFiles);
         
         return this.injectConsoleScript(processedHtml, fileSystem, mainHtmlPath);
     },
@@ -6463,11 +6464,26 @@ This content is loaded from a markdown file.
             return htmlContent;
         },
 
-        replaceDownloadLinks(htmlContent, fileSystem, currentFilePath) {
+        replaceDownloadLinks(htmlContent, fileSystem, currentFilePath, processedHtmlFiles) {
+            if (!processedHtmlFiles) processedHtmlFiles = new Set();
             return htmlContent.replace(/<a([^>]*?)href\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
                 if (match.includes('download') || !filename.includes('://')) {
                     const file = CodePreviewer.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
                     if (file) {
+                        if (file.type === 'html' && !match.includes('download')) {
+                            const resolvedPath = currentFilePath
+                                ? CodePreviewer.fileSystemUtils.resolvePath(currentFilePath, filename)
+                                : filename;
+                            if (!processedHtmlFiles.has(resolvedPath)) {
+                                processedHtmlFiles.add(resolvedPath);
+                                let processedContent = CodePreviewer.replaceAssetReferences(file.content, fileSystem, resolvedPath, processedHtmlFiles);
+                                processedContent = CodePreviewer.injectConsoleScript(processedContent, fileSystem, resolvedPath);
+                                const blob = new Blob([processedContent], { type: 'text/html' });
+                                const blobUrl = URL.createObjectURL(blob);
+                                CodePreviewer.state.previewAssetUrls.add(blobUrl);
+                                return match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${blobUrl}"`);
+                            }
+                        }
                         const href = CodePreviewer.getPreviewAssetUrl(file);
                         return match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${href}"`);
                     }
