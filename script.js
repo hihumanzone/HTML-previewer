@@ -20,6 +20,45 @@
  * - console: Console capture and logging
  * 
  */
+const SVG_ICONS = (() => {
+    const s = (d, extra = '') => `<svg class="svg-icon" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"${extra}>${d}</svg>`;
+    const sf = (d) => `<svg class="svg-icon" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" stroke="none">${d}</svg>`;
+    return {
+        search:     s('<circle cx="6.5" cy="6.5" r="4"/><line x1="9.5" y1="9.5" x2="14" y2="14"/>'),
+        save:       s('<path d="M3 1h8l3 3v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z"/><path d="M11 15V9H5v6"/><path d="M5 1v4h5"/>'),
+        folder:     s('<path d="M2 4v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1H8L6.5 3H3a1 1 0 0 0-1 1z"/>'),
+        folderOpen: s('<path d="M2 4v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1H8L6.5 3H3a1 1 0 0 0-1 1z"/><path d="M2 8h12"/>'),
+        trash:      s('<path d="M2 4h12"/><path d="M5 4V2h6v2"/><path d="M3 4l1 10h8l1-10"/><line x1="6.5" y1="7" x2="6.5" y2="11"/><line x1="9.5" y1="7" x2="9.5" y2="11"/>'),
+        clipboard:  s('<rect x="3" y="2" width="10" height="12" rx="1"/><path d="M6 2V1h4v1"/><line x1="5.5" y1="6" x2="10.5" y2="6"/><line x1="5.5" y1="9" x2="10.5" y2="9"/>'),
+        doc:        s('<path d="M4 1h6l4 4v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z"/><path d="M10 1v4h4"/>'),
+        sparkle:    sf('<path d="M8 1L9.8 6.2 15 8l-5.2 1.8L8 15l-1.8-5.2L1 8l5.2-1.8z"/>'),
+        gear:       s('<circle cx="8" cy="8" r="2.5"/><path d="M6.9 1h2.2l.3 1.7a5.5 5.5 0 0 1 1.3.8l1.6-.7 1.1 1.9-1.3 1a5.5 5.5 0 0 1 0 1.6l1.3 1-1.1 1.9-1.6-.7a5.5 5.5 0 0 1-1.3.8L9.1 15H6.9l-.3-1.7a5.5 5.5 0 0 1-1.3-.8l-1.6.7-1.1-1.9 1.3-1a5.5 5.5 0 0 1 0-1.6l-1.3-1 1.1-1.9 1.6.7A5.5 5.5 0 0 1 6.6 2.7z"/>'),
+        expand:     s('<circle cx="6.5" cy="6.5" r="4"/><line x1="9.5" y1="9.5" x2="14" y2="14"/><line x1="5" y1="6.5" x2="8" y2="6.5"/><line x1="6.5" y1="5" x2="6.5" y2="8"/>'),
+        globe:      s('<circle cx="8" cy="8" r="6"/><ellipse cx="8" cy="8" rx="3" ry="6"/><line x1="2" y1="8" x2="14" y2="8"/>'),
+        palette:    s('<path d="M8 2a6 6 0 0 0 0 12 1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1.5A2.5 2.5 0 0 0 14 8.5 6.5 6.5 0 0 0 8 2z"/><circle cx="5.5" cy="6.5" r=".8" fill="currentColor"/><circle cx="8" cy="5" r=".8" fill="currentColor"/><circle cx="10.5" cy="6.5" r=".8" fill="currentColor"/>'),
+        scroll:     s('<path d="M13 3H5a2 2 0 0 0-2 2v8l2-2h8a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/><line x1="6" y1="6" x2="12" y2="6"/><line x1="6" y1="9" x2="10" y2="9"/>'),
+        package:    s('<path d="M2 5l6-3 6 3v6l-6 3-6-3z"/><line x1="8" y1="8" x2="8" y2="14"/><line x1="2" y1="5" x2="8" y2="8"/><line x1="14" y1="5" x2="8" y2="8"/>'),
+        memo:       s('<rect x="3" y="1" width="10" height="14" rx="1"/><line x1="5.5" y1="4" x2="10.5" y2="4"/><line x1="5.5" y1="7" x2="10.5" y2="7"/><line x1="5.5" y1="10" x2="8" y2="10"/>'),
+        pageText:   s('<path d="M4 1h6l4 4v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z"/><path d="M10 1v4h4"/><line x1="5.5" y1="8" x2="10.5" y2="8"/><line x1="5.5" y1="11" x2="8.5" y2="11"/>'),
+        image:      s('<rect x="2" y="2" width="12" height="12" rx="1"/><circle cx="5.5" cy="5.5" r="1.5"/><path d="M14 10l-3-3-5 5H13a1 1 0 0 0 1-1z"/>'),
+        speaker:    s('<polygon points="3,6 6,6 10,3 10,13 6,10 3,10" fill="currentColor" stroke="none"/><path d="M12 5.5a3.5 3.5 0 0 1 0 5"/>'),
+        clapper:    s('<rect x="2" y="6" width="12" height="8" rx="1"/><path d="M2 6l3-4h2l-3 4"/><path d="M7 6l3-4h2l-3 4"/>'),
+        font:       sf('<path d="M3 13L7 3h2l4 10h-2l-.8-2.5H5.8L5 13H3zm3.3-4.5h3.4L8 4z"/>'),
+        book:       s('<path d="M3 1h10a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3V1z"/><line x1="6" y1="1" x2="6" y2="15"/><path d="M6 4h5"/><path d="M6 7h5"/>'),
+        eye:        s('<path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z"/><circle cx="8" cy="8" r="2"/>'),
+        arrowRight: s('<line x1="3" y1="8" x2="13" y2="8"/><polyline points="9,4 13,8 9,12"/>'),
+        tabFolder:  s('<path d="M2 5v8a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1H8L6.5 4H3a1 1 0 0 0-1 1z"/><path d="M4 4V3a1 1 0 0 1 1-1h2.5L9 4"/>'),
+        magnet:     s('<path d="M4 2v6a4 4 0 0 0 8 0V2"/><line x1="4" y1="4" x2="2" y2="4"/><line x1="14" y1="4" x2="12" y2="4"/><rect x="2" y="2" width="2" height="3" fill="currentColor" stroke="none"/><rect x="12" y="2" width="2" height="3" fill="currentColor" stroke="none"/>'),
+        info:       s('<circle cx="8" cy="8" r="6"/><line x1="8" y1="7" x2="8" y2="12"/><circle cx="8" cy="4.5" r="0.5" fill="currentColor"/>'),
+        warn:       s('<path d="M8 1.5L1 14h14z"/><line x1="8" y1="6" x2="8" y2="10"/><circle cx="8" cy="12" r="0.5" fill="currentColor"/>'),
+        error:      s('<circle cx="8" cy="8" r="6"/><line x1="5.5" y1="5.5" x2="10.5" y2="10.5"/><line x1="10.5" y1="5.5" x2="5.5" y2="10.5"/>'),
+        check:      s('<polyline points="3,8 6.5,12 13,4"/>'),
+        close:      s('<line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/>'),
+        folderMinus:s('<path d="M2 4v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1H8L6.5 3H3a1 1 0 0 0-1 1z"/><line x1="5" y1="9" x2="11" y2="9"/>'),
+        folderPlus: s('<path d="M2 4v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1H8L6.5 3H3a1 1 0 0 0-1 1z"/><line x1="8" y1="7" x2="8" y2="11"/><line x1="6" y1="9" x2="10" y2="9"/>'),
+    };
+})();
+
 const CodePreviewer = {
     // ============================================================================
     // APPLICATION STATE
@@ -1754,11 +1793,11 @@ This content is loaded from a markdown file.
         }
 
         if (this.dom.codeModalSearchBtn) {
-            this.dom.codeModalSearchBtn.textContent = isMobile ? '🔎' : '🔎 Search';
+            this.dom.codeModalSearchBtn.innerHTML = isMobile ? SVG_ICONS.search : SVG_ICONS.search + ' Search';
         }
 
         if (this.dom.saveCodeBtn) {
-            this.dom.saveCodeBtn.textContent = isMobile ? '💾' : '💾 Save';
+            this.dom.saveCodeBtn.innerHTML = isMobile ? SVG_ICONS.save : SVG_ICONS.save + ' Save';
         }
     },
 
@@ -2210,21 +2249,21 @@ This content is loaded from a markdown file.
             const openFolderFileIds = folderFileIds.filter(fileId => this.state.openPanels.has(fileId));
             const hasOpenFolderPanels = openFolderFileIds.length > 0;
             const closeFolderPanelsLabel = 'Collapse all file panels in folder';
-            const closeFolderPanelsIcon = '📁−';
+            const closeFolderPanelsIcon = SVG_ICONS.folderMinus;
 
             html += `
                 <div class="tree-folder ${isExpanded ? 'expanded' : ''} ${isFolderSelected ? 'folder-selected-in-sidebar' : ''}" data-folder-path="${folderPath}">
                     <div class="tree-folder-header">
                         <input type="checkbox" class="tree-folder-checkbox" aria-label="Select folder ${this.escapeHtmlAttribute(folderPath)}" ${isFolderSelected ? 'checked' : ''}>
-                        <span class="folder-icon">${isExpanded ? '📂' : '📁'}</span>
+                        <span class="folder-icon">${isExpanded ? SVG_ICONS.folderOpen : SVG_ICONS.folder}</span>
                         <span class="folder-name">${folderName}</span>
                         <div class="folder-actions">
                             ${hasOpenFolderPanels
                                 ? `<button class="close-folder-panels-btn" title="${closeFolderPanelsLabel}" aria-label="${closeFolderPanelsLabel}">${closeFolderPanelsIcon}</button>`
                                 : ''}
                             <button class="add-file-to-folder-btn" title="Add file to folder">+</button>
-                            <button class="add-subfolder-btn" title="Add subfolder">📁+</button>
-                            <button class="delete-folder-btn" title="Delete folder">🗑️</button>
+                            <button class="add-subfolder-btn" title="Add subfolder">${SVG_ICONS.folderPlus}</button>
+                            <button class="delete-folder-btn" title="Delete folder">${SVG_ICONS.trash}</button>
                         </div>
                     </div>
                     <div class="tree-folder-contents" style="display: ${isExpanded ? 'block' : 'none'}">
@@ -2254,9 +2293,9 @@ This content is loaded from a markdown file.
                     <span class="file-icon">${fileIcon}</span>
                     <span class="file-name">${file.displayName}</span>
                     <div class="file-actions">
-                        <button class="open-file-btn" title="${isOpen ? 'Focus file' : 'Open file'}" aria-label="${isOpen ? 'Focus file' : 'Open file'}">${isOpen ? '👁️' : '📝'}</button>
-                        <button class="move-file-btn" title="Move file" aria-label="Move file">📂➡️</button>
-                        <button class="delete-file-btn" title="Delete file" aria-label="Delete file">🗑️</button>
+                        <button class="open-file-btn" title="${isOpen ? 'Focus file' : 'Open file'}" aria-label="${isOpen ? 'Focus file' : 'Open file'}">${isOpen ? SVG_ICONS.eye : SVG_ICONS.memo}</button>
+                        <button class="move-file-btn" title="Move file" aria-label="Move file">${SVG_ICONS.folderOpen}${SVG_ICONS.arrowRight}</button>
+                        <button class="delete-file-btn" title="Delete file" aria-label="Delete file">${SVG_ICONS.trash}</button>
                     </div>
                 </div>
             `;
@@ -2268,27 +2307,27 @@ This content is loaded from a markdown file.
     /**
      * Get the appropriate icon for a file type
      * @param {string} fileType - The file type
-     * @returns {string} Emoji icon
+     * @returns {string} SVG icon
      */
     getFileIcon(fileType) {
         const icons = {
-            'html': '🌐',
-            'css': '🎨',
-            'javascript': '📜',
-            'javascript-module': '📦',
-            'json': '📋',
-            'xml': '📄',
-            'markdown': '📝',
-            'text': '📃',
-            'svg': '🖼️',
-            'image': '🖼️',
-            'audio': '🔊',
-            'video': '🎬',
-            'font': '🔤',
-            'pdf': '📕',
-            'binary': '📦'
+            'html': SVG_ICONS.globe,
+            'css': SVG_ICONS.palette,
+            'javascript': SVG_ICONS.scroll,
+            'javascript-module': SVG_ICONS.package,
+            'json': SVG_ICONS.clipboard,
+            'xml': SVG_ICONS.doc,
+            'markdown': SVG_ICONS.memo,
+            'text': SVG_ICONS.pageText,
+            'svg': SVG_ICONS.image,
+            'image': SVG_ICONS.image,
+            'audio': SVG_ICONS.speaker,
+            'video': SVG_ICONS.clapper,
+            'font': SVG_ICONS.font,
+            'pdf': SVG_ICONS.book,
+            'binary': SVG_ICONS.package
         };
-        return icons[fileType] || '📄';
+        return icons[fileType] || SVG_ICONS.doc;
     },
 
     /**
@@ -3175,23 +3214,23 @@ This content is loaded from a markdown file.
         let toolbarHTML = '<div class="editor-toolbar">';
         
         if (isEditable) {
-            toolbarHTML += this.htmlGenerators.toolbarButton('🗑️', 'Clear', 'clear-btn', 'Clear content', 'Clear');
-            toolbarHTML += this.htmlGenerators.toolbarButton('📋', 'Paste', 'paste-btn', 'Paste from clipboard', 'Paste');
-            toolbarHTML += this.htmlGenerators.toolbarButton('📄', 'Copy', 'copy-btn', 'Copy to clipboard', 'Copy');
-            toolbarHTML += this.htmlGenerators.toolbarButton('🔎', 'Search', 'search-btn', 'Search in file', 'Search in file');
+            toolbarHTML += this.htmlGenerators.toolbarButton(SVG_ICONS.trash, 'Clear', 'clear-btn', 'Clear content', 'Clear');
+            toolbarHTML += this.htmlGenerators.toolbarButton(SVG_ICONS.clipboard, 'Paste', 'paste-btn', 'Paste from clipboard', 'Paste');
+            toolbarHTML += this.htmlGenerators.toolbarButton(SVG_ICONS.doc, 'Copy', 'copy-btn', 'Copy to clipboard', 'Copy');
+            toolbarHTML += this.htmlGenerators.toolbarButton(SVG_ICONS.search, 'Search', 'search-btn', 'Search in file', 'Search in file');
             if (supportsFormatting) {
-                toolbarHTML += this.htmlGenerators.toolbarButton('✨', 'Format', 'format-btn', 'Format code', 'Format code');
+                toolbarHTML += this.htmlGenerators.toolbarButton(SVG_ICONS.sparkle, 'Format', 'format-btn', 'Format code', 'Format code');
             }
         }
         
         if (hasExpandPreview) {
             const expandLabel = isEditable ? "Expand code view" : "View media";
             const expandTitle = isEditable ? "Expand" : "View";
-            toolbarHTML += this.htmlGenerators.toolbarButton('🔍', expandTitle, 'expand-btn', expandLabel, expandTitle);
+            toolbarHTML += this.htmlGenerators.toolbarButton(SVG_ICONS.expand, expandTitle, 'expand-btn', expandLabel, expandTitle);
         }
         
-        toolbarHTML += this.htmlGenerators.toolbarButton('💾', 'Export', 'export-btn', 'Export file', 'Export');
-        toolbarHTML += this.htmlGenerators.toolbarButton('📁', 'Collapse', 'collapse-btn', 'Collapse/Expand editor', 'Collapse/Expand');
+        toolbarHTML += this.htmlGenerators.toolbarButton(SVG_ICONS.save, 'Export', 'export-btn', 'Export file', 'Export');
+        toolbarHTML += this.htmlGenerators.toolbarButton(SVG_ICONS.folder, 'Collapse', 'collapse-btn', 'Collapse/Expand editor', 'Collapse/Expand');
 
         toolbarHTML += '</div>';
 
@@ -4724,8 +4763,8 @@ This content is loaded from a markdown file.
         collapseBtn.classList.toggle('collapsed', willCollapse);
         collapseBtn.setAttribute('aria-expanded', willCollapse ? 'false' : 'true');
         collapseBtn.innerHTML = willCollapse
-            ? '<span class="btn-icon">📂</span> Actions'
-            : '<span class="btn-icon">📁</span> Collapse';
+            ? '<span class="btn-icon">' + SVG_ICONS.folderOpen + '</span> Actions'
+            : '<span class="btn-icon">' + SVG_ICONS.folder + '</span> Collapse';
 
         toolbarButtons.forEach((btn) => {
             btn.hidden = willCollapse;
@@ -5267,7 +5306,7 @@ This content is loaded from a markdown file.
         if (!this.dom.dockPreviewBtn) return;
         const isDocked = this.state.isPreviewDocked;
         this.dom.dockPreviewBtn.classList.toggle('active', isDocked);
-        this.dom.dockPreviewBtn.textContent = isDocked ? '🧲 Undock' : '🧲 Dock';
+        this.dom.dockPreviewBtn.innerHTML = isDocked ? SVG_ICONS.magnet + ' Undock' : SVG_ICONS.magnet + ' Dock';
         this.dom.dockPreviewBtn.setAttribute('aria-label', isDocked ? 'Undock preview panel' : 'Dock preview panel');
     },
 
@@ -5433,7 +5472,7 @@ This content is loaded from a markdown file.
             this.applyPreviewDockLayout();
             this.dom.modalConsolePanel.classList.add('hidden');
             this.dom.toggleConsoleBtn.classList.remove('active');
-            this.dom.toggleConsoleBtn.textContent = '📋 Console';
+            this.dom.toggleConsoleBtn.innerHTML = SVG_ICONS.clipboard + ' Console';
         } else {
             this.togglePreviewDock(false);
             if (this.state.previewRefreshTimer) {
@@ -5471,11 +5510,11 @@ This content is loaded from a markdown file.
         if (isHidden) {
             this.dom.modalConsolePanel.classList.remove('hidden');
             this.dom.toggleConsoleBtn.classList.add('active');
-            this.dom.toggleConsoleBtn.textContent = '📋 Hide Console';
+            this.dom.toggleConsoleBtn.innerHTML = SVG_ICONS.clipboard + ' Hide Console';
         } else {
             this.dom.modalConsolePanel.classList.add('hidden');
             this.dom.toggleConsoleBtn.classList.remove('active');
-            this.dom.toggleConsoleBtn.textContent = '📋 Console';
+            this.dom.toggleConsoleBtn.innerHTML = SVG_ICONS.clipboard + ' Console';
         }
     },
 
@@ -5700,7 +5739,7 @@ This content is loaded from a markdown file.
                     </object>
                 </div>`,
                 default: `<div class="file-preview binary-preview">
-                    <p>📁 Binary file: Cannot display content</p>
+                    <p>${SVG_ICONS.folder} Binary file: Cannot display content</p>
                     <p>File can be referenced in HTML code</p>
                 </div>`
             };
@@ -6152,19 +6191,19 @@ This content is loaded from a markdown file.
             filterContainer.className = 'console-filters';
             filterContainer.innerHTML = `
                 <button class="console-filter-btn active" data-filter="log" title="Show logs">
-                    <span class="filter-icon">📝</span>
+                    <span class="filter-icon">${SVG_ICONS.memo}</span>
                     <span class="filter-count" data-count="log">0</span>
                 </button>
                 <button class="console-filter-btn active" data-filter="info" title="Show info">
-                    <span class="filter-icon">ℹ️</span>
+                    <span class="filter-icon">${SVG_ICONS.info}</span>
                     <span class="filter-count" data-count="info">0</span>
                 </button>
                 <button class="console-filter-btn active" data-filter="warn" title="Show warnings">
-                    <span class="filter-icon">⚠️</span>
+                    <span class="filter-icon">${SVG_ICONS.warn}</span>
                     <span class="filter-count" data-count="warn">0</span>
                 </button>
                 <button class="console-filter-btn active" data-filter="error" title="Show errors">
-                    <span class="filter-icon">❌</span>
+                    <span class="filter-icon">${SVG_ICONS.error}</span>
                     <span class="filter-count" data-count="error">0</span>
                 </button>
             `;
@@ -6246,12 +6285,12 @@ This content is loaded from a markdown file.
         
         getIcon(level) {
             const icons = {
-                log: '📝',
-                info: 'ℹ️',
-                warn: '⚠️',
-                error: '❌'
+                log: SVG_ICONS.memo,
+                info: SVG_ICONS.info,
+                warn: SVG_ICONS.warn,
+                error: SVG_ICONS.error
             };
-            return icons[level] || '📝';
+            return icons[level] || SVG_ICONS.memo;
         },
         
         getTimestamp() {
@@ -6284,7 +6323,7 @@ This content is loaded from a markdown file.
                 <span class="log-icon" aria-hidden="true">${this.getIcon(level)}</span>
                 <span class="log-timestamp">${this.getTimestamp()}</span>
                 <span class="log-content">${messageContent}</span>
-                <button class="log-copy-btn" title="Copy message" aria-label="Copy message to clipboard">📋</button>
+                <button class="log-copy-btn" title="Copy message" aria-label="Copy message to clipboard">${SVG_ICONS.clipboard}</button>
             `;
             
             // Add copy functionality with accessibility support
@@ -6298,17 +6337,17 @@ This content is loaded from a markdown file.
                     return String(arg);
                 }).join(' ');
                 navigator.clipboard.writeText(text).then(() => {
-                    copyBtn.textContent = '✅';
+                    copyBtn.innerHTML = SVG_ICONS.check;
                     copyBtn.setAttribute('aria-label', 'Copied to clipboard');
                     setTimeout(() => {
-                        copyBtn.textContent = '📋';
+                        copyBtn.innerHTML = SVG_ICONS.clipboard;
                         copyBtn.setAttribute('aria-label', 'Copy message to clipboard');
                     }, this.COPY_FEEDBACK_DURATION);
                 }).catch(() => {
-                    copyBtn.textContent = '❌';
+                    copyBtn.innerHTML = SVG_ICONS.error;
                     copyBtn.setAttribute('aria-label', 'Failed to copy');
                     setTimeout(() => {
-                        copyBtn.textContent = '📋';
+                        copyBtn.innerHTML = SVG_ICONS.clipboard;
                         copyBtn.setAttribute('aria-label', 'Copy message to clipboard');
                     }, this.COPY_FEEDBACK_DURATION);
                 });
