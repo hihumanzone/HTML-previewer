@@ -1026,6 +1026,21 @@ const CodePreviewer = {
     },
 
     /**
+     * Encodes a Uint8Array into a base64 string.
+     * @param {Uint8Array} bytes - Raw bytes
+     * @returns {string} Base64-encoded data
+     */
+    uint8ArrayToBase64(bytes) {
+        const chunkSize = 0x8000;
+        let binary = '';
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+            const chunk = bytes.subarray(i, i + chunkSize);
+            binary += String.fromCharCode(...chunk);
+        }
+        return btoa(binary);
+    },
+
+    /**
      * Gets the current content of a file, preferring the editor value when available.
      * @param {Object} file - The file object with optional editor and content properties
      * @returns {string} The file content
@@ -1775,7 +1790,7 @@ This content is loaded from a markdown file.
         if (this.dom.importFolderBtn) {
             this.dom.importFolderBtn.addEventListener('click', () => this.importFolder());
         }
-        this.dom.importZipBtn.addEventListener('click', () => this.importZip());
+        this.dom.importZipBtn.addEventListener('click', () => this.importArchive());
         this.dom.exportZipBtn.addEventListener('click', () => this.exportZip());
         this.setupMainHtmlDropdownEvents();
 
@@ -5895,70 +5910,169 @@ This content is loaded from a markdown file.
         }
     },
     
-    async importZip() {
-        if (typeof JSZip === 'undefined') {
-            this.showNotification('JSZip library not available', 'error');
-            return;
-        }
-        
-        this._openFilePicker('.zip', false, async (fileList) => {
+    async importArchive() {
+        this._openFilePicker('.zip,.rar,.7z,.tar,.tar.gz,.tgz,.gz', false, async (fileList) => {
             const file = fileList[0];
             if (!file) return;
 
             let progress = null;
-            
+
             try {
-                const zip = await JSZip.loadAsync(file);
-                const zipEntries = Object.entries(zip.files).filter(([, zipEntry]) => !zipEntry.dir);
-                progress = this.showProgressNotification('Reading ZIP contents…', {
-                    total: Math.max(zipEntries.length, 1),
+                const archiveEntries = await this._extractArchiveEntries(file);
+                progress = this.showProgressNotification('Reading archive contents…', {
+                    total: Math.max(archiveEntries.length, 1),
                     type: 'info'
                 });
-                
+
                 const resolution = { action: null };
                 let importedCount = 0;
                 let skippedCount = 0;
                 let processedCount = 0;
 
-                for (const [relativePath, zipEntry] of zipEntries) {
+                for (const archiveEntry of archiveEntries) {
+                    const relativePath = archiveEntry.path;
                     processedCount++;
                     progress.update({
                         current: processedCount,
-                        message: `Importing ${processedCount}/${zipEntries.length}: ${relativePath}`
+                        message: `Importing ${processedCount}/${archiveEntries.length}: ${relativePath}`
                     });
-                    
+
                     const result = await this._resolveImportConflict(relativePath, resolution);
                     if (result === 'skipped') {
                         skippedCount++;
                         continue;
                     }
-                    
-                    const extension = relativePath.split('.').pop().toLowerCase();
+
+                    const extension = relativePath.includes('.') ? relativePath.split('.').pop().toLowerCase() : '';
                     const isBinary = this.fileTypeUtils.isBinaryFile(relativePath, '');
                     let content;
-                    
+
                     if (isBinary) {
-                        const base64Content = await zipEntry.async('base64');
+                        const base64Content = this.uint8ArrayToBase64(archiveEntry.bytes);
                         const mimeType = this.fileTypeUtils.getMimeTypeFromExtension(extension);
                         content = `data:${mimeType};base64,${base64Content}`;
                     } else {
-                        content = await zipEntry.async('string');
+                        content = new TextDecoder().decode(archiveEntry.bytes);
                     }
-                    
+
                     const fileType = this.fileTypeUtils.getTypeFromExtension(extension);
                     this.addNewFileWithContent(relativePath, fileType, content, isBinary);
                     importedCount++;
                 }
-                progress.complete('ZIP import complete.');
-                
-                this._showImportSummary(importedCount, skippedCount, 'ZIP project imported successfully!');
-                
+
+                progress.complete('Archive import complete.');
+                this._showImportSummary(importedCount, skippedCount, 'Archive imported successfully!');
+
             } catch (error) {
-                console.error('Error processing ZIP file:', error);
-                if (progress) progress.fail('ZIP import failed.');
-                this.showNotification('Failed to import ZIP file', 'error');
+                console.error('Error processing archive file:', error);
+                if (progress) progress.fail('Archive import failed.');
+                this.showNotification(error?.message || 'Failed to import archive file', 'error');
             }
         });
+    },
+
+    async _extractArchiveEntries(file) {
+        const lowerName = file.name.toLowerCase();
+
+        if (lowerName.endsWith('.zip')) {
+            if (typeof JSZip === 'undefined') {
+                throw new Error('JSZip library not available');
+            }
+
+            const zip = await JSZip.loadAsync(file);
+            const zipEntries = Object.entries(zip.files).filter(([, zipEntry]) => !zipEntry.dir);
+            const extracted = [];
+
+            for (const [relativePath, zipEntry] of zipEntries) {
+                const bytes = await zipEntry.async('uint8array');
+                extracted.push({ path: relativePath, bytes });
+            }
+
+            return extracted;
+        }
+
+        if (lowerName.endsWith('.tar.gz') || lowerName.endsWith('.tgz')) {
+            const decompressed = await this._decompressGzip(file);
+            return this._extractTarEntries(decompressed, this._stripArchiveExtension(file.name));
+        }
+
+        if (lowerName.endsWith('.tar')) {
+            return this._extractTarEntries(new Uint8Array(await file.arrayBuffer()), this._stripArchiveExtension(file.name));
+        }
+
+        if (lowerName.endsWith('.gz')) {
+            const decompressed = await this._decompressGzip(file);
+            return [{
+                path: this._stripArchiveExtension(file.name),
+                bytes: decompressed
+            }];
+        }
+
+        if (lowerName.endsWith('.rar') || lowerName.endsWith('.7z')) {
+            throw new Error('RAR and 7Z imports need a browser archive codec. Please use ZIP or TAR.GZ in this build.');
+        }
+
+        throw new Error('Unsupported archive format');
+    },
+
+    async _decompressGzip(file) {
+        if (typeof DecompressionStream === 'undefined') {
+            throw new Error('This browser does not support GZIP extraction');
+        }
+
+        const decompressedStream = file.stream().pipeThrough(new DecompressionStream('gzip'));
+        const buffer = await new Response(decompressedStream).arrayBuffer();
+        return new Uint8Array(buffer);
+    },
+
+    _extractTarEntries(buffer, fallbackName = 'archive') {
+        const entries = [];
+        const decoder = new TextDecoder();
+        let offset = 0;
+
+        const readString = (start, length) => {
+            return decoder.decode(buffer.slice(start, start + length)).replace(/\0.*$/, '').trim();
+        };
+
+        while (offset + 512 <= buffer.length) {
+            const header = buffer.slice(offset, offset + 512);
+            const isEmptyHeader = header.every((byte) => byte === 0);
+            if (isEmptyHeader) break;
+
+            const name = readString(offset, 100);
+            const prefix = readString(offset + 345, 155);
+            const sizeOctal = readString(offset + 124, 12);
+            const typeFlag = readString(offset + 156, 1) || '0';
+            const fullPath = [prefix, name].filter(Boolean).join('/');
+            const safePath = fullPath || `${fallbackName}-${entries.length + 1}`;
+
+            const parsedSize = Number.parseInt(sizeOctal, 8);
+            const size = Number.isFinite(parsedSize) ? parsedSize : 0;
+            const contentStart = offset + 512;
+            const contentEnd = contentStart + size;
+
+            if (typeFlag !== '5' && size > 0) {
+                entries.push({
+                    path: safePath,
+                    bytes: buffer.slice(contentStart, contentEnd)
+                });
+            }
+
+            offset = contentStart + Math.ceil(size / 512) * 512;
+        }
+
+        return entries;
+    },
+
+    _stripArchiveExtension(fileName) {
+        return fileName
+            .replace(/\.tar\.gz$/i, '')
+            .replace(/\.tgz$/i, '')
+            .replace(/\.tar$/i, '')
+            .replace(/\.gz$/i, '')
+            .replace(/\.zip$/i, '')
+            .replace(/\.rar$/i, '')
+            .replace(/\.7z$/i, '') || 'imported-file';
     },
 
     // ============================================================================

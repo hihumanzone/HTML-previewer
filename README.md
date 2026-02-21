@@ -6,7 +6,7 @@ A streamlined, local-first frontend playground to build, organize, and preview f
 
 - **Multi-file Workspace:** Create, edit, and organize HTML, CSS, JavaScript, and media files with folder support.
 - **Live Preview:** Real-time sandboxed preview with a dockable layout, external tab support, and a built-in console.
-- **Import & Export:** Easily import existing project files/folders or ZIP archives, and export your entire workspace as a ZIP.
+- **Import & Export:** Easily import existing project files/folders or compressed archives (.zip, .rar, .7z, .tar.gz), and export your entire workspace as a ZIP.
 - **Advanced Editor:** Powered by CodeMirror with syntax highlighting (Dracula theme by default), auto-formatting, search, and customizable settings.
 - **Local-First:** Runs 100% client-side. No backend, database, or build steps required.
 
@@ -25,4 +25,5 @@ cd HTML-previewer
 - Vanilla HTML, CSS, and JavaScript
 - [CodeMirror](https://codemirror.net/) (Code Editor)
 - [JSZip](https://stuk.github.io/jszip/) (ZIP File handling)
+- Built-in archive extractors for TAR.GZ/TGZ/GZ imports
 - [js-beautify](https://github.com/beautify-web/js-beautify) (Code formatting)
