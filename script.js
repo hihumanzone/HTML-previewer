@@ -101,7 +101,7 @@ const CodePreviewer = {
         mediaPreviewUrls: new Set(),
         filePanelPreviewUrls: new Map(),
         previewRefreshTimer: null,
-        previewRefreshDelay: 300,
+        previewRefreshDelay: 1000,
         isPreviewDocked: false,
         previewDockOrientation: 'right',
         previewDockSize: { right: null, bottom: null },
@@ -5502,6 +5502,10 @@ This content is loaded from a markdown file.
         const availability = this.getPreviewAvailability();
         if (!availability.allowed) return;
 
+        const activeElement = document.activeElement;
+        const focusedPanel = activeElement?.closest?.('.editor-panel[data-file-id]');
+        const focusedFileId = focusedPanel?.dataset?.fileId || null;
+
         this.revokeTrackedObjectUrls(this.state.previewAssetUrls);
         const content = this.generatePreviewContent();
 
@@ -5515,6 +5519,15 @@ This content is loaded from a markdown file.
             } catch (e) {
                 console.error('Failed to update preview tab:', e);
                 this.clearPreviewTabState();
+            }
+        }
+
+        if (focusedFileId && !document.activeElement?.closest?.('.editor-panel[data-file-id]')) {
+            const focusedFile = this.state.files.find(file => file.id === focusedFileId);
+            if (focusedFile?.editor?.focus) {
+                focusedFile.editor.focus();
+            } else {
+                focusedPanel?.querySelector('.CodeMirror textarea, textarea')?.focus();
             }
         }
     },
