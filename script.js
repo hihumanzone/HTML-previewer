@@ -1775,7 +1775,7 @@ This content is loaded from a markdown file.
         if (this.dom.importFolderBtn) {
             this.dom.importFolderBtn.addEventListener('click', () => this.importFolder());
         }
-        this.dom.importZipBtn.addEventListener('click', () => this.importZip());
+        this.dom.importZipBtn.addEventListener('click', () => this.importArchive());
         this.dom.exportZipBtn.addEventListener('click', () => this.exportZip());
         this.setupMainHtmlDropdownEvents();
 
@@ -5895,70 +5895,327 @@ This content is loaded from a markdown file.
         }
     },
     
-    async importZip() {
+    async importArchive() {
+        this._openFilePicker('.zip,.rar,.7z,.tar.gz,.tgz,.tar', false, async (fileList) => {
+            const file = fileList[0];
+            if (!file) return;
+
+            const name = file.name.toLowerCase();
+
+            if (name.endsWith('.zip')) {
+                return this._importFromZip(file);
+            }
+            if (name.endsWith('.tar.gz') || name.endsWith('.tgz')) {
+                return this._importFromTarGz(file);
+            }
+            if (name.endsWith('.tar')) {
+                return this._importFromTar(file);
+            }
+            if (name.endsWith('.rar') || name.endsWith('.7z')) {
+                return this._importFromLibArchive(file);
+            }
+
+            this.showNotification('Unsupported archive format.', 'error');
+        });
+    },
+
+    async _importFromZip(file) {
         if (typeof JSZip === 'undefined') {
             this.showNotification('JSZip library not available', 'error');
             return;
         }
-        
-        this._openFilePicker('.zip', false, async (fileList) => {
-            const file = fileList[0];
-            if (!file) return;
 
-            let progress = null;
-            
-            try {
-                const zip = await JSZip.loadAsync(file);
-                const zipEntries = Object.entries(zip.files).filter(([, zipEntry]) => !zipEntry.dir);
-                progress = this.showProgressNotification('Reading ZIP contents…', {
-                    total: Math.max(zipEntries.length, 1),
-                    type: 'info'
+        let progress = null;
+
+        try {
+            const zip = await JSZip.loadAsync(file);
+            const zipEntries = Object.entries(zip.files).filter(([, zipEntry]) => !zipEntry.dir);
+            progress = this.showProgressNotification('Reading ZIP contents…', {
+                total: Math.max(zipEntries.length, 1),
+                type: 'info'
+            });
+
+            const resolution = { action: null };
+            let importedCount = 0;
+            let skippedCount = 0;
+            let processedCount = 0;
+
+            for (const [relativePath, zipEntry] of zipEntries) {
+                processedCount++;
+                progress.update({
+                    current: processedCount,
+                    message: `Importing ${processedCount}/${zipEntries.length}: ${relativePath}`
                 });
-                
-                const resolution = { action: null };
-                let importedCount = 0;
-                let skippedCount = 0;
-                let processedCount = 0;
 
-                for (const [relativePath, zipEntry] of zipEntries) {
-                    processedCount++;
-                    progress.update({
-                        current: processedCount,
-                        message: `Importing ${processedCount}/${zipEntries.length}: ${relativePath}`
-                    });
-                    
-                    const result = await this._resolveImportConflict(relativePath, resolution);
-                    if (result === 'skipped') {
-                        skippedCount++;
-                        continue;
-                    }
-                    
-                    const extension = relativePath.split('.').pop().toLowerCase();
-                    const isBinary = this.fileTypeUtils.isBinaryFile(relativePath, '');
-                    let content;
-                    
-                    if (isBinary) {
-                        const base64Content = await zipEntry.async('base64');
-                        const mimeType = this.fileTypeUtils.getMimeTypeFromExtension(extension);
-                        content = `data:${mimeType};base64,${base64Content}`;
-                    } else {
-                        content = await zipEntry.async('string');
-                    }
-                    
-                    const fileType = this.fileTypeUtils.getTypeFromExtension(extension);
-                    this.addNewFileWithContent(relativePath, fileType, content, isBinary);
-                    importedCount++;
+                const result = await this._resolveImportConflict(relativePath, resolution);
+                if (result === 'skipped') {
+                    skippedCount++;
+                    continue;
                 }
-                progress.complete('ZIP import complete.');
-                
-                this._showImportSummary(importedCount, skippedCount, 'ZIP project imported successfully!');
-                
-            } catch (error) {
-                console.error('Error processing ZIP file:', error);
-                if (progress) progress.fail('ZIP import failed.');
-                this.showNotification('Failed to import ZIP file', 'error');
+
+                const extension = relativePath.split('.').pop().toLowerCase();
+                const isBinary = this.fileTypeUtils.isBinaryFile(relativePath, '');
+                let content;
+
+                if (isBinary) {
+                    const base64Content = await zipEntry.async('base64');
+                    const mimeType = this.fileTypeUtils.getMimeTypeFromExtension(extension);
+                    content = `data:${mimeType};base64,${base64Content}`;
+                } else {
+                    content = await zipEntry.async('string');
+                }
+
+                const fileType = this.fileTypeUtils.getTypeFromExtension(extension);
+                this.addNewFileWithContent(relativePath, fileType, content, isBinary);
+                importedCount++;
             }
+            progress.complete('ZIP import complete.');
+
+            this._showImportSummary(importedCount, skippedCount, 'ZIP project imported successfully!');
+
+        } catch (error) {
+            console.error('Error processing ZIP file:', error);
+            if (progress) progress.fail('ZIP import failed.');
+            this.showNotification('Failed to import ZIP file', 'error');
+        }
+    },
+
+    _uint8ArrayToBase64(bytes) {
+        let binary = '';
+        const chunkSize = 8192;
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+            binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+        }
+        return btoa(binary);
+    },
+
+    _readTarString(header, offset, length) {
+        const bytes = header.subarray(offset, offset + length);
+        const nullIndex = bytes.indexOf(0);
+        const end = nullIndex === -1 ? length : nullIndex;
+        return new TextDecoder().decode(bytes.subarray(0, end));
+    },
+
+    _parseTar(buffer) {
+        const files = [];
+        const view = new Uint8Array(buffer);
+        let offset = 0;
+
+        while (offset + 512 <= view.length) {
+            const header = view.subarray(offset, offset + 512);
+            if (header.every(b => b === 0)) break;
+            offset += 512;
+
+            const namePrefix = this._readTarString(header, 345, 155);
+            const name = this._readTarString(header, 0, 100);
+            const fullName = namePrefix ? namePrefix + '/' + name : name;
+
+            const sizeStr = this._readTarString(header, 124, 12);
+            const size = parseInt(sizeStr, 8) || 0;
+
+            const typeFlag = header[156];
+
+            if ((typeFlag === 0 || typeFlag === 48) && size > 0) {
+                files.push({
+                    name: fullName,
+                    data: view.slice(offset, offset + size)
+                });
+            }
+
+            offset += Math.ceil(size / 512) * 512;
+        }
+
+        return files;
+    },
+
+    async _importTarEntries(entries, label) {
+        let progress = null;
+
+        try {
+            if (entries.length === 0) {
+                this.showNotification('The archive appears to be empty.', 'warn');
+                return;
+            }
+
+            progress = this.showProgressNotification('Importing archive contents…', {
+                total: Math.max(entries.length, 1),
+                type: 'info'
+            });
+
+            const resolution = { action: null };
+            let importedCount = 0;
+            let skippedCount = 0;
+            let processedCount = 0;
+
+            for (const entry of entries) {
+                processedCount++;
+                progress.update({
+                    current: processedCount,
+                    message: `Importing ${processedCount}/${entries.length}: ${entry.name}`
+                });
+
+                const result = await this._resolveImportConflict(entry.name, resolution);
+                if (result === 'skipped') {
+                    skippedCount++;
+                    continue;
+                }
+
+                const extension = entry.name.split('.').pop().toLowerCase();
+                const isBinary = this.fileTypeUtils.isBinaryFile(entry.name, '');
+                let content;
+
+                if (isBinary) {
+                    const base64Content = this._uint8ArrayToBase64(entry.data);
+                    const mimeType = this.fileTypeUtils.getMimeTypeFromExtension(extension);
+                    content = `data:${mimeType};base64,${base64Content}`;
+                } else {
+                    content = new TextDecoder().decode(entry.data);
+                }
+
+                const fileType = this.fileTypeUtils.getTypeFromExtension(extension);
+                this.addNewFileWithContent(entry.name, fileType, content, isBinary);
+                importedCount++;
+            }
+
+            progress.complete(label + ' import complete.');
+            this._showImportSummary(importedCount, skippedCount, label + ' imported successfully!');
+
+        } catch (error) {
+            console.error('Error importing archive entries:', error);
+            if (progress) progress.fail(label + ' import failed.');
+            this.showNotification('Failed to import ' + label.toLowerCase(), 'error');
+        }
+    },
+
+    async _importFromTar(file) {
+        try {
+            const buffer = await file.arrayBuffer();
+            const entries = this._parseTar(buffer);
+            await this._importTarEntries(entries, 'TAR archive');
+        } catch (error) {
+            console.error('Error processing TAR file:', error);
+            this.showNotification('Failed to import TAR file', 'error');
+        }
+    },
+
+    async _importFromTarGz(file) {
+        if (typeof pako === 'undefined') {
+            this.showNotification('pako library not available for gzip decompression', 'error');
+            return;
+        }
+
+        try {
+            const buffer = await file.arrayBuffer();
+            const decompressed = pako.ungzip(new Uint8Array(buffer));
+            const entries = this._parseTar(decompressed.buffer);
+            await this._importTarEntries(entries, 'TAR.GZ archive');
+        } catch (error) {
+            console.error('Error processing TAR.GZ file:', error);
+            this.showNotification('Failed to import TAR.GZ file', 'error');
+        }
+    },
+
+    _flattenArchiveTree(obj, prefix) {
+        prefix = prefix || '';
+        const entries = [];
+        for (const key of Object.keys(obj)) {
+            if (obj[key] instanceof File) {
+                entries.push({ path: prefix + key, file: obj[key] });
+            } else if (obj[key] && typeof obj[key] === 'object') {
+                entries.push.apply(entries, this._flattenArchiveTree(obj[key], prefix + key + '/'));
+            }
+        }
+        return entries;
+    },
+
+    async _loadLibArchive() {
+        if (this._libArchiveCache) return this._libArchiveCache;
+
+        const CDN_BASE = 'https://cdn.jsdelivr.net/npm/libarchive.js@2.0.2/dist/';
+
+        const workerText = await fetch(CDN_BASE + 'worker-bundle.js').then(function(r) { return r.text(); });
+        const patched = workerText.replace(/import\.meta\.url/g, JSON.stringify(CDN_BASE + 'worker-bundle.js'));
+        const blob = new Blob([patched], { type: 'text/javascript' });
+        const blobUrl = URL.createObjectURL(blob);
+
+        const mod = await import(CDN_BASE + 'libarchive.js');
+        mod.Archive.init({
+            getWorker: function() { return new Worker(blobUrl, { type: 'module' }); }
         });
+
+        this._libArchiveCache = mod.Archive;
+        return this._libArchiveCache;
+    },
+
+    async _importFromLibArchive(file) {
+        let progress = null;
+
+        try {
+            progress = this.showProgressNotification('Loading archive library…', { type: 'info' });
+
+            const Archive = await this._loadLibArchive();
+
+            progress.update({ message: 'Extracting archive…' });
+
+            const archive = await Archive.open(file);
+            const obj = await archive.extractFiles();
+            const entries = this._flattenArchiveTree(obj);
+
+            if (entries.length === 0) {
+                progress.fail('No files found in archive.');
+                this.showNotification('The archive appears to be empty.', 'warn');
+                return;
+            }
+
+            progress.update({
+                total: entries.length,
+                message: 'Found ' + entries.length + ' files in archive'
+            });
+
+            const resolution = { action: null };
+            let importedCount = 0;
+            let skippedCount = 0;
+            let processedCount = 0;
+
+            for (const entry of entries) {
+                processedCount++;
+                progress.update({
+                    current: processedCount,
+                    message: 'Importing ' + processedCount + '/' + entries.length + ': ' + entry.path
+                });
+
+                const result = await this._resolveImportConflict(entry.path, resolution);
+                if (result === 'skipped') {
+                    skippedCount++;
+                    continue;
+                }
+
+                const extension = entry.path.split('.').pop().toLowerCase();
+                const isBinary = this.fileTypeUtils.isBinaryFile(entry.path, '');
+                let content;
+
+                if (isBinary) {
+                    const arrayBuffer = await entry.file.arrayBuffer();
+                    const base64Content = this._uint8ArrayToBase64(new Uint8Array(arrayBuffer));
+                    const mimeType = this.fileTypeUtils.getMimeTypeFromExtension(extension);
+                    content = 'data:' + mimeType + ';base64,' + base64Content;
+                } else {
+                    content = await entry.file.text();
+                }
+
+                const fileType = this.fileTypeUtils.getTypeFromExtension(extension);
+                this.addNewFileWithContent(entry.path, fileType, content, isBinary);
+                importedCount++;
+            }
+
+            progress.complete('Archive import complete.');
+            this._showImportSummary(importedCount, skippedCount, 'Archive imported successfully!');
+
+        } catch (error) {
+            console.error('Error processing archive:', error);
+            if (progress) progress.fail('Archive import failed.');
+            this.showNotification('Failed to import archive. The format may not be supported in this browser.', 'error');
+        }
     },
 
     // ============================================================================
