@@ -1942,6 +1942,74 @@ This content is loaded from a markdown file.
         this.addNewFile(folderPath);
     },
 
+    normalizeFolderPath(folderPath) {
+        return (folderPath || '').trim().replace(/^\/+|\/+$/g, '');
+    },
+
+    async promptMoveFile(fileId) {
+        const fileInfo = this.state.files.find(file => file.id === fileId);
+        if (!fileInfo) return;
+
+        const currentFullPath = this.getFileNameFromPanel(fileId) || fileInfo.fileName || '';
+        const currentFolderPath = this.getFolderFromPath(currentFullPath);
+        const currentFilename = this.getFilenameFromPath(currentFullPath);
+        const destinationInput = await this.showPromptDialog(
+            'Move File',
+            `Enter destination folder for "${currentFilename}" (leave empty for root):`,
+            currentFolderPath
+        );
+
+        if (destinationInput === null) return;
+
+        this.moveFileToFolder(fileId, destinationInput);
+    },
+
+    moveFileToFolder(fileId, destinationFolderPath) {
+        const fileInfo = this.state.files.find(file => file.id === fileId);
+        if (!fileInfo) return;
+
+        const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+        if (!panel) return;
+
+        const fileNameInput = panel.querySelector('.file-name-input');
+        const currentFullPath = fileNameInput?.value || fileInfo.fileName || '';
+        const currentFolderPath = this.getFolderFromPath(currentFullPath);
+        const baseFilename = this.getFilenameFromPath(currentFullPath);
+        const sanitizedDestination = this.normalizeFolderPath(destinationFolderPath);
+        const nextFullPath = sanitizedDestination ? `${sanitizedDestination}/${baseFilename}` : baseFilename;
+
+        if (nextFullPath === currentFullPath) {
+            this.showNotification('File is already in that folder.', 'info');
+            return;
+        }
+
+        const pathConflict = this.state.files.some(file => {
+            if (file.id === fileId) return false;
+            const existingPath = this.getFileNameFromPanel(file.id) || file.fileName || '';
+            return existingPath === nextFullPath;
+        });
+
+        if (pathConflict) {
+            this.showNotification(`Cannot move file. "${nextFullPath}" already exists.`, 'error');
+            return;
+        }
+
+        if (sanitizedDestination) {
+            this.ensureFolderExists(sanitizedDestination);
+        }
+
+        fileNameInput.value = nextFullPath;
+        fileInfo.fileName = nextFullPath;
+        this.state.expandedFolders.delete(currentFolderPath);
+        if (sanitizedDestination) {
+            this.state.expandedFolders.add(sanitizedDestination);
+        }
+
+        this.checkFileModified(fileId, panel);
+        this.refreshPanelAndFileTreeUI();
+        this.showNotification(`Moved "${baseFilename}" to ${sanitizedDestination || 'root'}.`, 'success');
+    },
+
     /**
      * Toggle folder expansion
      * @param {string} folderPath - The folder path to toggle
@@ -2167,6 +2235,7 @@ This content is loaded from a markdown file.
                     <span class="file-name">${file.displayName}</span>
                     <div class="file-actions">
                         <button class="open-file-btn" title="${isOpen ? 'Focus file' : 'Open file'}" aria-label="${isOpen ? 'Focus file' : 'Open file'}">${isOpen ? '👁️' : '📝'}</button>
+                        <button class="move-file-btn" title="Move file" aria-label="Move file">📂➡️</button>
                         <button class="delete-file-btn" title="Delete file" aria-label="Delete file">🗑️</button>
                     </div>
                 </div>
@@ -2364,6 +2433,13 @@ This content is loaded from a markdown file.
             if (target.closest('.open-file-btn')) {
                 e.stopPropagation();
                 this.openPanel(fileId);
+                return;
+            }
+
+            // Move file button
+            if (target.closest('.move-file-btn')) {
+                e.stopPropagation();
+                await this.promptMoveFile(fileId);
                 return;
             }
             
