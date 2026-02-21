@@ -3089,27 +3089,37 @@ This content is loaded from a markdown file.
 
     getFileTypeChoices() {
         return [
-            { value: 'html', label: 'HTML' },
-            { value: 'css', label: 'CSS' },
-            { value: 'javascript', label: 'JavaScript' },
-            { value: 'javascript-module', label: 'JavaScript Module' },
-            { value: 'json', label: 'JSON' },
-            { value: 'xml', label: 'XML' },
-            { value: 'markdown', label: 'Markdown' },
-            { value: 'text', label: 'Text' },
-            { value: 'svg', label: 'SVG' },
-            { value: 'image', label: 'Image' },
-            { value: 'audio', label: 'Audio' },
-            { value: 'video', label: 'Video' },
-            { value: 'font', label: 'Font' },
-            { value: 'pdf', label: 'PDF' },
-            { value: 'binary', label: 'Binary' }
+            { value: 'html', label: 'HTML', icon: '🌐' },
+            { value: 'css', label: 'CSS', icon: '🎨' },
+            { value: 'javascript', label: 'JavaScript', icon: '⚡' },
+            { value: 'javascript-module', label: 'JavaScript Module', icon: '🧩' },
+            { value: 'json', label: 'JSON', icon: '🗂️' },
+            { value: 'xml', label: 'XML', icon: '🧾' },
+            { value: 'markdown', label: 'Markdown', icon: '📝' },
+            { value: 'text', label: 'Text', icon: '📄' },
+            { value: 'svg', label: 'SVG', icon: '✒️' },
+            { value: 'image', label: 'Image', icon: '🖼️' },
+            { value: 'audio', label: 'Audio', icon: '🎵' },
+            { value: 'video', label: 'Video', icon: '🎬' },
+            { value: 'font', label: 'Font', icon: '🔤' },
+            { value: 'pdf', label: 'PDF', icon: '📕' },
+            { value: 'binary', label: 'Binary', icon: '💾' }
         ];
     },
 
+    getFileTypeChoice(fileType) {
+        return this.getFileTypeChoices().find(type => type.value === fileType) || null;
+    },
+
     getFileTypeChoiceLabel(fileType) {
-        const choice = this.getFileTypeChoices().find(type => type.value === fileType);
+        const choice = this.getFileTypeChoice(fileType);
         return choice ? choice.label : 'Text';
+    },
+
+    renderFileTypeOptionLabel(choice) {
+        const icon = this.escapeHtml(choice.icon || '📄');
+        const label = this.escapeHtml(choice.label);
+        return `<span class="file-type-option-icon" aria-hidden="true">${icon}</span><span>${label}</span>`;
     },
 
     generateFileTypeOptions(selectedType) {
@@ -3122,8 +3132,25 @@ This content is loaded from a markdown file.
         return this.getFileTypeChoices().map(type => {
             const selectedClass = selectedType === type.value ? ' is-selected' : '';
             const selectedState = selectedType === type.value ? 'true' : 'false';
-            return `<li role="option" aria-selected="${selectedState}"><button type="button" class="file-type-dropdown-option${selectedClass}" data-value="${this.escapeHtmlAttribute(type.value)}">${this.escapeHtml(type.label)}</button></li>`;
+            return `<li role="option" aria-selected="${selectedState}"><button type="button" class="file-type-dropdown-option${selectedClass}" data-value="${this.escapeHtmlAttribute(type.value)}">${this.renderFileTypeOptionLabel(type)}</button></li>`;
         }).join('');
+    },
+
+    decorateFileTypeDropdownOptions(panel) {
+        const options = panel.querySelectorAll('.file-type-dropdown-option');
+        options.forEach((option) => {
+            if (option.querySelector('.file-type-option-icon')) {
+                return;
+            }
+
+            const fileType = option.dataset.value;
+            const choice = this.getFileTypeChoice(fileType);
+            if (!choice) {
+                return;
+            }
+
+            option.innerHTML = this.renderFileTypeOptionLabel(choice);
+        });
     },
 
     createFilePanel(fileId, fileName, fileType, content, isBinary) {
@@ -3929,6 +3956,7 @@ This content is loaded from a markdown file.
     initExistingFilePanels() {
         const existingPanels = document.querySelectorAll('.editor-panel[data-file-type]');
         existingPanels.forEach(panel => {
+            this.decorateFileTypeDropdownOptions(panel);
             const fileId = panel.dataset.fileId;
             const fileType = panel.dataset.fileType;
             const nameInput = panel.querySelector('.file-name-input');

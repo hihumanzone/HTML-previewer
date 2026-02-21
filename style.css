@@ -572,6 +572,9 @@ button > svg,
 }
 
 .file-type-dropdown-option {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
     width: 100%;
     border: none;
     background: transparent;
@@ -581,6 +584,12 @@ button > svg,
     border-radius: var(--radius-sm);
     font-size: var(--text-sm);
     cursor: pointer;
+}
+
+.file-type-option-icon {
+    width: 1.2rem;
+    display: inline-flex;
+    justify-content: center;
 }
 
 .file-type-dropdown-option:hover,
