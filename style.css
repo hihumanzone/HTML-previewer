@@ -784,8 +784,8 @@ body {
 }
 
 .file-tree-container {
-    width: 280px;
-    min-width: 220px;
+    width: 320px;
+    min-width: 240px;
     min-height: var(--file-panel-size);
     height: auto;
     resize: horizontal;
@@ -2444,7 +2444,8 @@ body.preview-docked-bottom.is-resizing-preview-dock {
     }
 
     .editor-panel .CodeMirror-scroll {
-        overscroll-behavior: contain;
+        /* Allow scroll chaining on touch so dragging past file-end scrolls the page */
+        overscroll-behavior: auto;
     }
 
     #code-modal-editor-container .CodeMirror {

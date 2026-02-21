@@ -1942,6 +1942,88 @@ This content is loaded from a markdown file.
         this.addNewFile(folderPath);
     },
 
+    normalizeFolderPath(folderPath) {
+        return (folderPath || '').trim().replace(/^\/+|\/+$/g, '');
+    },
+
+    sanitizeFolderPathInput(folderPath) {
+        const normalizedPath = this.normalizeFolderPath(folderPath);
+        if (!normalizedPath) return '';
+
+        return normalizedPath
+            .split('/')
+            .map(segment => segment.trim().replace(/[<>:\"|?*]/g, ''))
+            .filter(Boolean)
+            .join('/');
+    },
+
+    getFilePathById(fileId) {
+        const fileInfo = this.state.files.find(file => file.id === fileId);
+        if (!fileInfo) return '';
+        return this.getFileNameFromPanel(fileId) || fileInfo.fileName || '';
+    },
+
+    async promptMoveFile(fileId) {
+        const fileInfo = this.state.files.find(file => file.id === fileId);
+        if (!fileInfo) return;
+
+        const currentFullPath = this.getFilePathById(fileId);
+        const currentFolderPath = this.getFolderFromPath(currentFullPath);
+        const currentFilename = this.getFilenameFromPath(currentFullPath);
+        const destinationInput = await this.showPromptDialog(
+            'Move File',
+            `Enter destination folder for "${currentFilename}" (leave empty for root):`,
+            currentFolderPath
+        );
+
+        if (destinationInput === null) return;
+
+        this.moveFileToFolder(fileId, destinationInput);
+    },
+
+    moveFileToFolder(fileId, destinationFolderPath) {
+        const fileInfo = this.state.files.find(file => file.id === fileId);
+        if (!fileInfo) return;
+
+        const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+        if (!panel) return;
+
+        const fileNameInput = panel.querySelector('.file-name-input');
+        const currentFullPath = fileNameInput?.value || this.getFilePathById(fileId);
+        const baseFilename = this.getFilenameFromPath(currentFullPath);
+        const sanitizedDestination = this.sanitizeFolderPathInput(destinationFolderPath);
+        const nextFullPath = sanitizedDestination ? `${sanitizedDestination}/${baseFilename}` : baseFilename;
+
+        if (nextFullPath === currentFullPath) {
+            this.showNotification('File is already in that folder.', 'info');
+            return;
+        }
+
+        const pathConflict = this.state.files.some(file => {
+            if (file.id === fileId) return false;
+            return this.getFilePathById(file.id) === nextFullPath;
+        });
+
+        if (pathConflict) {
+            this.showNotification(`Cannot move file. "${nextFullPath}" already exists.`, 'error');
+            return;
+        }
+
+        if (sanitizedDestination) {
+            this.ensureFolderExists(sanitizedDestination);
+        }
+
+        fileNameInput.value = nextFullPath;
+        fileInfo.fileName = nextFullPath;
+        if (sanitizedDestination) {
+            this.state.expandedFolders.add(sanitizedDestination);
+        }
+
+        this.checkFileModified(fileId, panel);
+        this.refreshPanelAndFileTreeUI();
+        this.showNotification(`Moved "${baseFilename}" to ${sanitizedDestination || 'root'}.`, 'success');
+    },
+
     /**
      * Toggle folder expansion
      * @param {string} folderPath - The folder path to toggle
@@ -1971,21 +2053,27 @@ This content is loaded from a markdown file.
     },
 
     /**
-     * Toggle open state for all file panels in a folder
-     * @param {string} folderPath - Folder whose files should be toggled
+     * Close all open file panels in a folder
+     * @param {string} folderPath - Folder whose open file panels should be closed
      */
-    toggleFolderPanels(folderPath) {
-        const fileIds = this.getFileIdsInFolder(folderPath);
-        if (fileIds.length === 0) return;
+    closeFolderPanels(folderPath) {
+        const openFileIds = this.getFileIdsInFolder(folderPath)
+            .filter(fileId => this.state.openPanels.has(fileId));
 
-        const areAllOpen = fileIds.every(fileId => this.state.openPanels.has(fileId));
+        if (openFileIds.length === 0) return;
 
-        if (areAllOpen) {
-            fileIds.forEach(fileId => this.closePanel(fileId));
-            return;
-        }
+        openFileIds.forEach(fileId => {
+            const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+            if (panel) {
+                this.clearPendingAutoFormat(fileId);
+                panel.style.display = 'none';
+            }
+            this.state.openPanels.delete(fileId);
+        });
 
-        fileIds.forEach(fileId => this.openPanel(fileId));
+        this.renderFileTree();
+        this.updatePanelMoveButtonsVisibility();
+        this.updatePreviewActionButtons();
     },
 
     /**
@@ -2119,12 +2207,10 @@ This content is loaded from a markdown file.
             const isFolderSelected = this.state.selectedFolderPaths.has(folderPath);
             const childHtml = this.renderFolderContents(folder, folderPath);
             const folderFileIds = this.getFileIdsInFolder(folderPath);
-            const folderHasFiles = folderFileIds.length > 0;
-            const areAllFolderPanelsOpen = folderHasFiles && folderFileIds.every(fileId => this.state.openPanels.has(fileId));
-            const toggleFolderPanelsLabel = areAllFolderPanelsOpen
-                ? 'Collapse all file panels in folder'
-                : 'Expand all file panels in folder';
-            const toggleFolderPanelsIcon = areAllFolderPanelsOpen ? '📁−' : '📂+';
+            const openFolderFileIds = folderFileIds.filter(fileId => this.state.openPanels.has(fileId));
+            const hasOpenFolderPanels = openFolderFileIds.length > 0;
+            const closeFolderPanelsLabel = 'Collapse all file panels in folder';
+            const closeFolderPanelsIcon = '📁−';
 
             html += `
                 <div class="tree-folder ${isExpanded ? 'expanded' : ''} ${isFolderSelected ? 'folder-selected-in-sidebar' : ''}" data-folder-path="${folderPath}">
@@ -2133,7 +2219,9 @@ This content is loaded from a markdown file.
                         <span class="folder-icon">${isExpanded ? '📂' : '📁'}</span>
                         <span class="folder-name">${folderName}</span>
                         <div class="folder-actions">
-                            <button class="toggle-folder-panels-btn" title="${toggleFolderPanelsLabel}" aria-label="${toggleFolderPanelsLabel}" ${folderHasFiles ? '' : 'disabled'}>${toggleFolderPanelsIcon}</button>
+                            ${hasOpenFolderPanels
+                                ? `<button class="close-folder-panels-btn" title="${closeFolderPanelsLabel}" aria-label="${closeFolderPanelsLabel}">${closeFolderPanelsIcon}</button>`
+                                : ''}
                             <button class="add-file-to-folder-btn" title="Add file to folder">+</button>
                             <button class="add-subfolder-btn" title="Add subfolder">📁+</button>
                             <button class="delete-folder-btn" title="Delete folder">🗑️</button>
@@ -2167,6 +2255,7 @@ This content is loaded from a markdown file.
                     <span class="file-name">${file.displayName}</span>
                     <div class="file-actions">
                         <button class="open-file-btn" title="${isOpen ? 'Focus file' : 'Open file'}" aria-label="${isOpen ? 'Focus file' : 'Open file'}">${isOpen ? '👁️' : '📝'}</button>
+                        <button class="move-file-btn" title="Move file" aria-label="Move file">📂➡️</button>
                         <button class="delete-file-btn" title="Delete file" aria-label="Delete file">🗑️</button>
                     </div>
                 </div>
@@ -2304,11 +2393,11 @@ This content is loaded from a markdown file.
                 return;
             }
             
-            // Add file to folder
-            if (target.closest('.toggle-folder-panels-btn')) {
+            // Close all open file panels in folder
+            if (target.closest('.close-folder-panels-btn')) {
                 e.stopPropagation();
                 const folderPath = target.closest('.tree-folder').dataset.folderPath;
-                this.toggleFolderPanels(folderPath);
+                this.closeFolderPanels(folderPath);
                 return;
             }
 
@@ -2364,6 +2453,13 @@ This content is loaded from a markdown file.
             if (target.closest('.open-file-btn')) {
                 e.stopPropagation();
                 this.openPanel(fileId);
+                return;
+            }
+
+            // Move file button
+            if (target.closest('.move-file-btn')) {
+                e.stopPropagation();
+                await this.promptMoveFile(fileId);
                 return;
             }
             
