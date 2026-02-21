@@ -5898,6 +5898,11 @@ This content is loaded from a markdown file.
         }
     },
     
+    // ============================================================================
+    // ARCHIVE IMPORT
+    // Multi-format archive import: ZIP, TAR, TAR.GZ/TGZ, RAR, 7Z
+    // ============================================================================
+
     async importArchive() {
         this._openFilePicker('.zip,.rar,.7z,.tar.gz,.tgz,.tar', false, async (fileList) => {
             const file = fileList[0];
@@ -6112,10 +6117,7 @@ This content is loaded from a markdown file.
             if (obj[key] instanceof File) {
                 entries.push({ path: prefix + key, file: obj[key] });
             } else if (obj[key] && typeof obj[key] === 'object') {
-                const nested = this._flattenArchiveTree(obj[key], prefix + key + '/');
-                for (let i = 0; i < nested.length; i++) {
-                    entries.push(nested[i]);
-                }
+                entries.push(...this._flattenArchiveTree(obj[key], prefix + key + '/'));
             }
         }
         return entries;
