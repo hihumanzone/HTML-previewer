@@ -5493,20 +5493,15 @@ This content is loaded from a markdown file.
     },
 
     refreshOpenPreviews() {
-        const isModalOpen = this.dom.modalOverlay?.getAttribute('aria-hidden') === 'false';
         const previewTabWindow = this.state.previewTabWindow;
         const isTabOpen = previewTabWindow && !previewTabWindow.closed;
-        if (!isModalOpen && !isTabOpen) return;
+        if (!isTabOpen) return;
 
         const availability = this.getPreviewAvailability();
         if (!availability.allowed) return;
 
         this.revokeTrackedObjectUrls(this.state.previewAssetUrls);
         const content = this.generatePreviewContent();
-
-        if (isModalOpen && this.dom.previewFrame) {
-            this.dom.previewFrame.srcdoc = content;
-        }
 
         if (isTabOpen) {
             try {
