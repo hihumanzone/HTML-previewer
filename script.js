@@ -916,6 +916,7 @@ const CodePreviewer = {
      */
     init() {
         this.cacheDOMElements();
+        this.initSettingsCustomDropdowns();
         this.loadSettings();
         this.initEditors();
         this.bindEvents();
@@ -1431,6 +1432,89 @@ This content is loaded from a markdown file.
         if (this.dom.settingIndentWithTabs) this.dom.settingIndentWithTabs.checked = !!this.state.settings.indentWithTabs;
         if (this.dom.settingAutoCloseBrackets) this.dom.settingAutoCloseBrackets.checked = !!this.state.settings.autoCloseBrackets;
         if (this.dom.settingMatchBrackets) this.dom.settingMatchBrackets.checked = !!this.state.settings.matchBrackets;
+
+        [this.dom.settingFontSize, this.dom.settingEditorTheme, this.dom.settingTabSize]
+            .filter(Boolean)
+            .forEach((select) => this.updateSettingsSelectDropdownUI(select));
+    },
+
+    initSettingsCustomDropdowns() {
+        const settingSelects = [this.dom.settingFontSize, this.dom.settingEditorTheme, this.dom.settingTabSize].filter(Boolean);
+
+        settingSelects.forEach((select) => {
+            if (select.dataset.customDropdownInit === 'true') {
+                return;
+            }
+
+            select.classList.add('visually-hidden-select');
+
+            const dropdown = document.createElement('div');
+            dropdown.className = 'settings-select-dropdown';
+            dropdown.dataset.settingsDropdown = 'true';
+            dropdown.dataset.selectId = select.id;
+
+            dropdown.innerHTML = `
+                <button type="button" class="settings-select-dropdown-trigger" aria-haspopup="listbox" aria-expanded="false"></button>
+                <ul class="settings-select-dropdown-list" role="listbox" tabindex="-1" hidden>
+                    ${Array.from(select.options).map((option) => `<li role="option" aria-selected="false"><button type="button" class="settings-select-dropdown-option" data-value="${this.escapeHtmlAttribute(option.value)}">${this.escapeHtml(option.textContent || '')}</button></li>`).join('')}
+                </ul>
+            `;
+
+            select.insertAdjacentElement('afterend', dropdown);
+            select.dataset.customDropdownInit = 'true';
+            this.updateSettingsSelectDropdownUI(select);
+
+            select.addEventListener('change', () => {
+                this.updateSettingsSelectDropdownUI(select);
+            });
+        });
+    },
+
+    getSettingsSelectDropdown(select) {
+        if (!select || !select.parentElement) {
+            return null;
+        }
+
+        return select.parentElement.querySelector(`.settings-select-dropdown[data-select-id="${select.id}"]`);
+    },
+
+    updateSettingsSelectDropdownUI(select) {
+        const dropdown = this.getSettingsSelectDropdown(select);
+        if (!dropdown) {
+            return;
+        }
+
+        const trigger = dropdown.querySelector('.settings-select-dropdown-trigger');
+        const options = dropdown.querySelectorAll('.settings-select-dropdown-option');
+        const selectedOption = select.options[select.selectedIndex] || select.options[0];
+
+        if (trigger && selectedOption) {
+            trigger.textContent = selectedOption.textContent || '';
+        }
+
+        options.forEach((optionButton) => {
+            const isSelected = optionButton.dataset.value === select.value;
+            optionButton.classList.toggle('is-selected', isSelected);
+            const listItem = optionButton.closest('li');
+            if (listItem) {
+                listItem.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+            }
+        });
+    },
+
+    closeAllSettingsSelectDropdowns(exceptDropdown = null) {
+        document.querySelectorAll('.settings-select-dropdown').forEach((dropdown) => {
+            if (exceptDropdown && dropdown === exceptDropdown) {
+                return;
+            }
+
+            const trigger = dropdown.querySelector('.settings-select-dropdown-trigger');
+            const list = dropdown.querySelector('.settings-select-dropdown-list');
+            if (trigger && list) {
+                trigger.setAttribute('aria-expanded', 'false');
+                list.hidden = true;
+            }
+        });
     },
 
     getAllEditors() {
@@ -1637,6 +1721,48 @@ This content is loaded from a markdown file.
                 }
             });
             
+            // Custom settings dropdown interactions
+            this.dom.settingsModal.addEventListener('click', (e) => {
+                const trigger = e.target.closest('.settings-select-dropdown-trigger');
+                if (trigger) {
+                    const dropdown = trigger.closest('.settings-select-dropdown');
+                    const list = dropdown?.querySelector('.settings-select-dropdown-list');
+                    if (!dropdown || !list) {
+                        return;
+                    }
+
+                    const isExpanded = trigger.getAttribute('aria-expanded') === 'true';
+                    this.closeAllSettingsSelectDropdowns(dropdown);
+                    trigger.setAttribute('aria-expanded', isExpanded ? 'false' : 'true');
+                    list.hidden = isExpanded;
+                    return;
+                }
+
+                const option = e.target.closest('.settings-select-dropdown-option');
+                if (option) {
+                    const dropdown = option.closest('.settings-select-dropdown');
+                    if (!dropdown) {
+                        return;
+                    }
+
+                    const selectId = dropdown.dataset.selectId;
+                    const select = document.getElementById(selectId);
+                    if (!select) {
+                        return;
+                    }
+
+                    const newValue = option.dataset.value || '';
+                    if (select.value !== newValue) {
+                        select.value = newValue;
+                        select.dispatchEvent(new Event('change', { bubbles: true }));
+                    } else {
+                        this.updateSettingsSelectDropdownUI(select);
+                    }
+
+                    this.closeAllSettingsSelectDropdowns();
+                }
+            });
+
             // Close button
             const settingsCloseBtn = this.dom.settingsModal.querySelector('.close-btn');
             if (settingsCloseBtn) {
@@ -1741,6 +1867,10 @@ This content is loaded from a markdown file.
         document.addEventListener('click', (event) => {
             if (!event.target.closest('.file-type-dropdown')) {
                 this.closeAllFileTypeDropdowns();
+            }
+
+            if (!event.target.closest('.settings-select-dropdown')) {
+                this.closeAllSettingsSelectDropdowns();
             }
         });
 
