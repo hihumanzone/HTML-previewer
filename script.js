@@ -21,41 +21,41 @@
  * 
  */
 const SVG_ICONS = (() => {
-    const s = (d, extra = '') => `<svg class="svg-icon" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"${extra}>${d}</svg>`;
-    const sf = (d) => `<svg class="svg-icon" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" stroke="none">${d}</svg>`;
+    const stroked = (d, extra = '') => `<svg class="svg-icon" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"${extra}>${d}</svg>`;
+    const filled = (d) => `<svg class="svg-icon" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" stroke="none">${d}</svg>`;
     return {
-        search:     s('<circle cx="6.5" cy="6.5" r="4"/><line x1="9.5" y1="9.5" x2="14" y2="14"/>'),
-        save:       s('<path d="M3 1h8l3 3v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z"/><path d="M11 15V9H5v6"/><path d="M5 1v4h5"/>'),
-        folder:     s('<path d="M2 4v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1H8L6.5 3H3a1 1 0 0 0-1 1z"/>'),
-        folderOpen: s('<path d="M2 4v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1H8L6.5 3H3a1 1 0 0 0-1 1z"/><path d="M2 8h12"/>'),
-        trash:      s('<path d="M2 4h12"/><path d="M5 4V2h6v2"/><path d="M3 4l1 10h8l1-10"/><line x1="6.5" y1="7" x2="6.5" y2="11"/><line x1="9.5" y1="7" x2="9.5" y2="11"/>'),
-        clipboard:  s('<rect x="3" y="2" width="10" height="12" rx="1"/><path d="M6 2V1h4v1"/><line x1="5.5" y1="6" x2="10.5" y2="6"/><line x1="5.5" y1="9" x2="10.5" y2="9"/>'),
-        doc:        s('<path d="M4 1h6l4 4v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z"/><path d="M10 1v4h4"/>'),
-        sparkle:    sf('<path d="M8 1L9.8 6.2 15 8l-5.2 1.8L8 15l-1.8-5.2L1 8l5.2-1.8z"/>'),
-        gear:       s('<circle cx="8" cy="8" r="2.5"/><path d="M6.9 1h2.2l.3 1.7a5.5 5.5 0 0 1 1.3.8l1.6-.7 1.1 1.9-1.3 1a5.5 5.5 0 0 1 0 1.6l1.3 1-1.1 1.9-1.6-.7a5.5 5.5 0 0 1-1.3.8L9.1 15H6.9l-.3-1.7a5.5 5.5 0 0 1-1.3-.8l-1.6.7-1.1-1.9 1.3-1a5.5 5.5 0 0 1 0-1.6l-1.3-1 1.1-1.9 1.6.7A5.5 5.5 0 0 1 6.6 2.7z"/>'),
-        expand:     s('<circle cx="6.5" cy="6.5" r="4"/><line x1="9.5" y1="9.5" x2="14" y2="14"/><line x1="5" y1="6.5" x2="8" y2="6.5"/><line x1="6.5" y1="5" x2="6.5" y2="8"/>'),
-        globe:      s('<circle cx="8" cy="8" r="6"/><ellipse cx="8" cy="8" rx="3" ry="6"/><line x1="2" y1="8" x2="14" y2="8"/>'),
-        palette:    s('<path d="M8 2a6 6 0 0 0 0 12 1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1.5A2.5 2.5 0 0 0 14 8.5 6.5 6.5 0 0 0 8 2z"/><circle cx="5.5" cy="6.5" r=".8" fill="currentColor"/><circle cx="8" cy="5" r=".8" fill="currentColor"/><circle cx="10.5" cy="6.5" r=".8" fill="currentColor"/>'),
-        scroll:     s('<path d="M13 3H5a2 2 0 0 0-2 2v8l2-2h8a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/><line x1="6" y1="6" x2="12" y2="6"/><line x1="6" y1="9" x2="10" y2="9"/>'),
-        package:    s('<path d="M2 5l6-3 6 3v6l-6 3-6-3z"/><line x1="8" y1="8" x2="8" y2="14"/><line x1="2" y1="5" x2="8" y2="8"/><line x1="14" y1="5" x2="8" y2="8"/>'),
-        memo:       s('<rect x="3" y="1" width="10" height="14" rx="1"/><line x1="5.5" y1="4" x2="10.5" y2="4"/><line x1="5.5" y1="7" x2="10.5" y2="7"/><line x1="5.5" y1="10" x2="8" y2="10"/>'),
-        pageText:   s('<path d="M4 1h6l4 4v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z"/><path d="M10 1v4h4"/><line x1="5.5" y1="8" x2="10.5" y2="8"/><line x1="5.5" y1="11" x2="8.5" y2="11"/>'),
-        image:      s('<rect x="2" y="2" width="12" height="12" rx="1"/><circle cx="5.5" cy="5.5" r="1.5"/><path d="M14 10l-3-3-5 5H13a1 1 0 0 0 1-1z"/>'),
-        speaker:    s('<polygon points="3,6 6,6 10,3 10,13 6,10 3,10" fill="currentColor" stroke="none"/><path d="M12 5.5a3.5 3.5 0 0 1 0 5"/>'),
-        clapper:    s('<rect x="2" y="6" width="12" height="8" rx="1"/><path d="M2 6l3-4h2l-3 4"/><path d="M7 6l3-4h2l-3 4"/>'),
-        font:       sf('<path d="M3 13L7 3h2l4 10h-2l-.8-2.5H5.8L5 13H3zm3.3-4.5h3.4L8 4z"/>'),
-        book:       s('<path d="M3 1h10a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3V1z"/><line x1="6" y1="1" x2="6" y2="15"/><path d="M6 4h5"/><path d="M6 7h5"/>'),
-        eye:        s('<path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z"/><circle cx="8" cy="8" r="2"/>'),
-        arrowRight: s('<line x1="3" y1="8" x2="13" y2="8"/><polyline points="9,4 13,8 9,12"/>'),
-        tabFolder:  s('<path d="M2 5v8a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1H8L6.5 4H3a1 1 0 0 0-1 1z"/><path d="M4 4V3a1 1 0 0 1 1-1h2.5L9 4"/>'),
-        magnet:     s('<path d="M4 2v6a4 4 0 0 0 8 0V2"/><line x1="4" y1="4" x2="2" y2="4"/><line x1="14" y1="4" x2="12" y2="4"/><rect x="2" y="2" width="2" height="3" fill="currentColor" stroke="none"/><rect x="12" y="2" width="2" height="3" fill="currentColor" stroke="none"/>'),
-        info:       s('<circle cx="8" cy="8" r="6"/><line x1="8" y1="7" x2="8" y2="12"/><circle cx="8" cy="4.5" r="0.5" fill="currentColor"/>'),
-        warn:       s('<path d="M8 1.5L1 14h14z"/><line x1="8" y1="6" x2="8" y2="10"/><circle cx="8" cy="12" r="0.5" fill="currentColor"/>'),
-        error:      s('<circle cx="8" cy="8" r="6"/><line x1="5.5" y1="5.5" x2="10.5" y2="10.5"/><line x1="10.5" y1="5.5" x2="5.5" y2="10.5"/>'),
-        check:      s('<polyline points="3,8 6.5,12 13,4"/>'),
-        close:      s('<line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/>'),
-        folderMinus:s('<path d="M2 4v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1H8L6.5 3H3a1 1 0 0 0-1 1z"/><line x1="5" y1="9" x2="11" y2="9"/>'),
-        folderPlus: s('<path d="M2 4v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1H8L6.5 3H3a1 1 0 0 0-1 1z"/><line x1="8" y1="7" x2="8" y2="11"/><line x1="6" y1="9" x2="10" y2="9"/>'),
+        search:     stroked('<circle cx="6.5" cy="6.5" r="4"/><line x1="9.5" y1="9.5" x2="14" y2="14"/>'),
+        save:       stroked('<path d="M3 1h8l3 3v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z"/><path d="M11 15V9H5v6"/><path d="M5 1v4h5"/>'),
+        folder:     stroked('<path d="M2 4v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1H8L6.5 3H3a1 1 0 0 0-1 1z"/>'),
+        folderOpen: stroked('<path d="M2 4v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1H8L6.5 3H3a1 1 0 0 0-1 1z"/><path d="M2 8h12"/>'),
+        trash:      stroked('<path d="M2 4h12"/><path d="M5 4V2h6v2"/><path d="M3 4l1 10h8l1-10"/><line x1="6.5" y1="7" x2="6.5" y2="11"/><line x1="9.5" y1="7" x2="9.5" y2="11"/>'),
+        clipboard:  stroked('<rect x="3" y="2" width="10" height="12" rx="1"/><path d="M6 2V1h4v1"/><line x1="5.5" y1="6" x2="10.5" y2="6"/><line x1="5.5" y1="9" x2="10.5" y2="9"/>'),
+        doc:        stroked('<path d="M4 1h6l4 4v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z"/><path d="M10 1v4h4"/>'),
+        sparkle:    filled('<path d="M8 1L9.8 6.2 15 8l-5.2 1.8L8 15l-1.8-5.2L1 8l5.2-1.8z"/>'),
+        gear:       stroked('<circle cx="8" cy="8" r="2.5"/><path d="M6.9 1h2.2l.3 1.7a5.5 5.5 0 0 1 1.3.8l1.6-.7 1.1 1.9-1.3 1a5.5 5.5 0 0 1 0 1.6l1.3 1-1.1 1.9-1.6-.7a5.5 5.5 0 0 1-1.3.8L9.1 15H6.9l-.3-1.7a5.5 5.5 0 0 1-1.3-.8l-1.6.7-1.1-1.9 1.3-1a5.5 5.5 0 0 1 0-1.6l-1.3-1 1.1-1.9 1.6.7A5.5 5.5 0 0 1 6.6 2.7z"/>'),
+        expand:     stroked('<circle cx="6.5" cy="6.5" r="4"/><line x1="9.5" y1="9.5" x2="14" y2="14"/><line x1="5" y1="6.5" x2="8" y2="6.5"/><line x1="6.5" y1="5" x2="6.5" y2="8"/>'),
+        globe:      stroked('<circle cx="8" cy="8" r="6"/><ellipse cx="8" cy="8" rx="3" ry="6"/><line x1="2" y1="8" x2="14" y2="8"/>'),
+        palette:    stroked('<path d="M8 2a6 6 0 0 0 0 12 1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1.5A2.5 2.5 0 0 0 14 8.5 6.5 6.5 0 0 0 8 2z"/><circle cx="5.5" cy="6.5" r=".8" fill="currentColor"/><circle cx="8" cy="5" r=".8" fill="currentColor"/><circle cx="10.5" cy="6.5" r=".8" fill="currentColor"/>'),
+        scroll:     stroked('<path d="M13 3H5a2 2 0 0 0-2 2v8l2-2h8a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/><line x1="6" y1="6" x2="12" y2="6"/><line x1="6" y1="9" x2="10" y2="9"/>'),
+        package:    stroked('<path d="M2 5l6-3 6 3v6l-6 3-6-3z"/><line x1="8" y1="8" x2="8" y2="14"/><line x1="2" y1="5" x2="8" y2="8"/><line x1="14" y1="5" x2="8" y2="8"/>'),
+        memo:       stroked('<rect x="3" y="1" width="10" height="14" rx="1"/><line x1="5.5" y1="4" x2="10.5" y2="4"/><line x1="5.5" y1="7" x2="10.5" y2="7"/><line x1="5.5" y1="10" x2="8" y2="10"/>'),
+        pageText:   stroked('<path d="M4 1h6l4 4v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z"/><path d="M10 1v4h4"/><line x1="5.5" y1="8" x2="10.5" y2="8"/><line x1="5.5" y1="11" x2="8.5" y2="11"/>'),
+        image:      stroked('<rect x="2" y="2" width="12" height="12" rx="1"/><circle cx="5.5" cy="5.5" r="1.5"/><path d="M14 10l-3-3-5 5H13a1 1 0 0 0 1-1z"/>'),
+        speaker:    stroked('<polygon points="3,6 6,6 10,3 10,13 6,10 3,10" fill="currentColor" stroke="none"/><path d="M12 5.5a3.5 3.5 0 0 1 0 5"/>'),
+        clapper:    stroked('<rect x="2" y="6" width="12" height="8" rx="1"/><path d="M2 6l3-4h2l-3 4"/><path d="M7 6l3-4h2l-3 4"/>'),
+        font:       filled('<path d="M3 13L7 3h2l4 10h-2l-.8-2.5H5.8L5 13H3zm3.3-4.5h3.4L8 4z"/>'),
+        book:       stroked('<path d="M3 1h10a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3V1z"/><line x1="6" y1="1" x2="6" y2="15"/><path d="M6 4h5"/><path d="M6 7h5"/>'),
+        eye:        stroked('<path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z"/><circle cx="8" cy="8" r="2"/>'),
+        arrowRight: stroked('<line x1="3" y1="8" x2="13" y2="8"/><polyline points="9,4 13,8 9,12"/>'),
+        tabFolder:  stroked('<path d="M2 5v8a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1H8L6.5 4H3a1 1 0 0 0-1 1z"/><path d="M4 4V3a1 1 0 0 1 1-1h2.5L9 4"/>'),
+        magnet:     stroked('<path d="M4 2v6a4 4 0 0 0 8 0V2"/><line x1="4" y1="4" x2="2" y2="4"/><line x1="14" y1="4" x2="12" y2="4"/><rect x="2" y="2" width="2" height="3" fill="currentColor" stroke="none"/><rect x="12" y="2" width="2" height="3" fill="currentColor" stroke="none"/>'),
+        info:       stroked('<circle cx="8" cy="8" r="6"/><line x1="8" y1="7" x2="8" y2="12"/><circle cx="8" cy="4.5" r="0.5" fill="currentColor"/>'),
+        warn:       stroked('<path d="M8 1.5L1 14h14z"/><line x1="8" y1="6" x2="8" y2="10"/><circle cx="8" cy="12" r="0.5" fill="currentColor"/>'),
+        error:      stroked('<circle cx="8" cy="8" r="6"/><line x1="5.5" y1="5.5" x2="10.5" y2="10.5"/><line x1="10.5" y1="5.5" x2="5.5" y2="10.5"/>'),
+        check:      stroked('<polyline points="3,8 6.5,12 13,4"/>'),
+        close:      stroked('<line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/>'),
+        folderMinus: stroked('<path d="M2 4v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1H8L6.5 3H3a1 1 0 0 0-1 1z"/><line x1="5" y1="9" x2="11" y2="9"/>'),
+        folderPlus: stroked('<path d="M2 4v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1H8L6.5 3H3a1 1 0 0 0-1 1z"/><line x1="8" y1="7" x2="8" y2="11"/><line x1="6" y1="9" x2="10" y2="9"/>'),
     };
 })();
 
@@ -2294,7 +2294,7 @@ This content is loaded from a markdown file.
                     <span class="file-name">${file.displayName}</span>
                     <div class="file-actions">
                         <button class="open-file-btn" title="${isOpen ? 'Focus file' : 'Open file'}" aria-label="${isOpen ? 'Focus file' : 'Open file'}">${isOpen ? SVG_ICONS.eye : SVG_ICONS.memo}</button>
-                        <button class="move-file-btn" title="Move file" aria-label="Move file">${SVG_ICONS.folderOpen}${SVG_ICONS.arrowRight}</button>
+                        <button class="move-file-btn" title="Move file" aria-label="Move file">${SVG_ICONS.arrowRight}</button>
                         <button class="delete-file-btn" title="Delete file" aria-label="Delete file">${SVG_ICONS.trash}</button>
                     </div>
                 </div>
