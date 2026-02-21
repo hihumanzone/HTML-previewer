@@ -3089,21 +3089,21 @@ This content is loaded from a markdown file.
 
     getFileTypeChoices() {
         return [
-            { value: 'html', label: 'HTML', icon: '🌐' },
-            { value: 'css', label: 'CSS', icon: '🎨' },
-            { value: 'javascript', label: 'JavaScript', icon: '⚡' },
-            { value: 'javascript-module', label: 'JavaScript Module', icon: '🧩' },
-            { value: 'json', label: 'JSON', icon: '🗂️' },
-            { value: 'xml', label: 'XML', icon: '🧾' },
-            { value: 'markdown', label: 'Markdown', icon: '📝' },
-            { value: 'text', label: 'Text', icon: '📄' },
-            { value: 'svg', label: 'SVG', icon: '✒️' },
-            { value: 'image', label: 'Image', icon: '🖼️' },
-            { value: 'audio', label: 'Audio', icon: '🎵' },
-            { value: 'video', label: 'Video', icon: '🎬' },
-            { value: 'font', label: 'Font', icon: '🔤' },
-            { value: 'pdf', label: 'PDF', icon: '📕' },
-            { value: 'binary', label: 'Binary', icon: '💾' }
+            { value: 'html', label: 'HTML', icon: SVG_ICONS.fileHtml },
+            { value: 'css', label: 'CSS', icon: SVG_ICONS.fileCss },
+            { value: 'javascript', label: 'JavaScript', icon: SVG_ICONS.fileJs },
+            { value: 'javascript-module', label: 'JavaScript Module', icon: SVG_ICONS.package },
+            { value: 'json', label: 'JSON', icon: SVG_ICONS.fileJson },
+            { value: 'xml', label: 'XML', icon: SVG_ICONS.fileXml },
+            { value: 'markdown', label: 'Markdown', icon: SVG_ICONS.fileMarkdown },
+            { value: 'text', label: 'Text', icon: SVG_ICONS.fileText },
+            { value: 'svg', label: 'SVG', icon: SVG_ICONS.fileImage },
+            { value: 'image', label: 'Image', icon: SVG_ICONS.fileImage },
+            { value: 'audio', label: 'Audio', icon: SVG_ICONS.fileAudio },
+            { value: 'video', label: 'Video', icon: SVG_ICONS.fileVideo },
+            { value: 'font', label: 'Font', icon: SVG_ICONS.fileFont },
+            { value: 'pdf', label: 'PDF', icon: SVG_ICONS.filePdf },
+            { value: 'binary', label: 'Binary', icon: SVG_ICONS.fileBinary }
         ];
     },
 
@@ -3117,7 +3117,7 @@ This content is loaded from a markdown file.
     },
 
     renderFileTypeOptionLabel(choice) {
-        const icon = this.escapeHtml(choice.icon || '📄');
+        const icon = choice.icon || SVG_ICONS.document;
         const label = this.escapeHtml(choice.label);
         return `<span class="file-type-option-icon" aria-hidden="true">${icon}</span><span>${label}</span>`;
     },
