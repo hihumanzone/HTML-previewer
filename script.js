@@ -2039,21 +2039,15 @@ This content is loaded from a markdown file.
     },
 
     /**
-     * Toggle open state for all file panels in a folder
-     * @param {string} folderPath - Folder whose files should be toggled
+     * Close all open file panels in a folder
+     * @param {string} folderPath - Folder whose open file panels should be closed
      */
-    toggleFolderPanels(folderPath) {
-        const fileIds = this.getFileIdsInFolder(folderPath);
-        if (fileIds.length === 0) return;
+    closeFolderPanels(folderPath) {
+        const openFileIds = this.getFileIdsInFolder(folderPath)
+            .filter(fileId => this.state.openPanels.has(fileId));
 
-        const areAllOpen = fileIds.every(fileId => this.state.openPanels.has(fileId));
-
-        if (areAllOpen) {
-            fileIds.forEach(fileId => this.closePanel(fileId));
-            return;
-        }
-
-        fileIds.forEach(fileId => this.openPanel(fileId));
+        if (openFileIds.length === 0) return;
+        openFileIds.forEach(fileId => this.closePanel(fileId));
     },
 
     /**
@@ -2187,12 +2181,10 @@ This content is loaded from a markdown file.
             const isFolderSelected = this.state.selectedFolderPaths.has(folderPath);
             const childHtml = this.renderFolderContents(folder, folderPath);
             const folderFileIds = this.getFileIdsInFolder(folderPath);
-            const folderHasFiles = folderFileIds.length > 0;
-            const areAllFolderPanelsOpen = folderHasFiles && folderFileIds.every(fileId => this.state.openPanels.has(fileId));
-            const toggleFolderPanelsLabel = areAllFolderPanelsOpen
-                ? 'Collapse all file panels in folder'
-                : 'Expand all file panels in folder';
-            const toggleFolderPanelsIcon = areAllFolderPanelsOpen ? '📁−' : '📂+';
+            const openFolderFileIds = folderFileIds.filter(fileId => this.state.openPanels.has(fileId));
+            const hasOpenFolderPanels = openFolderFileIds.length > 0;
+            const closeFolderPanelsLabel = 'Collapse all file panels in folder';
+            const closeFolderPanelsIcon = '📁−';
 
             html += `
                 <div class="tree-folder ${isExpanded ? 'expanded' : ''} ${isFolderSelected ? 'folder-selected-in-sidebar' : ''}" data-folder-path="${folderPath}">
@@ -2201,7 +2193,9 @@ This content is loaded from a markdown file.
                         <span class="folder-icon">${isExpanded ? '📂' : '📁'}</span>
                         <span class="folder-name">${folderName}</span>
                         <div class="folder-actions">
-                            <button class="toggle-folder-panels-btn" title="${toggleFolderPanelsLabel}" aria-label="${toggleFolderPanelsLabel}" ${folderHasFiles ? '' : 'disabled'}>${toggleFolderPanelsIcon}</button>
+                            ${hasOpenFolderPanels
+                                ? `<button class="close-folder-panels-btn" title="${closeFolderPanelsLabel}" aria-label="${closeFolderPanelsLabel}">${closeFolderPanelsIcon}</button>`
+                                : ''}
                             <button class="add-file-to-folder-btn" title="Add file to folder">+</button>
                             <button class="add-subfolder-btn" title="Add subfolder">📁+</button>
                             <button class="delete-folder-btn" title="Delete folder">🗑️</button>
@@ -2374,10 +2368,10 @@ This content is loaded from a markdown file.
             }
             
             // Add file to folder
-            if (target.closest('.toggle-folder-panels-btn')) {
+            if (target.closest('.close-folder-panels-btn')) {
                 e.stopPropagation();
                 const folderPath = target.closest('.tree-folder').dataset.folderPath;
-                this.toggleFolderPanels(folderPath);
+                this.closeFolderPanels(folderPath);
                 return;
             }
 
