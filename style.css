@@ -373,6 +373,32 @@ body {
     font-size: var(--text-base);
 }
 
+.btn-icon svg,
+.folder-icon svg,
+.file-icon svg,
+.filter-icon svg,
+.log-icon svg,
+.log-copy-btn svg,
+.settings-btn svg,
+.clear-all-files-btn svg,
+.import-zip-btn svg,
+.export-zip-btn svg,
+.import-file-btn svg,
+.add-subfolder-btn svg,
+.delete-folder-btn svg,
+.delete-file-btn svg,
+.open-file-btn svg,
+.move-file-btn svg,
+.close-folder-panels-btn svg,
+.toggle-console-btn svg,
+.save-btn svg,
+.panel-search-close-btn svg,
+.code-modal-search-close-btn svg,
+.notification-close-btn svg {
+    display: inline-block;
+    vertical-align: -0.125em;
+}
+
 .close-btn {
     font-size: 1.75rem;
     font-weight: bold;
