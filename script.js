@@ -3576,7 +3576,7 @@ This content is loaded from a markdown file.
         });
     },
 
-    applyFileTypeChange(panel, fileId, newType) {
+    applyFileTypeChange(panel, fileId, newType, contentOverride = null) {
         this.revokeFilePanelPreviewUrl(fileId);
         panel.dataset.fileType = newType;
 
@@ -3587,15 +3587,17 @@ This content is loaded from a markdown file.
 
             const oldIsEditable = this.isEditableFileType(oldType);
             const newIsEditable = this.isEditableFileType(newType);
+            const resolvedContent = contentOverride !== null
+                ? contentOverride
+                : (fileInfo.editor ? fileInfo.editor.getValue() : '');
 
             if (oldIsEditable !== newIsEditable) {
                 const editorWrapper = panel.querySelector('.editor-wrapper');
                 if (editorWrapper) {
-                    const currentContent = fileInfo.editor ? fileInfo.editor.getValue() : '';
-                    const newContent = this.generateFileContentDisplay(fileId, newType, currentContent, false);
+                    const newContent = this.generateFileContentDisplay(fileId, newType, resolvedContent, false);
                     editorWrapper.innerHTML = newContent;
 
-                    this.createEditorForFileType(fileInfo, fileId, newType, currentContent);
+                    this.createEditorForFileType(fileInfo, fileId, newType, resolvedContent);
                 }
             } else if (newIsEditable && typeof window.CodeMirror !== 'undefined' && fileInfo.editor.setOption) {
                 const mode = this.getCodeMirrorMode(newType);
@@ -3922,13 +3924,16 @@ This content is loaded from a markdown file.
             fileNameInput.value = savedState.fileName;
         }
 
+        const currentFileType = this.getCurrentFileType(panel, fileInfo);
         const savedFileType = this.getSavedFileType(savedState, fileInfo);
-        if (this.getCurrentFileType(panel, fileInfo) !== savedFileType) {
-            this.applyFileTypeChange(panel, fileId, savedFileType);
+        const savedIsEditable = this.isEditableFileType(savedFileType);
+
+        if (currentFileType !== savedFileType) {
+            this.applyFileTypeChange(panel, fileId, savedFileType, savedState.content);
         }
-        
-        // Revert content
-        if (fileInfo.editor && fileInfo.editor.setValue) {
+
+        // Revert content when the saved type remains editable in the current editor instance.
+        if (savedIsEditable && fileInfo.editor && fileInfo.editor.setValue) {
             fileInfo.editor.setValue(savedState.content);
         }
         
