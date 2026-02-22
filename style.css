@@ -1569,7 +1569,7 @@ body.preview-docked-right .container {
     width: calc(100vw - var(--preview-dock-size));
     max-width: none;
     margin: 0;
-    height: 100vh;
+    height: var(--preview-viewport-height, 100vh);
     overflow: auto;
 }
 
@@ -1577,7 +1577,7 @@ body.preview-docked-bottom .container {
     width: 100%;
     max-width: none;
     margin: 0;
-    height: calc(100vh - var(--preview-dock-size));
+    height: calc(var(--preview-viewport-height, 100vh) - var(--preview-dock-size));
     overflow: auto;
 }
 
@@ -1601,7 +1601,7 @@ body.preview-docked-bottom #preview-modal.is-docked {
 #preview-modal.is-docked .modal-content {
     pointer-events: auto;
     width: var(--preview-dock-size);
-    height: 100vh;
+    height: var(--preview-viewport-height, 100vh);
     border-radius: 0;
     border-right: 0;
     border-top: 0;
@@ -1664,7 +1664,7 @@ body.preview-docked-bottom #preview-modal.is-docked .modal-content {
 .preview-dock-divider.is-bottom {
     left: 0;
     right: 0;
-    top: calc(100vh - var(--preview-dock-size) - 9px);
+    top: calc(var(--preview-viewport-height, 100vh) - var(--preview-dock-size) - 9px);
     height: 18px;
     width: auto;
     cursor: row-resize;
