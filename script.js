@@ -95,6 +95,7 @@ const CodePreviewer = {
         mainHtmlFile: '',
         viewportResizeHandler: null,
         viewportResizeTimer: null,
+        visualViewportResizeHandler: null,
         previewTabWindow: null,
         previewTabUrl: null,
         previewAssetUrls: new Set(),
@@ -928,6 +929,7 @@ const CodePreviewer = {
         this.syncSettingsUI();
         this.console.init(this.dom.consoleOutput, this.dom.clearConsoleBtn, this.dom.previewFrame);
         this.updatePreviewActionButtons();
+        this.updatePreviewViewportHeight();
         this.updateAdaptiveLayoutMode();
     },
 
@@ -1978,14 +1980,28 @@ This content is loaded from a markdown file.
             window.addEventListener('resize', () => this.handleDockViewportResize());
         }
 
+        if (!this.state.visualViewportResizeHandler && window.visualViewport) {
+            this.state.visualViewportResizeHandler = () => {
+                this.updatePreviewViewportHeight();
+                this.handleDockViewportResize();
+            };
+            window.visualViewport.addEventListener('resize', this.state.visualViewportResizeHandler);
+            window.visualViewport.addEventListener('scroll', this.state.visualViewportResizeHandler);
+        }
+
+    },
+
+    updatePreviewViewportHeight() {
+        const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+        document.documentElement.style.setProperty('--preview-viewport-height', `${viewportHeight}px`);
     },
 
     getAvailableEditorWidth() {
         if (!this.state.isPreviewDocked || this.state.previewDockOrientation !== 'right') {
-            return window.innerWidth;
+            return this.getViewportWidth();
         }
 
-        return window.innerWidth - this.getDockSizePx('right');
+        return this.getViewportWidth() - this.getDockSizePx('right');
     },
 
     updateAdaptiveLayoutMode() {
@@ -5577,23 +5593,31 @@ This content is loaded from a markdown file.
         this.dom.dockPreviewBtn.setAttribute('aria-label', isDocked ? 'Undock preview panel' : 'Dock preview panel');
     },
 
+    getViewportWidth() {
+        return window.visualViewport?.width ?? window.innerWidth;
+    },
+
+    getViewportHeight() {
+        return window.visualViewport?.height ?? window.innerHeight;
+    },
+
     getDockConstraints(orientation) {
         if (orientation === 'bottom') {
             const minPreview = 220;
             const minEditor = 260;
-            const maxPreview = Math.max(minPreview, window.innerHeight - minEditor);
+            const maxPreview = Math.max(minPreview, this.getViewportHeight() - minEditor);
             return { minPreview, maxPreview };
         }
 
         const minPreview = 320;
         const minEditor = 420;
-        const maxPreview = Math.max(minPreview, window.innerWidth - minEditor);
+        const maxPreview = Math.max(minPreview, this.getViewportWidth() - minEditor);
         return { minPreview, maxPreview };
     },
 
     getDockSizePx(orientation) {
         const stored = this.state.previewDockSize[orientation];
-        const viewportHalf = orientation === 'bottom' ? window.innerHeight / 2 : window.innerWidth / 2;
+        const viewportHalf = orientation === 'bottom' ? this.getViewportHeight() / 2 : this.getViewportWidth() / 2;
         const next = stored ?? viewportHalf;
         const { minPreview, maxPreview } = this.getDockConstraints(orientation);
         const clamped = Math.min(maxPreview, Math.max(minPreview, next));
@@ -5663,6 +5687,7 @@ This content is loaded from a markdown file.
     },
 
     handleDockViewportResize() {
+        this.updatePreviewViewportHeight();
         if (!this.state.isPreviewDocked) return;
         const nextOrientation = this.getPreviewDockOrientation();
         if (nextOrientation !== this.state.previewDockOrientation) {
@@ -5721,11 +5746,11 @@ This content is loaded from a markdown file.
         if (!session) return;
 
         if (session.orientation === 'right') {
-            const rawSize = window.innerWidth - event.clientX;
+            const rawSize = this.getViewportWidth() - event.clientX;
             const { minPreview, maxPreview } = this.getDockConstraints('right');
             this.state.previewDockSize.right = Math.min(maxPreview, Math.max(minPreview, rawSize));
         } else {
-            const rawSize = window.innerHeight - event.clientY;
+            const rawSize = this.getViewportHeight() - event.clientY;
             const { minPreview, maxPreview } = this.getDockConstraints('bottom');
             this.state.previewDockSize.bottom = Math.min(maxPreview, Math.max(minPreview, rawSize));
         }
