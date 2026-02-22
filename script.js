@@ -3922,13 +3922,22 @@ This content is loaded from a markdown file.
             fileNameInput.value = savedState.fileName;
         }
 
+        const currentFileType = this.getCurrentFileType(panel, fileInfo);
         const savedFileType = this.getSavedFileType(savedState, fileInfo);
-        if (this.getCurrentFileType(panel, fileInfo) !== savedFileType) {
+        const currentIsEditable = this.isEditableFileType(currentFileType);
+        const savedIsEditable = this.isEditableFileType(savedFileType);
+
+        // Revert editable content before changing to a non-editable type.
+        if (currentIsEditable && fileInfo.editor && fileInfo.editor.setValue) {
+            fileInfo.editor.setValue(savedState.content);
+        }
+
+        if (currentFileType !== savedFileType) {
             this.applyFileTypeChange(panel, fileId, savedFileType);
         }
-        
-        // Revert content
-        if (fileInfo.editor && fileInfo.editor.setValue) {
+
+        // Revert content for editable saved types (including non-editable -> editable swaps).
+        if (savedIsEditable && fileInfo.editor && fileInfo.editor.setValue) {
             fileInfo.editor.setValue(savedState.content);
         }
         
