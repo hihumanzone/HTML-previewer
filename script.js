@@ -6655,13 +6655,23 @@ This content is loaded from a markdown file.
             const safeRequestedPath = JSON.stringify(requestedPath || '');
             const safeSourcePath = JSON.stringify(currentFilePath || 'index.html');
             const deferUntilDomReady = Boolean(options.deferUntilDomReady);
+            const scriptAttributes = typeof options.scriptAttributes === 'string' ? options.scriptAttributes : '';
             const logSnippet = `console.error('[Preview] ${assetLabel} not found:', ${safeRequestedPath}, 'from', ${safeSourcePath});`;
 
             if (!deferUntilDomReady) {
-                return `<script>${logSnippet}</script>`;
+                return `<script${scriptAttributes}>${logSnippet}</script>`;
             }
 
-            return `<script>(function(){const logMissingAsset=()=>{${logSnippet}};if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',logMissingAsset,{once:true});}else{logMissingAsset();}})();</script>`;
+            const deferredSnippet = `(function() {
+                const logMissingAsset = () => { ${logSnippet} };
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', logMissingAsset, { once: true });
+                } else {
+                    logMissingAsset();
+                }
+            })();`;
+
+            return `<script${scriptAttributes}>${deferredSnippet}</script>`;
         },
 
         /**
@@ -6813,11 +6823,12 @@ This content is loaded from a markdown file.
                     return `<script${scriptType}>${escapedContent}</script>`;
                 }
 
-                const scriptType = /\btype\s*=\s*["']module["']/i.test(`${before} ${after}`) ? ' type="module"' : '';
-                const missingScriptConsole = CodePreviewer.assetReplacers
-                    .createMissingAssetConsoleScript('Script', filename, currentFilePath)
-                    .replace('<script>', `<script${scriptType}>`);
-                return missingScriptConsole;
+                const scriptAttributes = /\btype\s*=\s*["']module["']/i.test(`${before} ${after}`)
+                    ? ' type="module"'
+                    : '';
+                return CodePreviewer.assetReplacers.createMissingAssetConsoleScript('Script', filename, currentFilePath, {
+                    scriptAttributes,
+                });
             });
         }
     },
