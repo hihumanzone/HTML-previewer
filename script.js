@@ -2777,10 +2777,10 @@ This content is loaded from a markdown file.
                     <div class="tree-folder-header">
                         <input type="checkbox" class="tree-folder-checkbox" aria-label="Select folder ${this.escapeHtml(folderPath)}" ${isFolderSelected ? 'checked' : ''}>
                         <span class="folder-icon">${isExpanded ? SVG_ICONS.folderOpen : SVG_ICONS.folder}</span>
-                        <span class="folder-name">${folderName}</span>
+                        <span class="folder-name">${this.escapeHtml(folderName)}</span>
                         <div class="folder-actions">
                             ${hasOpenFolderPanels
-                                ? `<button class="close-folder-panels-btn" title="${closeFolderPanelsLabel}" aria-label="${closeFolderPanelsLabel}">${closeFolderPanelsIcon}</button>`
+                                ? `<button class="close-folder-panels-btn" title="${this.escapeHtml(closeFolderPanelsLabel)}" aria-label="${this.escapeHtml(closeFolderPanelsLabel)}">${closeFolderPanelsIcon}</button>`
                                 : ''}
                             <button class="add-file-to-folder-btn" title="Add file to folder">+</button>
                             <button class="add-subfolder-btn" title="Add subfolder">${SVG_ICONS.folderPlus}</button>
@@ -2812,7 +2812,7 @@ This content is loaded from a markdown file.
                 <div class="tree-file ${openClass} ${modifiedClass} ${selectedClass}" data-file-id="${file.id}">
                     <input type="checkbox" class="tree-file-checkbox" aria-label="Select file ${this.escapeHtml(file.displayName)}" ${isSelected ? 'checked' : ''}>
                     <span class="file-icon">${fileIcon}</span>
-                    <span class="file-name">${file.displayName}</span>
+                    <span class="file-name">${this.escapeHtml(file.displayName)}</span>
                     <div class="file-actions">
                         <button class="open-file-btn" title="${isOpen ? 'Focus file' : 'Open file'}" aria-label="${isOpen ? 'Focus file' : 'Open file'}">${isOpen ? SVG_ICONS.eye : SVG_ICONS.pencil}</button>
                         <button class="move-file-btn" title="Move file" aria-label="Move file">${SVG_ICONS.move}</button>
