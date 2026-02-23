@@ -2510,8 +2510,8 @@ This content is loaded from a markdown file.
      * Add a new file within a specific folder
      * @param {string} folderPath - The folder path to add the file in
      */
-    addFileToFolder(folderPath) {
-        this.addNewFile(folderPath);
+    async addFileToFolder(folderPath) {
+        await this.addNewFile(folderPath);
     },
 
     normalizeFolderPath(folderPath) {
@@ -2550,10 +2550,10 @@ This content is loaded from a markdown file.
 
         if (destinationInput === null) return;
 
-        this.moveFileToFolder(fileId, destinationInput);
+        await this.moveFileToFolder(fileId, destinationInput);
     },
 
-    moveFileToFolder(fileId, destinationFolderPath) {
+    async moveFileToFolder(fileId, destinationFolderPath) {
         const fileInfo = this.state.files.find(file => file.id === fileId);
         if (!fileInfo) return;
 
@@ -2571,29 +2571,28 @@ This content is loaded from a markdown file.
             return;
         }
 
-        const pathConflict = this.state.files.some(file => {
-            if (file.id === fileId) return false;
-            return this.getFilePathById(file.id) === nextFullPath;
-        });
-
-        if (pathConflict) {
-            this.showNotification(`Cannot move file. "${nextFullPath}" already exists.`, 'error');
+        const conflictResult = await this.resolvePathConflict(nextFullPath, { excludeFileId: fileId });
+        if (conflictResult.skipped) {
+            this.showNotification(`Skipped moving "${baseFilename}".`, 'info');
             return;
         }
 
-        if (sanitizedDestination) {
-            this.ensureFolderExists(sanitizedDestination);
+        const resolvedPath = conflictResult.targetPath;
+        const resolvedDestination = this.getFolderFromPath(resolvedPath);
+
+        if (resolvedDestination) {
+            this.ensureFolderExists(resolvedDestination);
         }
 
-        fileNameInput.value = nextFullPath;
-        fileInfo.fileName = nextFullPath;
-        if (sanitizedDestination) {
-            this.state.expandedFolders.add(sanitizedDestination);
+        fileNameInput.value = resolvedPath;
+        fileInfo.fileName = resolvedPath;
+        if (resolvedDestination) {
+            this.state.expandedFolders.add(resolvedDestination);
         }
 
         this.checkFileModified(fileId, panel);
         this.refreshPanelAndFileTreeUI();
-        this.showNotification(`Moved "${baseFilename}" to ${sanitizedDestination || 'root'}.`, 'success');
+        this.showNotification(`Moved "${baseFilename}" to ${resolvedDestination || 'root'}.`, 'success');
     },
 
     /**
@@ -3090,9 +3089,16 @@ This content is loaded from a markdown file.
         this.refreshPanelAndFileTreeUI();
     },
 
-    addNewFile(folderPath) {
+    async addNewFile(folderPath) {
+        const initialFileName = folderPath ? `${folderPath}/newfile.html` : 'newfile.html';
+        const conflictResult = await this.resolvePathConflict(initialFileName);
+        if (conflictResult.skipped) {
+            this.showNotification('Skipped creating file.', 'info');
+            return;
+        }
+
         const fileId = `file-${this.state.nextFileId++}`;
-        const fileName = folderPath ? `${folderPath}/newfile.html` : 'newfile.html';
+        const fileName = conflictResult.targetPath;
         const content = '';
         
         this.createFilePanel(fileId, fileName, 'html', content, false);
@@ -3221,9 +3227,9 @@ This content is loaded from a markdown file.
     },
 
     /**
-     * Show a dialog to resolve file conflicts during import
+     * Show a dialog to resolve file conflicts.
      * @param {string} fileName - Name of the conflicting file
-     * @returns {Promise<string>} - 'replace', 'skip', 'replace-all', or 'skip-all'
+     * @returns {Promise<string>} - 'replace', 'skip', or 'rename'
      */
     showFileConflictDialog(fileName) {
         // Create body with safe text content
@@ -3241,10 +3247,66 @@ This content is loaded from a markdown file.
             buttons: [
                 {text: 'Replace', action: 'replace', className: 'conflict-replace'},
                 {text: 'Skip', action: 'skip', className: 'conflict-skip'},
-                {text: 'Replace All', action: 'replace-all', className: 'conflict-replace-all'},
-                {text: 'Skip All', action: 'skip-all', className: 'conflict-skip-all'}
+                {text: 'Rename', action: 'rename', className: 'conflict-replace-all'}
             ]
         });
+    },
+
+    findFileByPath(path, excludeFileId = null) {
+        return this.state.files.find(file => {
+            if (excludeFileId && file.id === excludeFileId) return false;
+            return this.getFilePathById(file.id) === path;
+        });
+    },
+
+    generateRenamedFilePath(path, excludeFileId = null) {
+        const folderPath = this.getFolderFromPath(path);
+        const filename = this.getFilenameFromPath(path);
+        const extension = this.fileTypeUtils.getExtension(filename);
+        const baseName = extension ? filename.slice(0, -(extension.length + 1)) : filename;
+
+        let suffix = 1;
+        while (true) {
+            const candidateName = extension
+                ? `${baseName}(${suffix}).${extension}`
+                : `${baseName}(${suffix})`;
+            const candidatePath = folderPath ? `${folderPath}/${candidateName}` : candidateName;
+            if (!this.findFileByPath(candidatePath, excludeFileId)) {
+                return candidatePath;
+            }
+            suffix++;
+        }
+    },
+
+    async resolvePathConflict(targetPath, options = {}) {
+        const existingFile = this.findFileByPath(targetPath, options.excludeFileId || null);
+        if (!existingFile) {
+            return {
+                skipped: false,
+                targetPath
+            };
+        }
+
+        const action = await this.showFileConflictDialog(targetPath);
+        if (action === 'skip') {
+            return {
+                skipped: true,
+                targetPath
+            };
+        }
+
+        if (action === 'replace') {
+            this.deleteFile(existingFile.id);
+            return {
+                skipped: false,
+                targetPath
+            };
+        }
+
+        return {
+            skipped: false,
+            targetPath: this.generateRenamedFilePath(targetPath, options.excludeFileId || null)
+        };
     },
 
     /**
@@ -3358,41 +3420,15 @@ This content is loaded from a markdown file.
 
     /**
      * Handle file conflict resolution during import.
-     * This method uses a shared `resolution` object to remember user preferences
-     * across multiple calls (e.g., 'replace-all' or 'skip-all') so that subsequent
-     * conflicts are resolved automatically without re-prompting.
      * @param {string} fileName - Name of the file being imported
-     * @param {Object} resolution - Shared state object: { action: string|null }. The `action`
-     *   property is updated by this method when the user chooses 'replace-all' or 'skip-all'.
-     * @returns {Promise<string>} 'imported' if the file should be imported, 'skipped' if it should be skipped
+     * @returns {Promise<{status: 'imported'|'skipped', fileName: string}>}
      */
-    async _resolveImportConflict(fileName, resolution) {
-        const existingFilenames = this.getExistingFilenames();
-        if (!existingFilenames.includes(fileName)) {
-            return 'imported';
-        }
-        
-        let action = resolution.action;
-        
-        if (!action || (action !== 'replace-all' && action !== 'skip-all')) {
-            action = await this.showFileConflictDialog(fileName);
-            if (action === 'replace-all' || action === 'skip-all') {
-                resolution.action = action;
-            }
-        }
-        
-        if (action === 'skip' || action === 'skip-all') {
-            return 'skipped';
-        }
-        
-        if (action === 'replace' || action === 'replace-all') {
-            const existingFile = this.state.files.find(f => f.fileName === fileName);
-            if (existingFile) {
-                this.deleteFile(existingFile.id);
-            }
-        }
-        
-        return 'imported';
+    async _resolveImportConflict(fileName) {
+        const resolved = await this.resolvePathConflict(fileName);
+        return {
+            status: resolved.skipped ? 'skipped' : 'imported',
+            fileName: resolved.targetPath
+        };
     },
 
     /**
@@ -3470,7 +3506,6 @@ This content is loaded from a markdown file.
             })
             : null;
 
-        const resolution = { action: null };
         let importedCount = 0;
         let skippedCount = 0;
         let processedCount = 0;
@@ -3490,15 +3525,15 @@ This content is loaded from a markdown file.
                 continue;
             }
 
-            const result = await this._resolveImportConflict(targetFileName, resolution);
-            if (result === 'skipped') {
+            const result = await this._resolveImportConflict(targetFileName);
+            if (result.status === 'skipped') {
                 skippedCount++;
                 continue;
             }
 
             const fileData = await this.readFileContent(file);
-            const detectedType = this.autoDetectFileType(targetFileName, fileData.isBinary ? null : fileData.content, file.type);
-            this.addNewFileWithContent(targetFileName, detectedType, fileData.content, fileData.isBinary);
+            const detectedType = this.autoDetectFileType(result.fileName, fileData.isBinary ? null : fileData.content, file.type);
+            this.addNewFileWithContent(result.fileName, detectedType, fileData.content, fileData.isBinary);
             importedCount++;
         }
 
@@ -3921,30 +3956,38 @@ This content is loaded from a markdown file.
         const fileId = panel.dataset.fileId;
         
         if (fileNameInput) {
-            fileNameInput.addEventListener('blur', (e) => {
+            fileNameInput.addEventListener('blur', async (e) => {
                 const filename = e.target.value;
                 const fileInfo = this.state.files.find(f => f.id === fileId);
-                
-                if (fileInfo && typeSelector) {
-                    const previousExtension = this.fileTypeUtils.getExtension(fileInfo.fileName);
-                    const nextExtension = this.fileTypeUtils.getExtension(filename);
-                    const suggestedType = this.fileTypeUtils.getTypeFromExtension(filename);
-                    const extensionChanged = previousExtension !== nextExtension;
-                    const isValidDetectedType = suggestedType !== 'binary';
-                    const typeDiffers = suggestedType !== typeSelector.value;
-                    const shouldAutoChangeType = extensionChanged && isValidDetectedType && typeDiffers;
+                if (!fileInfo || !typeSelector) return;
 
-                    if (shouldAutoChangeType) {
-                        this.applyFileTypeChange(panel, fileId, suggestedType);
-                    } else {
-                        // Update file tree and main HTML selector when filename changes
-                        this.renderFileTree();
-                        this.updateMainHtmlSelector();
-                    }
-                    
-                    // Check for unsaved changes and update UI
+                const conflictResult = await this.resolvePathConflict(filename, { excludeFileId: fileId });
+                if (conflictResult.skipped) {
+                    e.target.value = fileInfo.fileName;
                     this.checkFileModified(fileId, panel);
+                    this.showNotification('Skipped renaming file.', 'info');
+                    return;
                 }
+
+                const resolvedFilename = conflictResult.targetPath;
+                e.target.value = resolvedFilename;
+
+                const previousExtension = this.fileTypeUtils.getExtension(fileInfo.fileName);
+                const nextExtension = this.fileTypeUtils.getExtension(resolvedFilename);
+                const suggestedType = this.fileTypeUtils.getTypeFromExtension(resolvedFilename);
+                const extensionChanged = previousExtension !== nextExtension;
+                const isValidDetectedType = suggestedType !== 'binary';
+                const typeDiffers = suggestedType !== typeSelector.value;
+                const shouldAutoChangeType = extensionChanged && isValidDetectedType && typeDiffers;
+
+                if (shouldAutoChangeType) {
+                    this.applyFileTypeChange(panel, fileId, suggestedType);
+                } else {
+                    this.renderFileTree();
+                    this.updateMainHtmlSelector();
+                }
+
+                this.checkFileModified(fileId, panel);
             });
             
             // Also listen for input changes to detect unsaved filename changes
@@ -4174,7 +4217,7 @@ This content is loaded from a markdown file.
      * Apply changes to a file (save the current state)
      * @param {string} fileId - The file ID
      */
-    applyFileChanges(fileId) {
+    async applyFileChanges(fileId) {
         const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
         if (!panel) return;
         
@@ -4183,18 +4226,28 @@ This content is loaded from a markdown file.
         
         const fileNameInput = panel.querySelector('.file-name-input');
         const currentFileName = fileNameInput ? fileNameInput.value : '';
+        const conflictResult = await this.resolvePathConflict(currentFileName, { excludeFileId: fileId });
+        if (conflictResult.skipped) {
+            if (fileNameInput) fileNameInput.value = fileInfo.fileName;
+            this.checkFileModified(fileId, panel);
+            this.showNotification('Skipped applying filename change.', 'info');
+            return;
+        }
+
+        const resolvedFileName = conflictResult.targetPath;
+        if (fileNameInput) fileNameInput.value = resolvedFileName;
         const currentContent = fileInfo.editor ? fileInfo.editor.getValue() : '';
         const currentFileType = this.getCurrentFileType(panel, fileInfo);
         
         // Update saved state
         this.state.savedFileStates[fileId] = {
             content: currentContent,
-            fileName: currentFileName,
+            fileName: resolvedFileName,
             fileType: currentFileType
         };
         
         // Update file info
-        fileInfo.fileName = currentFileName;
+        fileInfo.fileName = resolvedFileName;
         
         // Update UI
         this.checkFileModified(fileId, panel);
@@ -6257,7 +6310,6 @@ This content is loaded from a markdown file.
                 });
             }
 
-            const resolution = { action: null };
             let importedCount = 0;
             let skippedCount = 0;
 
@@ -6274,14 +6326,14 @@ This content is loaded from a markdown file.
                     await new Promise(resolve => setTimeout(resolve, 0));
                 }
 
-                const result = await this._resolveImportConflict(entry.path, resolution);
-                if (result === 'skipped') {
+                const result = await this._resolveImportConflict(entry.path);
+                if (result.status === 'skipped') {
                     skippedCount++;
                     continue;
                 }
 
-                const extension = entry.path.split('.').pop().toLowerCase();
-                const isBinary = this.fileTypeUtils.isBinaryFile(entry.path, '');
+                const extension = result.fileName.split('.').pop().toLowerCase();
+                const isBinary = this.fileTypeUtils.isBinaryFile(result.fileName, '');
                 let content;
 
                 if (isBinary) {
@@ -6293,7 +6345,7 @@ This content is loaded from a markdown file.
                 }
 
                 const fileType = this.fileTypeUtils.getTypeFromExtension(extension);
-                this.addNewFileWithContent(entry.path, fileType, content, isBinary);
+                this.addNewFileWithContent(result.fileName, fileType, content, isBinary);
                 importedCount++;
             }
 
