@@ -137,7 +137,7 @@ class PreviewRenderer {
         const content = this.app.generatePreviewContent();
 
         if (target === 'modal') {
-            this.app.console.clear();
+            this.app.consoleBridge.clear();
             this.safeWritePreviewFrame(content);
             this.app.toggleModal(true);
             return;
