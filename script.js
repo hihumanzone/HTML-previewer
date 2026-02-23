@@ -2396,17 +2396,6 @@ This content is loaded from a markdown file.
         return null;
     },
 
-    getExistingFilenames() {
-        const filenames = [];
-        this.state.files.forEach(file => {
-            const filename = this.getFileNameFromPanel(file.id);
-            if (filename) {
-                filenames.push(filename);
-            }
-        });
-        return filenames;
-    },
-
     /**
      * Get the folder path from a full file path
      * @param {string} path - Full file path like "src/components/Button.js"
@@ -3190,13 +3179,13 @@ This content is loaded from a markdown file.
             });
 
             const getConfirmAction = () => {
-                const preferred = ['confirm', 'replace', 'replace-all', 'submit'];
+                const preferred = ['confirm', 'replace', 'rename', 'submit'];
                 const found = preferred.find(action => buttonElements.some(button => button.dataset.action === action));
                 return found || buttonElements[0]?.dataset.action || 'cancel';
             };
 
             const getCancelAction = () => {
-                const preferred = ['cancel', 'skip', 'skip-all'];
+                const preferred = ['cancel', 'skip'];
                 const found = preferred.find(action => buttonElements.some(button => button.dataset.action === action));
                 return found || buttonElements[buttonElements.length - 1]?.dataset.action || 'cancel';
             };
@@ -3217,7 +3206,7 @@ This content is loaded from a markdown file.
             overlay.appendChild(dialog);
             document.body.appendChild(overlay);
 
-            const preferredFocusButton = buttonElements.find(button => ['confirm', 'replace', 'replace-all'].includes(button.dataset.action)) || buttonElements[0];
+            const preferredFocusButton = buttonElements.find(button => ['confirm', 'replace', 'rename'].includes(button.dataset.action)) || buttonElements[0];
             if (preferredFocusButton) {
                 preferredFocusButton.focus();
             } else {
@@ -3247,7 +3236,7 @@ This content is loaded from a markdown file.
             buttons: [
                 {text: 'Replace', action: 'replace', className: 'conflict-replace'},
                 {text: 'Skip', action: 'skip', className: 'conflict-skip'},
-                {text: 'Rename', action: 'rename', className: 'conflict-replace-all'}
+                {text: 'Rename', action: 'rename', className: 'conflict-replace'}
             ]
         });
     },
@@ -3956,25 +3945,14 @@ This content is loaded from a markdown file.
         const fileId = panel.dataset.fileId;
         
         if (fileNameInput) {
-            fileNameInput.addEventListener('blur', async (e) => {
+            fileNameInput.addEventListener('blur', (e) => {
                 const filename = e.target.value;
                 const fileInfo = this.state.files.find(f => f.id === fileId);
                 if (!fileInfo || !typeSelector) return;
 
-                const conflictResult = await this.resolvePathConflict(filename, { excludeFileId: fileId });
-                if (conflictResult.skipped) {
-                    e.target.value = fileInfo.fileName;
-                    this.checkFileModified(fileId, panel);
-                    this.showNotification('Skipped renaming file.', 'info');
-                    return;
-                }
-
-                const resolvedFilename = conflictResult.targetPath;
-                e.target.value = resolvedFilename;
-
                 const previousExtension = this.fileTypeUtils.getExtension(fileInfo.fileName);
-                const nextExtension = this.fileTypeUtils.getExtension(resolvedFilename);
-                const suggestedType = this.fileTypeUtils.getTypeFromExtension(resolvedFilename);
+                const nextExtension = this.fileTypeUtils.getExtension(filename);
+                const suggestedType = this.fileTypeUtils.getTypeFromExtension(filename);
                 const extensionChanged = previousExtension !== nextExtension;
                 const isValidDetectedType = suggestedType !== 'binary';
                 const typeDiffers = suggestedType !== typeSelector.value;
