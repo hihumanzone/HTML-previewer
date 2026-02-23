@@ -1083,9 +1083,10 @@ const CodePreviewer = {
             if (parsed.protocol === 'blob:' || parsed.protocol === 'data:' || parsed.href === 'about:srcdoc') {
                 return source;
             }
-            return parsed.pathname.replace(/^\//, '');
+            const path = parsed.pathname || '';
+            return path.startsWith('/') ? path.slice(1) : path;
         } catch (error) {
-            return source.replace(/^\//, '');
+            return source.startsWith('/') ? source.slice(1) : source;
         }
     };
     const classifySourceOrigin = (source) => {
@@ -1097,7 +1098,7 @@ const CodePreviewer = {
             return 'virtual-file';
         }
 
-        if (/^(https?:)?\/\//i.test(source)) {
+        if (source.startsWith('http://') || source.startsWith('https://') || source.startsWith('//')) {
             return 'external-url';
         }
 
