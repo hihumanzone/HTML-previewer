@@ -6646,6 +6646,16 @@ This content is loaded from a markdown file.
     // virtual file system content
     // ============================================================================
     assetReplacers: {
+        isExternalAssetPath(path) {
+            return /^(?:https?:|\/\/|data:|blob:)/i.test(path || '');
+        },
+
+        createMissingAssetConsoleScript(assetLabel, requestedPath, currentFilePath) {
+            const safeRequestedPath = JSON.stringify(requestedPath || '');
+            const safeSourcePath = JSON.stringify(currentFilePath || 'index.html');
+            return `<script>console.error('[Preview] ${assetLabel} not found:', ${safeRequestedPath}, 'from', ${safeSourcePath});</script>`;
+        },
+
         /**
          * Configuration for different asset replacement patterns
          * Each entry defines: regex pattern, allowed file types, and replacement strategy
@@ -6654,7 +6664,13 @@ This content is loaded from a markdown file.
             css: {
                 pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.css)["']([^>]*?)>/gi,
                 types: ['css'],
-                replace: (file) => `<style>${file.content}</style>`
+                replace: (file) => `<style>${file.content}</style>`,
+                onMissing: (match, before, filename, after, currentFilePath) => {
+                    if (CodePreviewer.assetReplacers.isExternalAssetPath(filename)) {
+                        return match;
+                    }
+                    return CodePreviewer.assetReplacers.createMissingAssetConsoleScript('Stylesheet', filename, currentFilePath);
+                }
             },
             images: {
                 pattern: /<img([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
@@ -6704,6 +6720,9 @@ This content is loaded from a markdown file.
                 const file = CodePreviewer.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
                 if (file && CodePreviewer.fileSystemUtils.isMatchingType(file.type, config.types)) {
                     return config.replace(file, match, before, filename, after);
+                }
+                if (typeof config.onMissing === 'function') {
+                    return config.onMissing(match, before, filename, after, currentFilePath);
                 }
                 return match;
             });
@@ -6771,7 +6790,7 @@ This content is loaded from a markdown file.
                     return '';
                 }
 
-                const isExternalScript = /^(?:https?:|\/\/|data:|blob:)/i.test(filename);
+                const isExternalScript = CodePreviewer.assetReplacers.isExternalAssetPath(filename);
                 if (isExternalScript) {
                     return match;
                 }
@@ -6784,10 +6803,11 @@ This content is loaded from a markdown file.
                     return `<script${scriptType}>${escapedContent}</script>`;
                 }
 
-                const requestedPath = JSON.stringify(filename);
-                const sourcePath = JSON.stringify(currentFilePath || 'index.html');
                 const scriptType = /\btype\s*=\s*["']module["']/i.test(`${before} ${after}`) ? ' type="module"' : '';
-                return `<script${scriptType}>console.error('[Preview] Script not found:', ${requestedPath}, 'from', ${sourcePath});</script>`;
+                const missingScriptConsole = CodePreviewer.assetReplacers
+                    .createMissingAssetConsoleScript('Script', filename, currentFilePath)
+                    .replace('<script>', `<script${scriptType}>`);
+                return missingScriptConsole;
             });
         }
     },
