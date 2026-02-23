@@ -8,7 +8,8 @@
  * - dom: Cached DOM elements
  * - constants: Configuration constants (IDs, file types, MIME types)
  * - fileTypeUtils: File type detection and handling utilities
- * - fileSystemUtils: Virtual file system operations, path resolution, file lookup
+ * - fileSystemUtils: Virtual file system runtime operations (path resolution, file lookup, data URLs)
+ * - previewScriptGenerator: Code-generation utilities — produces JS strings injected into the preview iframe
  * - init(): Application initialization
  * - Editor Management: initEditors(), createEditorForTextarea(), etc.
  * - File Management: addNewFile(), importFile(), exportFile(), etc.
@@ -62,46 +63,6 @@ const SVG_ICONS = {
     fileBinary: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1L14 4v8l-6 3L2 12V4l6-3z"/><path d="M8 8v7"/><path d="M2 4l6 4 6-4"/></svg>',
 };
 
-
-/**
- * Centralized state controller used as a single source of truth for mutable app state.
- * Wraps the plain state object to provide a consistent get/set interface.
- */
-class AppStateStore {
-    /**
-     * @param {object} initialState - The initial application state object
-     */
-    constructor(state) {
-        this.state = state;
-    }
-
-    /**
-     * Returns the full state object.
-     * @returns {object}
-     */
-    getState() {
-        return this.state;
-    }
-
-    /**
-     * Sets a top-level state key to the given value.
-     * @param {string} key
-     * @param {*} value
-     * @returns {void}
-     */
-    set(key, value) {
-        this.state[key] = value;
-    }
-
-    /**
-     * Reads a top-level state key.
-     * @param {string} key
-     * @returns {*}
-     */
-    get(key) {
-        return this.state[key];
-    }
-}
 
 /**
  * Handles preview rendering concerns such as debouncing and runtime fallback UI.
@@ -980,16 +941,6 @@ const CodePreviewer = {
         },
 
         /**
-         * Checks if a file type matches any of the allowed types
-         * @param {string} fileType - The file type to check
-         * @param {string[]} allowedTypes - Array of allowed type strings
-         * @returns {boolean} True if the file type matches
-         */
-        isMatchingType(fileType, allowedTypes) {
-            return allowedTypes.includes(fileType);
-        },
-
-        /**
          * Gets a data URL for a file (handles both binary and text files)
          * @param {Object} fileData - The file data object
          * @param {string} defaultMimeType - Default MIME type for non-binary files
@@ -1009,7 +960,15 @@ const CodePreviewer = {
             const mimeType = CodePreviewer.fileTypeUtils.getMimeTypeFromFileType(fileData.type) || defaultMimeType;
             return `data:${mimeType};charset=utf-8,${encodeURIComponent(fileData.content)}`;
         },
+    },
 
+    // ============================================================================
+    // PREVIEW SCRIPT GENERATOR
+    // Generates JavaScript code strings that are injected into the preview iframe.
+    // Kept separate from fileSystemUtils (runtime file-system operations) because
+    // these methods produce source-code text, not data.
+    // ============================================================================
+    previewScriptGenerator: {
         /**
          * Generates JavaScript code for path resolution (used in injected scripts)
          * @returns {string} JavaScript code for the resolvePath function
@@ -1677,16 +1636,6 @@ const CodePreviewer = {
     },
 
     /**
-     * Escapes special HTML characters in an attribute value.
-     * Delegates to escapeHtml which is a strict superset of this function.
-     * @param {string|null|undefined} str
-     * @returns {string}
-     */
-    escapeHtmlAttribute(str) {
-        return this.escapeHtml(str);
-    },
-
-    /**
      * Escapes special HTML characters in any value.
      * Handles null/undefined gracefully — returns an empty string.
      * @param {unknown} str
@@ -1840,22 +1789,27 @@ const CodePreviewer = {
         };
     },
 
+    /**
+     * Applies preview-button enabled/disabled state to a single button element.
+     * @param {HTMLElement|null|undefined} btn
+     * @param {boolean} disabled
+     * @param {string} enabledTitle
+     * @param {string} disabledReason
+     * @private
+     */
+    _applyPreviewButtonState(btn, disabled, enabledTitle, disabledReason) {
+        if (!btn) return;
+        btn.disabled = false;
+        btn.setAttribute('aria-disabled', String(disabled));
+        btn.classList.toggle('button-disabled-state', disabled);
+        btn.title = disabled ? disabledReason : enabledTitle;
+    },
+
     updatePreviewActionButtons() {
         const availability = this.getPreviewAvailability();
         const disabled = !availability.allowed;
-
-        if (this.dom.modalBtn) {
-            this.dom.modalBtn.disabled = false;
-            this.dom.modalBtn.setAttribute('aria-disabled', String(disabled));
-            this.dom.modalBtn.classList.toggle('button-disabled-state', disabled);
-            this.dom.modalBtn.title = disabled ? availability.reason : 'Open preview in modal';
-        }
-        if (this.dom.tabBtn) {
-            this.dom.tabBtn.disabled = false;
-            this.dom.tabBtn.setAttribute('aria-disabled', String(disabled));
-            this.dom.tabBtn.classList.toggle('button-disabled-state', disabled);
-            this.dom.tabBtn.title = disabled ? availability.reason : 'Open preview in new tab';
-        }
+        this._applyPreviewButtonState(this.dom.modalBtn, disabled, 'Open preview in modal', availability.reason);
+        this._applyPreviewButtonState(this.dom.tabBtn,   disabled, 'Open preview in new tab', availability.reason);
     },
 
     initEditors() {
@@ -2144,9 +2098,9 @@ This content is loaded from a markdown file.
             const listId = `${select.id}-custom-listbox`;
 
             dropdown.innerHTML = `
-                <button type="button" class="settings-select-dropdown-trigger" aria-haspopup="listbox" aria-controls="${this.escapeHtmlAttribute(listId)}" aria-expanded="false"></button>
-                <ul id="${this.escapeHtmlAttribute(listId)}" class="settings-select-dropdown-list" role="listbox" tabindex="-1" hidden>
-                    ${Array.from(select.options).map((option) => `<li role="option" aria-selected="false"><button type="button" class="settings-select-dropdown-option" data-value="${this.escapeHtmlAttribute(option.value)}">${this.escapeHtml(option.textContent || '')}</button></li>`).join('')}
+                <button type="button" class="settings-select-dropdown-trigger" aria-haspopup="listbox" aria-controls="${this.escapeHtml(listId)}" aria-expanded="false"></button>
+                <ul id="${this.escapeHtml(listId)}" class="settings-select-dropdown-list" role="listbox" tabindex="-1" hidden>
+                    ${Array.from(select.options).map((option) => `<li role="option" aria-selected="false"><button type="button" class="settings-select-dropdown-option" data-value="${this.escapeHtml(option.value)}">${this.escapeHtml(option.textContent || '')}</button></li>`).join('')}
                 </ul>
             `;
 
@@ -2785,7 +2739,7 @@ This content is loaded from a markdown file.
                         type="search"
                         class="file-tree-search-input"
                         placeholder="Search files..."
-                        value="${this.escapeHtmlAttribute(this.state.sidebarSearchQuery)}"
+                        value="${this.escapeHtml(this.state.sidebarSearchQuery)}"
                         aria-label="Search files in sidebar"
                     >
                     <span class="file-tree-search-hint" aria-hidden="true">⌘/Ctrl + K</span>
@@ -2833,7 +2787,7 @@ This content is loaded from a markdown file.
             html += `
                 <div class="tree-folder ${isExpanded ? 'expanded' : ''} ${isFolderSelected ? 'folder-selected-in-sidebar' : ''}" data-folder-path="${folderPath}">
                     <div class="tree-folder-header">
-                        <input type="checkbox" class="tree-folder-checkbox" aria-label="Select folder ${this.escapeHtmlAttribute(folderPath)}" ${isFolderSelected ? 'checked' : ''}>
+                        <input type="checkbox" class="tree-folder-checkbox" aria-label="Select folder ${this.escapeHtml(folderPath)}" ${isFolderSelected ? 'checked' : ''}>
                         <span class="folder-icon">${isExpanded ? SVG_ICONS.folderOpen : SVG_ICONS.folder}</span>
                         <span class="folder-name">${folderName}</span>
                         <div class="folder-actions">
@@ -2868,7 +2822,7 @@ This content is loaded from a markdown file.
             const selectedClass = isSelected ? 'file-selected-in-sidebar' : '';
             html += `
                 <div class="tree-file ${openClass} ${modifiedClass} ${selectedClass}" data-file-id="${file.id}">
-                    <input type="checkbox" class="tree-file-checkbox" aria-label="Select file ${this.escapeHtmlAttribute(file.displayName)}" ${isSelected ? 'checked' : ''}>
+                    <input type="checkbox" class="tree-file-checkbox" aria-label="Select file ${this.escapeHtml(file.displayName)}" ${isSelected ? 'checked' : ''}>
                     <span class="file-icon">${fileIcon}</span>
                     <span class="file-name">${file.displayName}</span>
                     <div class="file-actions">
@@ -3697,7 +3651,7 @@ This content is loaded from a markdown file.
         return this.getFileTypeChoices().map(type => {
             const selectedClass = selectedType === type.value ? ' is-selected' : '';
             const selectedState = selectedType === type.value ? 'true' : 'false';
-            return `<li role="option" aria-selected="${selectedState}"><button type="button" class="file-type-dropdown-option${selectedClass}" data-value="${this.escapeHtmlAttribute(type.value)}">${this.renderFileTypeOptionLabel(type)}</button></li>`;
+            return `<li role="option" aria-selected="${selectedState}"><button type="button" class="file-type-dropdown-option${selectedClass}" data-value="${this.escapeHtml(type.value)}">${this.renderFileTypeOptionLabel(type)}</button></li>`;
         }).join('');
     },
 
@@ -3721,7 +3675,7 @@ This content is loaded from a markdown file.
     createFilePanel(fileId, fileName, fileType, content, isBinary) {
         const fileTypeOptions = this.generateFileTypeOptions(fileType);
         const fileTypeDropdownOptions = this.generateFileTypeDropdownOptions(fileType);
-        const escapedFileName = this.escapeHtmlAttribute(fileName);
+        const escapedFileName = this.escapeHtml(fileName);
         
         const panelHTML = `
             <div class="editor-panel" data-file-type="${fileType}" data-file-id="${fileId}">
@@ -6572,8 +6526,8 @@ This content is loaded from a markdown file.
         },
 
         mediaPreviewContent(type, content, fileName) {
-            const safeFileName = CodePreviewer.escapeHtmlAttribute(fileName);
-            const safeContent = CodePreviewer.escapeHtmlAttribute(content);
+            const safeFileName = CodePreviewer.escapeHtml(fileName);
+            const safeContent = CodePreviewer.escapeHtml(content);
             const containers = {
                 image: `<div class="media-preview-container">
                     <img src="${safeContent}" alt="${safeFileName}">
@@ -6600,7 +6554,7 @@ This content is loaded from a markdown file.
                 </div>`,
                 svg: (content, fileName, isBinary) => {
                     const svgDataUrl = isBinary ? content : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(content)}`;
-                    const safeSvgUrl = CodePreviewer.escapeHtmlAttribute(svgDataUrl);
+                    const safeSvgUrl = CodePreviewer.escapeHtml(svgDataUrl);
                     return `<div class="media-preview-container">
                         <h3>${safeFileName}</h3>
                         <img src="${safeSvgUrl}" alt="${safeFileName}">
@@ -6845,7 +6799,7 @@ This content is loaded from a markdown file.
         applyReplacement(htmlContent, fileSystem, currentFilePath, config) {
             return htmlContent.replace(config.pattern, (match, before, filename, after) => {
                 const file = CodePreviewer.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
-                if (file && CodePreviewer.fileSystemUtils.isMatchingType(file.type, config.types)) {
+                if (file && config.types.includes(file.type)) {
                     return config.replace(file, match, before, filename, after);
                 }
                 if (typeof config.onMissing === 'function') {
@@ -7039,7 +6993,7 @@ This content is loaded from a markdown file.
             this.dom.mainHtmlDropdownList.innerHTML = options.map((option) => {
                 const selectedClass = option.value === selectedValue ? ' is-selected' : '';
                 const checked = option.value === selectedValue ? 'true' : 'false';
-                return `<li role="option" aria-selected="${checked}"><button type="button" class="main-html-dropdown-option${selectedClass}" data-value="${this.escapeHtmlAttribute(option.value)}">${this.escapeHtml(option.label)}</button></li>`;
+                return `<li role="option" aria-selected="${checked}"><button type="button" class="main-html-dropdown-option${selectedClass}" data-value="${this.escapeHtml(option.value)}">${this.escapeHtml(option.label)}</button></li>`;
             }).join('');
         }
 
@@ -7376,8 +7330,8 @@ ${arg.stack}` : ''}`;
                 `;
             }
             
-            // Use the centralized code generators from fileSystemUtils
-            const fsUtils = CodePreviewer.fileSystemUtils;
+            // Use the centralized code generators from previewScriptGenerator
+            const fsUtils = CodePreviewer.previewScriptGenerator;
             const base64HelperCode = fsUtils.generateBase64HelperCode();
             const resolvePathCode = fsUtils.generateResolvePathCode();
             const findFileCode = fsUtils.generateFindFileCode();
