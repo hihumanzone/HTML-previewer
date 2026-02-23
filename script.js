@@ -62,6 +62,199 @@ const SVG_ICONS = {
     fileBinary: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1L14 4v8l-6 3L2 12V4l6-3z"/><path d="M8 8v7"/><path d="M2 4l6 4 6-4"/></svg>',
 };
 
+
+/**
+ * Centralized state controller used as a single source of truth for mutable app state.
+ */
+class AppStateStore {
+    /**
+     * @param {object} state
+     */
+    constructor(state) {
+        this.state = state;
+    }
+
+    /**
+     * @returns {object}
+     */
+    getState() {
+        return this.state;
+    }
+
+    /**
+     * @param {string} key
+     * @param {unknown} value
+     */
+    set(key, value) {
+        this.state[key] = value;
+    }
+
+    /**
+     * @param {string} key
+     * @returns {unknown}
+     */
+    get(key) {
+        return this.state[key];
+    }
+}
+
+/**
+ * Handles preview rendering concerns such as debouncing and runtime fallback UI.
+ */
+class PreviewRenderer {
+    /**
+     * @param {typeof CodePreviewer} app
+     */
+    constructor(app) {
+        this.app = app;
+    }
+
+    /**
+     * Debounce preview refresh requests to reduce expensive iframe updates while typing.
+     */
+    scheduleRefresh() {
+        const currentTimer = this.app.stateStore.get('previewRefreshTimer');
+        if (currentTimer) {
+            clearTimeout(currentTimer);
+        }
+
+        const timer = setTimeout(() => {
+            this.app.stateStore.set('previewRefreshTimer', null);
+            this.safeRefreshOpenPreviews();
+        }, this.app.stateStore.get('previewRefreshDelay'));
+
+        this.app.stateStore.set('previewRefreshTimer', timer);
+    }
+
+    /**
+     * @param {'modal'|'tab'} target
+     */
+    render(target) {
+        const availability = this.app.getPreviewAvailability();
+        if (!availability.allowed) {
+            this.app.showNotification('No HTML file found. Import or create an HTML file to preview.', 'warn');
+            this.app.updatePreviewActionButtons();
+            return;
+        }
+
+        this.app.revokeTrackedObjectUrls(this.app.state.previewAssetUrls);
+        const content = this.app.generatePreviewContent();
+
+        if (target === 'modal') {
+            this.app.console.clear();
+            this.safeWritePreviewFrame(content);
+            this.app.toggleModal(true);
+            return;
+        }
+
+        if (target === 'tab') {
+            try {
+                this.app.updatePreviewTab(content, true);
+                this.app.showNotification('Preview opened in a new tab.', 'success');
+            } catch (error) {
+                console.error('Failed to create or open new tab:', error);
+                this.app.showNotification('Unable to open preview tab. Check popup settings and try again.', 'error');
+            }
+        }
+    }
+
+    /**
+     * Safely refresh already-open preview targets.
+     */
+    safeRefreshOpenPreviews() {
+        try {
+            this.app.refreshOpenPreviews();
+        } catch (error) {
+            console.error('Preview refresh failed:', error);
+            this.app.showNotification('Preview refresh failed. The editor content is unchanged.', 'error');
+            this.safeWritePreviewFrame(this.buildPreviewErrorDocument(error));
+        }
+    }
+
+    /**
+     * @param {string} content
+     */
+    safeWritePreviewFrame(content) {
+        if (!this.app.dom.previewFrame) return;
+
+        try {
+            this.app.dom.previewFrame.srcdoc = content;
+        } catch (error) {
+            console.error('Unable to render preview iframe:', error);
+            this.app.dom.previewFrame.srcdoc = this.buildPreviewErrorDocument(error);
+            this.app.showNotification('Unable to render preview content. See details in preview pane.', 'error');
+        }
+    }
+
+    /**
+     * @param {unknown} error
+     * @returns {string}
+     */
+    buildPreviewErrorDocument(error) {
+        const errorText = this.app.escapeHtml(error instanceof Error ? error.message : String(error));
+        return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Preview Error</title></head><body style="font-family:Arial,sans-serif;background:#121219;color:#f8f8ff;padding:16px;"><h2 style="margin-top:0;">Preview rendering error</h2><p>The preview could not be generated safely.</p><pre style="white-space:pre-wrap;background:#1d1f2e;padding:12px;border-radius:8px;border:1px solid #34364d;">${errorText}</pre></body></html>`;
+    }
+}
+
+/**
+ * Small event wiring abstraction to keep binding logic centralized and maintainable.
+ */
+
+/**
+ * Persists and restores user preferences from local storage.
+ */
+class StorageHandler {
+    /**
+     * @param {typeof CodePreviewer} app
+     */
+    constructor(app) {
+        this.app = app;
+    }
+
+    /**
+     * @returns {void}
+     */
+    loadSettings() {
+        try {
+            const raw = localStorage.getItem(this.app.constants.SETTINGS_STORAGE_KEY);
+            if (!raw) return;
+            const parsed = JSON.parse(raw);
+            this.app.state.settings = this.app.normalizeSettings({
+                ...this.app.state.settings,
+                ...parsed,
+            });
+        } catch (error) {
+            console.warn('Unable to load settings:', error);
+        }
+    }
+
+    /**
+     * @returns {void}
+     */
+    saveSettings() {
+        try {
+            localStorage.setItem(this.app.constants.SETTINGS_STORAGE_KEY, JSON.stringify(this.app.state.settings));
+        } catch (error) {
+            console.warn('Unable to save settings:', error);
+        }
+    }
+}
+
+class EventManager {
+    /**
+     * @param {typeof CodePreviewer} app
+     */
+    constructor(app) {
+        this.app = app;
+    }
+
+    bindPrimaryActions() {
+        this.app.dom.modalBtn.addEventListener('click', () => this.app.renderPreview('modal'));
+        this.app.dom.tabBtn.addEventListener('click', () => this.app.renderPreview('tab'));
+        this.app.dom.closeModalBtn.addEventListener('click', () => this.app.toggleModal(false));
+    }
+}
+
 const CodePreviewer = {
     // ============================================================================
     // APPLICATION STATE
@@ -784,33 +977,33 @@ const CodePreviewer = {
                 if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('//')) {
                     return match;
                 }
-                var currentFilePath = getCurrentFilePath();
-                var targetPath = url.replace(/^\\.\\//,"");
-                var fileData = findFileInSystem(targetPath, currentFilePath);
+                const currentFilePath = getCurrentFilePath();
+                const targetPath = url.replace(/^\\.\\//,"");
+                const fileData = findFileInSystem(targetPath, currentFilePath);
                 if (fileData && (fileData.type === "image" || fileData.type === "svg")) {
-                    var dataUrl = fileData.isBinary ? fileData.content :
+                    const dataUrl = fileData.isBinary ? fileData.content :
                         "data:image/svg+xml;charset=utf-8," + encodeURIComponent(fileData.content);
                     return 'url("' + dataUrl + '")';
                 }
                 return match;
             });
         }
-        var urlProps = new Set(['backgroundImage', 'background', 'listStyleImage', 'borderImage', 'borderImageSource', 'cursor', 'content',
+        const urlProps = new Set(['backgroundImage', 'background', 'listStyleImage', 'borderImage', 'borderImageSource', 'cursor', 'content',
             'background-image', 'list-style-image', 'border-image', 'border-image-source']);
-        var origSetProperty = CSSStyleDeclaration.prototype.setProperty;
+        const origSetProperty = CSSStyleDeclaration.prototype.setProperty;
         CSSStyleDeclaration.prototype.setProperty = function(prop, value, priority) {
             if (urlProps.has(prop)) value = resolveUrlsInValue(value);
             return origSetProperty.call(this, prop, value, priority);
         };
-        var styleDesc = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'style');
+        const styleDesc = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'style');
         if (styleDesc && styleDesc.get) {
-            var origStyleGet = styleDesc.get;
-            var proxyCache = new WeakMap();
+            const origStyleGet = styleDesc.get;
+            const proxyCache = new WeakMap();
             Object.defineProperty(HTMLElement.prototype, 'style', {
                 get: function() {
-                    var realStyle = origStyleGet.call(this);
+                    const realStyle = origStyleGet.call(this);
                     if (proxyCache.has(realStyle)) return proxyCache.get(realStyle);
-                    var proxy = new Proxy(realStyle, {
+                    const proxy = new Proxy(realStyle, {
                         set: function(target, prop, value) {
                             if (typeof prop === 'string' && urlProps.has(prop)) {
                                 value = resolveUrlsInValue(value);
@@ -819,7 +1012,7 @@ const CodePreviewer = {
                             return true;
                         },
                         get: function(target, prop) {
-                            var val = target[prop];
+                            const val = target[prop];
                             if (typeof val === 'function') return val.bind(target);
                             return val;
                         }
@@ -917,6 +1110,11 @@ const CodePreviewer = {
      * Sets up DOM elements, loads settings, initializes editors, and binds events
      */
     init() {
+        this.stateStore = new AppStateStore(this.state);
+        this.previewRenderer = new PreviewRenderer(this);
+        this.eventManager = new EventManager(this);
+        this.storageHandler = new StorageHandler(this);
+
         this.cacheDOMElements();
         this.initSettingsCustomDropdowns();
         this.loadSettings();
@@ -1378,17 +1576,7 @@ This content is loaded from a markdown file.
      * @private
      */
     loadSettings() {
-        try {
-            const raw = localStorage.getItem(this.constants.SETTINGS_STORAGE_KEY);
-            if (!raw) return;
-            const parsed = JSON.parse(raw);
-            this.state.settings = this.normalizeSettings({
-                ...this.state.settings,
-                ...parsed,
-            });
-        } catch (error) {
-            console.warn('Unable to load settings:', error);
-        }
+        this.storageHandler.loadSettings();
     },
 
     /**
@@ -1396,11 +1584,7 @@ This content is loaded from a markdown file.
      * @private
      */
     saveSettings() {
-        try {
-            localStorage.setItem(this.constants.SETTINGS_STORAGE_KEY, JSON.stringify(this.state.settings));
-        } catch (error) {
-            console.warn('Unable to save settings:', error);
-        }
+        this.storageHandler.saveSettings();
     },
 
     normalizeSettings(nextSettings = {}) {
@@ -1649,9 +1833,7 @@ This content is loaded from a markdown file.
     },
 
     bindEvents() {
-        this.dom.modalBtn.addEventListener('click', () => this.renderPreview('modal'));
-        this.dom.tabBtn.addEventListener('click', () => this.renderPreview('tab'));
-        this.dom.closeModalBtn.addEventListener('click', () => this.toggleModal(false));
+        this.eventManager.bindPrimaryActions();
         this.dom.toggleConsoleBtn.addEventListener('click', () => this.toggleConsole());
         this.dom.dockPreviewBtn?.addEventListener('click', () => this.togglePreviewDock());
         this.dom.previewDockDivider?.addEventListener('pointerdown', (event) => this.startPreviewDockResize(event));
@@ -4006,14 +4188,7 @@ This content is loaded from a markdown file.
     },
 
     schedulePreviewRefresh() {
-        if (this.state.previewRefreshTimer) {
-            clearTimeout(this.state.previewRefreshTimer);
-        }
-
-        this.state.previewRefreshTimer = setTimeout(() => {
-            this.state.previewRefreshTimer = null;
-            this.refreshOpenPreviews();
-        }, this.state.previewRefreshDelay);
+        this.previewRenderer.scheduleRefresh();
     },
 
     closePanel(fileId) {
@@ -5531,7 +5706,7 @@ This content is loaded from a markdown file.
 
         if (isModalOpen && this.dom.previewFrame) {
             const activeEl = document.activeElement;
-            this.dom.previewFrame.srcdoc = content;
+            this.previewRenderer.safeWritePreviewFrame(content);
             if (activeEl && activeEl !== document.body && activeEl !== this.dom.previewFrame) {
                 const restoreFocus = () => {
                     if (document.contains(activeEl) &&
@@ -5554,29 +5729,7 @@ This content is loaded from a markdown file.
     },
 
     renderPreview(target) {
-        const availability = this.getPreviewAvailability();
-        if (!availability.allowed) {
-            this.showNotification('No HTML file found. Import or create an HTML file to preview.', 'warn');
-            this.updatePreviewActionButtons();
-            return;
-        }
-
-        this.revokeTrackedObjectUrls(this.state.previewAssetUrls);
-        const content = this.generatePreviewContent();
-        
-        if (target === 'modal') {
-            this.console.clear();
-            this.dom.previewFrame.srcdoc = content;
-            this.toggleModal(true);
-        } else if (target === 'tab') {
-            try {
-                this.updatePreviewTab(content, true);
-                this.showNotification('Preview opened in a new tab.', 'success');
-            } catch (e) {
-                console.error("Failed to create or open new tab:", e);
-                this.showNotification('Unable to open preview tab. Check popup settings and try again.', 'error');
-            }
-        }
+        this.previewRenderer.render(target);
     },
 
 
@@ -6306,6 +6459,9 @@ This content is loaded from a markdown file.
             if (!this.container) {
                 this.container = document.createElement('div');
                 this.container.className = 'notification-container';
+                this.container.setAttribute('role', 'status');
+                this.container.setAttribute('aria-live', 'polite');
+                this.container.setAttribute('aria-atomic', 'false');
                 document.body.appendChild(this.container);
             }
             return this.container;
