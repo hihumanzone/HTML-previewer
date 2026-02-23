@@ -13,7 +13,7 @@
  * - Editor Management: initEditors(), createEditorForTextarea(), etc.
  * - File Management: addNewFile(), importFile(), exportFile(), etc.
  * - Preview Management: renderPreview(), toggleModal(), etc.
- * - UI Management: bindEvents(), switchMode(), etc.
+ * - UI Management: eventManager.bindAll(), switchMode(), etc.
  * - htmlGenerators: HTML generation utilities
  * - notificationSystem: Toast notifications
  * - assetReplacers: Asset path replacement for multi-file projects
@@ -65,16 +65,18 @@ const SVG_ICONS = {
 
 /**
  * Centralized state controller used as a single source of truth for mutable app state.
+ * Wraps the plain state object to provide a consistent get/set interface.
  */
 class AppStateStore {
     /**
-     * @param {object} state
+     * @param {object} initialState - The initial application state object
      */
     constructor(state) {
         this.state = state;
     }
 
     /**
+     * Returns the full state object.
      * @returns {object}
      */
     getState() {
@@ -82,16 +84,19 @@ class AppStateStore {
     }
 
     /**
+     * Sets a top-level state key to the given value.
      * @param {string} key
-     * @param {unknown} value
+     * @param {*} value
+     * @returns {void}
      */
     set(key, value) {
         this.state[key] = value;
     }
 
     /**
+     * Reads a top-level state key.
      * @param {string} key
-     * @returns {unknown}
+     * @returns {*}
      */
     get(key) {
         return this.state[key];
@@ -123,7 +128,9 @@ class PreviewRenderer {
     }
 
     /**
-     * @param {'modal'|'tab'} target
+     * Triggers a preview render to the requested target.
+     * Validates HTML availability before proceeding.
+     * @param {'modal'|'tab'} target - Where to display the preview
      */
     render(target) {
         const availability = this.app.getPreviewAvailability();
@@ -133,6 +140,7 @@ class PreviewRenderer {
             return;
         }
 
+        // Always revoke previous asset URLs before generating new ones to avoid leaks.
         this.app.revokeTrackedObjectUrls(this.app.state.previewAssetUrls);
         const content = this.app.generatePreviewContent();
 
@@ -155,7 +163,8 @@ class PreviewRenderer {
     }
 
     /**
-     * Safely refresh already-open preview targets.
+     * Safely refresh already-open preview targets (modal and/or tab).
+     * On failure, writes an error document to the iframe instead of silently breaking.
      */
     safeRefreshOpenPreviews() {
         try {
@@ -168,7 +177,9 @@ class PreviewRenderer {
     }
 
     /**
-     * @param {string} content
+     * Writes an HTML string to the preview iframe's srcdoc.
+     * On failure, replaces the content with a formatted error document.
+     * @param {string} content - Complete HTML document string
      */
     safeWritePreviewFrame(content) {
         if (!this.app.dom.previewFrame) return;
@@ -183,8 +194,9 @@ class PreviewRenderer {
     }
 
     /**
-     * @param {unknown} error
-     * @returns {string}
+     * Builds a self-contained HTML error document for display inside the preview iframe.
+     * @param {unknown} error - The caught error value
+     * @returns {string} A minimal HTML document string
      */
     buildPreviewErrorDocument(error) {
         const errorText = this.app.escapeHtml(error instanceof Error ? error.message : String(error));
@@ -193,7 +205,9 @@ class PreviewRenderer {
 }
 
 /**
- * Persists and restores user preferences from local storage.
+ * Persists and restores user preferences via localStorage.
+ * All I/O is wrapped in try/catch so a corrupt or missing entry never
+ * prevents the application from starting.
  */
 class StorageHandler {
     /**
@@ -204,6 +218,8 @@ class StorageHandler {
     }
 
     /**
+     * Reads settings from localStorage and merges them into the current state.
+     * Silently ignores missing, malformed, or unreadable data.
      * @returns {void}
      */
     loadSettings() {
@@ -221,11 +237,16 @@ class StorageHandler {
     }
 
     /**
+     * Serializes the current settings object to localStorage.
+     * Silently ignores QuotaExceededError and other write failures.
      * @returns {void}
      */
     saveSettings() {
         try {
-            localStorage.setItem(this.app.constants.SETTINGS_STORAGE_KEY, JSON.stringify(this.app.state.settings));
+            localStorage.setItem(
+                this.app.constants.SETTINGS_STORAGE_KEY,
+                JSON.stringify(this.app.state.settings)
+            );
         } catch (error) {
             console.warn('Unable to save settings:', error);
         }
@@ -1537,26 +1558,49 @@ const CodePreviewer = {
     // ============================================================================
     
     /**
-     * Initialize the Code Previewer application
-     * Sets up DOM elements, loads settings, initializes editors, and binds events
+     * Bootstraps the Code Previewer application.
+     *
+     * Initialization order is intentional:
+     *  1. Helper class instances (EventManager needs DOM refs; StorageHandler needs constants).
+     *  2. DOM cache — required by every subsequent step.
+     *  3. Settings loaded before editors are created so they receive the correct theme/font/etc.
+     *  4. Editors initialized before event binding so change-listeners have valid targets.
+     *  5. Events bound before file panels so file-tree click handlers are ready.
+     *  6. consoleBridge initialized last because it needs the final previewFrame reference.
      */
     init() {
-        this.stateStore = new AppStateStore(this.state);
+        // 1. Instantiate helpers — storageHandler needed by loadSettings(),
+        //    previewRenderer and eventManager needed before bindAll().
         this.previewRenderer = new PreviewRenderer(this);
-        this.eventManager = new EventManager(this);
-        this.storageHandler = new StorageHandler(this);
+        this.eventManager    = new EventManager(this);
+        this.storageHandler  = new StorageHandler(this);
 
+        // 2. Cache all DOM references once.
         this.cacheDOMElements();
         this.initSettingsCustomDropdowns();
+
+        // 3. Load persisted settings before creating editors.
         this.loadSettings();
+
+        // 4. Initialize CodeMirror editors.
         this.initEditors();
+
+        // 5. Bind all UI events via the EventManager.
         this.eventManager.bindAll();
         this.bindFileTreeEvents();
+
+        // 6. Hydrate existing file panels and ensure default demo files exist.
         this.initExistingFilePanels();
         this.ensureDefaultContentFile();
+
+        // 7. Apply loaded settings to every editor instance and sync the settings UI.
         this.applyEditorSettingsToAllEditors();
         this.syncSettingsUI();
+
+        // 8. Initialize the console capture bridge with the preview iframe reference.
         this.consoleBridge.init(this.dom.consoleOutput, this.dom.clearConsoleBtn, this.dom.previewFrame);
+
+        // 9. Final layout pass.
         this.updatePreviewActionButtons();
         this.updatePreviewViewportHeight();
         this.updateAdaptiveLayoutMode();
@@ -2287,16 +2331,6 @@ This content is loaded from a markdown file.
 
         this.updateDockDividerVisibility();
         this.updateBackgroundScrollLock();
-    },
-
-    /**
-     * @deprecated Use eventManager.bindAll() via init().
-     * Preserved as a no-op shim so any external callers don't break.
-     */
-    bindEvents() {
-        // All event binding has been moved to EventManager.bindAll(),
-        // which is called directly from init(). This method is kept
-        // as a backward-compat shim only.
     },
 
     updatePreviewViewportHeight() {
@@ -5353,10 +5387,22 @@ This content is loaded from a markdown file.
         return null;
     },
 
+    /**
+     * Displays a transient toast notification.
+     * @param {string} message - The text to display
+     * @param {'info'|'success'|'warn'|'error'} [type='info'] - Visual severity level
+     */
     showNotification(message, type = 'info') {
         this.notificationSystem.show(message, type);
     },
 
+    /**
+     * Displays a progress notification with a live progress bar.
+     * Returns a controller object with `update()`, `complete()`, `fail()`, and `dismiss()` methods.
+     * @param {string} message - Initial message text
+     * @param {{type?: string, total?: number}} [options={}]
+     * @returns {{update: function, complete: function, fail: function, dismiss: function}}
+     */
     showProgressNotification(message, options = {}) {
         return this.notificationSystem.showProgress(message, options);
     },
@@ -6047,9 +6093,9 @@ This content is loaded from a markdown file.
                 clearTimeout(this.state.previewRefreshTimer);
                 this.state.previewRefreshTimer = null;
             }
-            // Clean up when closing the modal
-            // Completely remove and recreate the iframe to ensure full cleanup
-            // This stops all scripts, event listeners, and timers running in the iframe
+
+            // Replace the iframe entirely on close. cloneNode(false) creates a fresh
+            // element with no running scripts, listeners, or timers — the safest teardown.
             const iframe = this.dom.previewFrame;
             const parent = iframe.parentNode;
             iframe.removeAttribute('srcdoc');
@@ -6058,12 +6104,11 @@ This content is loaded from a markdown file.
             newIframe.removeAttribute('srcdoc');
             newIframe.src = 'about:blank';
             parent.replaceChild(newIframe, iframe);
-            
-            // Update the reference to the new iframe
+
+            // Update cached references to the replacement iframe.
             this.dom.previewFrame = newIframe;
             this.consoleBridge.previewFrame = newIframe;
-            
-            // Clear console
+
             this.consoleBridge.clear();
             this.cleanupPreviewAssetUrlsIfUnused();
         }
@@ -6572,11 +6617,21 @@ This content is loaded from a markdown file.
 
     // ============================================================================
     // NOTIFICATION SYSTEM
+    // Renders toast notifications with optional progress bars.
+    // Public surface: show(message, type) and showProgress(message, options).
+    // All other methods are internal helpers.
     // ============================================================================
     notificationSystem: {
+        /** @type {HTMLElement|null} Lazily created container element */
         container: null,
+        /** @type {number} Auto-incrementing ID for progress notification elements */
         progressId: 0,
 
+        /**
+         * Returns (and lazily creates) the notification container element.
+         * The container is appended once to document.body and reused for all notifications.
+         * @returns {HTMLElement}
+         */
         getContainer() {
             if (!this.container) {
                 this.container = document.createElement('div');
@@ -7032,6 +7087,13 @@ This content is loaded from a markdown file.
         OBJECT_COLLAPSE_THRESHOLD: 100,
         COPY_FEEDBACK_DURATION: 1000,
         
+        /**
+         * Wires the console capture bridge to its DOM output element and the preview iframe.
+         * Must be called once after the DOM is fully cached.
+         * @param {HTMLElement} outputEl - The container element for rendered log messages
+         * @param {HTMLElement} clearBtn - The "Clear console" button
+         * @param {HTMLIFrameElement} previewFrame - The preview iframe (used to filter incoming messages)
+         */
         init(outputEl, clearBtn, previewFrame) {
             this.outputEl = outputEl;
             this.previewFrame = previewFrame;
@@ -7108,6 +7170,9 @@ This content is loaded from a markdown file.
             });
         },
         
+        /**
+         * Clears all logged messages from the output element and resets all log counters.
+         */
         clear() {
             this.outputEl.innerHTML = '';
             this.logCounts = { log: 0, warn: 0, error: 0, info: 0 };
@@ -7264,9 +7329,19 @@ ${arg.stack}` : ''}`;
             this.outputEl.scrollTop = this.outputEl.scrollHeight;
         },
         
+        /**
+         * Handles postMessage events from the preview iframe.
+         * Filters to only process console capture messages from the active preview frame.
+         * @param {MessageEvent} event
+         */
         handleMessage(event) {
             const { CONSOLE_MESSAGE_TYPE } = CodePreviewer.constants;
-            if (event.source === this.previewFrame.contentWindow && event.data.type === CONSOLE_MESSAGE_TYPE) {
+            // Guard: event.data may be null (e.g. from browser extensions).
+            if (
+                event.data &&
+                event.source === this.previewFrame?.contentWindow &&
+                event.data.type === CONSOLE_MESSAGE_TYPE
+            ) {
                 this.log(event.data);
             }
         },
