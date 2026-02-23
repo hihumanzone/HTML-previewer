@@ -6651,10 +6651,17 @@ This content is loaded from a markdown file.
             return /^(?:https?:|\/\/|data:|blob:)/i.test(path || '');
         },
 
-        createMissingAssetConsoleScript(assetLabel, requestedPath, currentFilePath) {
+        createMissingAssetConsoleScript(assetLabel, requestedPath, currentFilePath, options = {}) {
             const safeRequestedPath = JSON.stringify(requestedPath || '');
             const safeSourcePath = JSON.stringify(currentFilePath || 'index.html');
-            return `<script>console.error('[Preview] ${assetLabel} not found:', ${safeRequestedPath}, 'from', ${safeSourcePath});</script>`;
+            const deferUntilDomReady = Boolean(options.deferUntilDomReady);
+            const logSnippet = `console.error('[Preview] ${assetLabel} not found:', ${safeRequestedPath}, 'from', ${safeSourcePath});`;
+
+            if (!deferUntilDomReady) {
+                return `<script>${logSnippet}</script>`;
+            }
+
+            return `<script>(function(){const logMissingAsset=()=>{${logSnippet}};if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',logMissingAsset,{once:true});}else{logMissingAsset();}})();</script>`;
         },
 
         /**
@@ -6670,7 +6677,9 @@ This content is loaded from a markdown file.
                     if (CodePreviewer.assetReplacers.isExternalAssetPath(filename)) {
                         return match;
                     }
-                    return CodePreviewer.assetReplacers.createMissingAssetConsoleScript('Stylesheet', filename, currentFilePath);
+                    return CodePreviewer.assetReplacers.createMissingAssetConsoleScript('Stylesheet', filename, currentFilePath, {
+                        deferUntilDomReady: true,
+                    });
                 }
             },
             images: {
