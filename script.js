@@ -1076,12 +1076,69 @@ const CodePreviewer = {
          */
         generateConsoleOverrideCode(messageType) {
             return `
+    const normalizeSourcePath = (source) => {
+        if (!source || typeof source !== 'string') return '';
+        try {
+            const parsed = new URL(source, window.location.href);
+            if (parsed.protocol === 'blob:' || parsed.protocol === 'data:' || parsed.href === 'about:srcdoc') {
+                return source;
+            }
+            return parsed.pathname.replace(/^\//, '');
+        } catch (error) {
+            return source.replace(/^\//, '');
+        }
+    };
+    const classifySourceOrigin = (source) => {
+        if (!source) return 'unknown';
+        if (typeof source !== 'string') return 'unknown';
+
+        const normalizedPath = normalizeSourcePath(source);
+        if (normalizedPath && Object.prototype.hasOwnProperty.call(virtualFileSystem, normalizedPath)) {
+            return 'virtual-file';
+        }
+
+        if (/^(https?:)?\/\//i.test(source)) {
+            return 'external-url';
+        }
+
+        if (/^(blob:|data:|about:srcdoc)/i.test(source)) {
+            return 'virtual-file';
+        }
+
+        return 'unknown';
+    };
+    const serializeArg = (arg) => {
+        if (arg instanceof Error) {
+            return {
+                message: arg.message,
+                stack: arg.stack,
+                name: arg.name
+            };
+        }
+        try {
+            return JSON.parse(JSON.stringify(arg));
+        } catch (e) {
+            return 'Unserializable Object';
+        }
+    };
     const postLog = (level, args) => {
-        const formattedArgs = args.map(arg => {
-            if (arg instanceof Error) return { message: arg.message, stack: arg.stack };
-            try { return JSON.parse(JSON.stringify(arg)); } catch (e) { return 'Unserializable Object'; }
-        });
+        const formattedArgs = Array.isArray(args) ? args.map(serializeArg) : [serializeArg(args)];
         window.parent.postMessage({ type: '${messageType}', level, message: formattedArgs }, '*');
+    };
+    const postStructuredError = (payload) => {
+        window.parent.postMessage({
+            type: '${messageType}',
+            level: 'error',
+            message: [{
+                kind: 'runtime-error',
+                message: payload.message || 'Unknown runtime error',
+                source: payload.source || '',
+                line: Number(payload.line) || 0,
+                column: Number(payload.column) || 0,
+                stack: payload.stack || '',
+                originType: classifySourceOrigin(payload.source)
+            }]
+        }, '*');
     };
     const originalConsole = { ...window.console };
     ['log', 'info', 'warn', 'error'].forEach(level => {
@@ -1092,11 +1149,25 @@ const CodePreviewer = {
     });
     window.onerror = (message, source, lineno, colno, error) => {
         if (message === 'Script error.' && !source) return true;
-        postLog('error', [message, 'at ' + (source ? source.split('/').pop() : '(unknown)') + ':' + lineno + ':' + colno]);
+        postStructuredError({
+            message: message,
+            source: source,
+            line: lineno,
+            column: colno,
+            stack: error && error.stack ? error.stack : ''
+        });
         return true;
     };
     window.addEventListener('unhandledrejection', e => {
-        postLog('error', ['Unhandled promise rejection:', e.reason]);
+        const reason = e && Object.prototype.hasOwnProperty.call(e, 'reason') ? e.reason : 'Unknown rejection reason';
+        postStructuredError({
+            message: 'Unhandled promise rejection',
+            source: (e && e.reason && e.reason.sourceURL) || '',
+            line: (e && e.reason && e.reason.line) || 0,
+            column: (e && e.reason && e.reason.column) || 0,
+            stack: reason && reason.stack ? reason.stack : ''
+        });
+        postLog('error', ['Unhandled promise rejection:', reason]);
     });`;
         }
     },
@@ -6699,6 +6770,11 @@ This content is loaded from a markdown file.
                 if (workerFileSet.has(filename)) {
                     return '';
                 }
+
+                const isExternalScript = /^(?:https?:|\/\/|data:|blob:)/i.test(filename);
+                if (isExternalScript) {
+                    return match;
+                }
                 
                 const file = CodePreviewer.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
                 if (file && (file.type === 'javascript' || file.type === 'javascript-module')) {
@@ -6707,7 +6783,11 @@ This content is loaded from a markdown file.
                     const escapedContent = file.content.replace(/<\/script>/gi, '<\\/script>');
                     return `<script${scriptType}>${escapedContent}</script>`;
                 }
-                return match;
+
+                const requestedPath = JSON.stringify(filename);
+                const sourcePath = JSON.stringify(currentFilePath || 'index.html');
+                const scriptType = /\btype\s*=\s*["']module["']/i.test(`${before} ${after}`) ? ' type="module"' : '';
+                return `<script${scriptType}>console.error('[Preview] Script not found:', ${requestedPath}, 'from', ${sourcePath});</script>`;
             });
         }
     },
@@ -6989,33 +7069,82 @@ This content is loaded from a markdown file.
             });
         },
         
+        formatRuntimeErrorEntry(entry) {
+            const source = entry.source || '(unknown source)';
+            const line = Number(entry.line) || 0;
+            const column = Number(entry.column) || 0;
+            const location = line || column ? `${source}:${line}:${column}` : source;
+            const origin = entry.originType || 'unknown';
+            const stack = entry.stack
+                ? `<details class="console-object"><summary>Stack trace</summary><pre>${this.escapeHtml(entry.stack)}</pre></details>`
+                : '';
+
+            return `<span class="console-runtime-error"><strong>${this.escapeHtml(String(entry.message || 'Runtime error'))}</strong> <span class="console-object-inline">(${this.escapeHtml(origin)})</span><br><span class="console-object-inline">${this.escapeHtml(location)}</span>${stack}</span>`;
+        },
+
+        normalizeMessage(message) {
+            if (Array.isArray(message)) return message;
+            if (message === undefined) return [];
+            return [message];
+        },
+
+        isStructuredRuntimeErrorEntry(arg) {
+            return !!(
+                arg &&
+                typeof arg === 'object' &&
+                !Array.isArray(arg) &&
+                arg.kind === 'runtime-error' &&
+                Object.prototype.hasOwnProperty.call(arg, 'message') &&
+                Object.prototype.hasOwnProperty.call(arg, 'source') &&
+                Object.prototype.hasOwnProperty.call(arg, 'originType')
+            );
+        },
+
+        formatMessageEntries(messageEntries) {
+            return messageEntries.map(arg => {
+                if (this.isStructuredRuntimeErrorEntry(arg)) {
+                    return this.formatRuntimeErrorEntry(arg);
+                }
+                return this.formatValue(arg);
+            }).join(' ');
+        },
+
         log(logData) {
             const level = logData.level || 'log';
             this.logCounts[level] = (this.logCounts[level] || 0) + 1;
             this.updateFilterCounts();
-            
+
             const el = document.createElement('div');
             el.className = `log-message log-type-${level}`;
-            
+
             // Apply current filter
             if (!this.filters[level]) {
                 el.style.display = 'none';
             }
-            
-            const messageContent = logData.message.map(arg => this.formatValue(arg)).join(' ');
-            
+
+            const messageEntries = this.normalizeMessage(logData.message);
+            const messageContent = this.formatMessageEntries(messageEntries);
+
             el.innerHTML = `
                 <span class="log-icon" aria-hidden="true">${this.getIcon(level)}</span>
                 <span class="log-timestamp">${this.getTimestamp()}</span>
                 <span class="log-content">${messageContent}</span>
                 <button class="log-copy-btn" title="Copy message" aria-label="Copy message to clipboard">${SVG_ICONS.clipboard}</button>
             `;
-            
+
             // Add copy functionality with accessibility support
             const copyBtn = el.querySelector('.log-copy-btn');
             copyBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const text = logData.message.map(arg => {
+                const text = messageEntries.map(arg => {
+                    if (this.isStructuredRuntimeErrorEntry(arg)) {
+                        const source = arg.source || '(unknown source)';
+                        const line = Number(arg.line) || 0;
+                        const column = Number(arg.column) || 0;
+                        const location = line || column ? `${source}:${line}:${column}` : source;
+                        return `[RuntimeError/${arg.originType}] ${arg.message} @ ${location}${arg.stack ? `
+${arg.stack}` : ''}`;
+                    }
                     if (typeof arg === 'object') {
                         try { return JSON.stringify(arg, null, 2); } catch (e) { return String(arg); }
                     }
@@ -7037,7 +7166,7 @@ This content is loaded from a markdown file.
                     }, this.COPY_FEEDBACK_DURATION);
                 });
             });
-            
+
             this.outputEl.appendChild(el);
             this.outputEl.scrollTop = this.outputEl.scrollHeight;
         },
