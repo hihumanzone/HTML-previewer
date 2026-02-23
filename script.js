@@ -199,6 +199,47 @@ class PreviewRenderer {
 /**
  * Small event wiring abstraction to keep binding logic centralized and maintainable.
  */
+
+/**
+ * Persists and restores user preferences from local storage.
+ */
+class StorageHandler {
+    /**
+     * @param {typeof CodePreviewer} app
+     */
+    constructor(app) {
+        this.app = app;
+    }
+
+    /**
+     * @returns {void}
+     */
+    loadSettings() {
+        try {
+            const raw = localStorage.getItem(this.app.constants.SETTINGS_STORAGE_KEY);
+            if (!raw) return;
+            const parsed = JSON.parse(raw);
+            this.app.state.settings = this.app.normalizeSettings({
+                ...this.app.state.settings,
+                ...parsed,
+            });
+        } catch (error) {
+            console.warn('Unable to load settings:', error);
+        }
+    }
+
+    /**
+     * @returns {void}
+     */
+    saveSettings() {
+        try {
+            localStorage.setItem(this.app.constants.SETTINGS_STORAGE_KEY, JSON.stringify(this.app.state.settings));
+        } catch (error) {
+            console.warn('Unable to save settings:', error);
+        }
+    }
+}
+
 class EventManager {
     /**
      * @param {typeof CodePreviewer} app
@@ -936,33 +977,33 @@ const CodePreviewer = {
                 if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('//')) {
                     return match;
                 }
-                var currentFilePath = getCurrentFilePath();
-                var targetPath = url.replace(/^\\.\\//,"");
-                var fileData = findFileInSystem(targetPath, currentFilePath);
+                const currentFilePath = getCurrentFilePath();
+                const targetPath = url.replace(/^\\.\\//,"");
+                const fileData = findFileInSystem(targetPath, currentFilePath);
                 if (fileData && (fileData.type === "image" || fileData.type === "svg")) {
-                    var dataUrl = fileData.isBinary ? fileData.content :
+                    const dataUrl = fileData.isBinary ? fileData.content :
                         "data:image/svg+xml;charset=utf-8," + encodeURIComponent(fileData.content);
                     return 'url("' + dataUrl + '")';
                 }
                 return match;
             });
         }
-        var urlProps = new Set(['backgroundImage', 'background', 'listStyleImage', 'borderImage', 'borderImageSource', 'cursor', 'content',
+        const urlProps = new Set(['backgroundImage', 'background', 'listStyleImage', 'borderImage', 'borderImageSource', 'cursor', 'content',
             'background-image', 'list-style-image', 'border-image', 'border-image-source']);
-        var origSetProperty = CSSStyleDeclaration.prototype.setProperty;
+        const origSetProperty = CSSStyleDeclaration.prototype.setProperty;
         CSSStyleDeclaration.prototype.setProperty = function(prop, value, priority) {
             if (urlProps.has(prop)) value = resolveUrlsInValue(value);
             return origSetProperty.call(this, prop, value, priority);
         };
-        var styleDesc = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'style');
+        const styleDesc = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'style');
         if (styleDesc && styleDesc.get) {
-            var origStyleGet = styleDesc.get;
-            var proxyCache = new WeakMap();
+            const origStyleGet = styleDesc.get;
+            const proxyCache = new WeakMap();
             Object.defineProperty(HTMLElement.prototype, 'style', {
                 get: function() {
-                    var realStyle = origStyleGet.call(this);
+                    const realStyle = origStyleGet.call(this);
                     if (proxyCache.has(realStyle)) return proxyCache.get(realStyle);
-                    var proxy = new Proxy(realStyle, {
+                    const proxy = new Proxy(realStyle, {
                         set: function(target, prop, value) {
                             if (typeof prop === 'string' && urlProps.has(prop)) {
                                 value = resolveUrlsInValue(value);
@@ -971,7 +1012,7 @@ const CodePreviewer = {
                             return true;
                         },
                         get: function(target, prop) {
-                            var val = target[prop];
+                            const val = target[prop];
                             if (typeof val === 'function') return val.bind(target);
                             return val;
                         }
@@ -1072,6 +1113,7 @@ const CodePreviewer = {
         this.stateStore = new AppStateStore(this.state);
         this.previewRenderer = new PreviewRenderer(this);
         this.eventManager = new EventManager(this);
+        this.storageHandler = new StorageHandler(this);
 
         this.cacheDOMElements();
         this.initSettingsCustomDropdowns();
@@ -1534,17 +1576,7 @@ This content is loaded from a markdown file.
      * @private
      */
     loadSettings() {
-        try {
-            const raw = localStorage.getItem(this.constants.SETTINGS_STORAGE_KEY);
-            if (!raw) return;
-            const parsed = JSON.parse(raw);
-            this.state.settings = this.normalizeSettings({
-                ...this.state.settings,
-                ...parsed,
-            });
-        } catch (error) {
-            console.warn('Unable to load settings:', error);
-        }
+        this.storageHandler.loadSettings();
     },
 
     /**
@@ -1552,11 +1584,7 @@ This content is loaded from a markdown file.
      * @private
      */
     saveSettings() {
-        try {
-            localStorage.setItem(this.constants.SETTINGS_STORAGE_KEY, JSON.stringify(this.state.settings));
-        } catch (error) {
-            console.warn('Unable to save settings:', error);
-        }
+        this.storageHandler.saveSettings();
     },
 
     normalizeSettings(nextSettings = {}) {
