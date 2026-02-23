@@ -17,7 +17,7 @@
  * - htmlGenerators: HTML generation utilities
  * - notificationSystem: Toast notifications
  * - assetReplacers: Asset path replacement for multi-file projects
- * - console: Console capture and logging
+ * - consoleBridge: Console capture and logging
  * 
  */
 const SVG_ICONS = {
@@ -113,17 +113,13 @@ class PreviewRenderer {
      * Debounce preview refresh requests to reduce expensive iframe updates while typing.
      */
     scheduleRefresh() {
-        const currentTimer = this.app.stateStore.get('previewRefreshTimer');
-        if (currentTimer) {
-            clearTimeout(currentTimer);
-        }
+        const { state } = this.app;
+        clearTimeout(state.previewRefreshTimer);
 
-        const timer = setTimeout(() => {
-            this.app.stateStore.set('previewRefreshTimer', null);
+        state.previewRefreshTimer = setTimeout(() => {
+            state.previewRefreshTimer = null;
             this.safeRefreshOpenPreviews();
-        }, this.app.stateStore.get('previewRefreshDelay'));
-
-        this.app.stateStore.set('previewRefreshTimer', timer);
+        }, state.previewRefreshDelay);
     }
 
     /**
@@ -197,10 +193,6 @@ class PreviewRenderer {
 }
 
 /**
- * Small event wiring abstraction to keep binding logic centralized and maintainable.
- */
-
-/**
  * Persists and restores user preferences from local storage.
  */
 class StorageHandler {
@@ -248,10 +240,377 @@ class EventManager {
         this.app = app;
     }
 
+    /**
+     * Entry point — wires every category of events.
+     * Called once during init().
+     */
+    bindAll() {
+        this.bindPrimaryActions();
+        this.bindConsoleActions();
+        this.bindPreviewDock();
+        this.bindModalOverlay();
+        this.bindKeyboard();
+        this.bindCodeModal();
+        this.bindMediaModal();
+        this.bindFileActions();
+        this.bindSettingsModal();
+        this.bindViewportResize();
+    }
+
+    // ─── Preview ──────────────────────────────────────────────────────────────
+
+    /**
+     * Binds the primary preview action buttons (modal / tab).
+     */
     bindPrimaryActions() {
         this.app.dom.modalBtn.addEventListener('click', () => this.app.renderPreview('modal'));
         this.app.dom.tabBtn.addEventListener('click', () => this.app.renderPreview('tab'));
         this.app.dom.closeModalBtn.addEventListener('click', () => this.app.toggleModal(false));
+    }
+
+    // ─── Console ──────────────────────────────────────────────────────────────
+
+    /**
+     * Binds console toggle button.
+     */
+    bindConsoleActions() {
+        this.app.dom.toggleConsoleBtn.addEventListener('click', () => this.app.toggleConsole());
+    }
+
+    // ─── Preview Dock ─────────────────────────────────────────────────────────
+
+    /**
+     * Binds dock toggle and resize-divider drag events.
+     */
+    bindPreviewDock() {
+        this.app.dom.dockPreviewBtn?.addEventListener('click', () => this.app.togglePreviewDock());
+        this.app.dom.previewDockDivider?.addEventListener(
+            'pointerdown',
+            (e) => this.app.startPreviewDockResize(e)
+        );
+    }
+
+    // ─── Modal Overlay ────────────────────────────────────────────────────────
+
+    /**
+     * Closes the preview modal when the backdrop is clicked (undocked mode only).
+     */
+    bindModalOverlay() {
+        this.app.dom.modalOverlay.addEventListener('click', (e) => {
+            if (this.app.state.isPreviewDocked) return;
+            if (e.target === this.app.dom.modalOverlay) this.app.toggleModal(false);
+        });
+    }
+
+    // ─── Global Keyboard ──────────────────────────────────────────────────────
+
+    /**
+     * Binds application-wide keyboard shortcuts.
+     */
+    bindKeyboard() {
+        document.addEventListener('keydown', (e) => {
+            const { app } = this;
+            const activePanel = app.getActiveEditorPanel();
+
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                app.renderPreview('modal');
+                return;
+            }
+
+            if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'k') {
+                e.preventDefault();
+                app.focusSidebarSearch();
+                return;
+            }
+
+            if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'f') {
+                const codeModal = app.dom.codeModal;
+                const isCodeModalOpen = codeModal?.getAttribute('aria-hidden') === 'false';
+                if (isCodeModalOpen) {
+                    e.preventDefault();
+                    app.openCodeModalSearch();
+                } else if (activePanel) {
+                    e.preventDefault();
+                    app.openPanelSearch(activePanel);
+                }
+                return;
+            }
+
+            if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'e' && activePanel) {
+                e.preventDefault();
+                app.expandCode(activePanel);
+                return;
+            }
+
+            if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'f' && activePanel) {
+                e.preventDefault();
+                app.formatPanelCode(activePanel, false);
+                return;
+            }
+
+            if (e.key === 'Escape') {
+                if (app.dom.modalOverlay.getAttribute('aria-hidden') === 'false') {
+                    app.toggleModal(false);
+                }
+                app.toggleSettingsModal(false);
+                if (app.dom.codeModal?.getAttribute('aria-hidden') === 'false') {
+                    app.closeCodeModal();
+                }
+                if (app.dom.mediaModal?.getAttribute('aria-hidden') === 'false') {
+                    app.closeMediaModal();
+                }
+            }
+        });
+    }
+
+    // ─── Code Modal ───────────────────────────────────────────────────────────
+
+    /**
+     * Binds code-view modal close, search, and save actions.
+     */
+    bindCodeModal() {
+        const { app } = this;
+        const codeModalCloseBtn = app.dom.codeModal?.querySelector('.close-btn');
+
+        if (codeModalCloseBtn) {
+            codeModalCloseBtn.addEventListener('click', () => app.closeCodeModal());
+        }
+
+        if (app.dom.codeModal) {
+            app.dom.codeModal.addEventListener('click', (e) => {
+                if (e.target === app.dom.codeModal) app.closeCodeModal();
+            });
+        }
+
+        if (app.dom.codeModalSearchBtn) {
+            app.dom.codeModalSearchBtn.addEventListener('click', () => app.toggleCodeModalSearch());
+        }
+
+        if (app.dom.codeModalSearchInput) {
+            app.dom.codeModalSearchInput.addEventListener('input', () => app.searchInCodeModal(false));
+            app.dom.codeModalSearchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    app.searchInCodeModal(true);
+                }
+            });
+        }
+
+        if (app.dom.codeModalSearchNextBtn) {
+            app.dom.codeModalSearchNextBtn.addEventListener('click', () => app.searchInCodeModal(true));
+        }
+
+        if (app.dom.codeModalSearchCloseBtn) {
+            app.dom.codeModalSearchCloseBtn.addEventListener('click', () => app.closeCodeModalSearch());
+        }
+
+        if (app.dom.saveCodeBtn) {
+            app.dom.saveCodeBtn.addEventListener('click', () => app.saveCodeModal());
+        }
+    }
+
+    // ─── Media Modal ──────────────────────────────────────────────────────────
+
+    /**
+     * Binds media preview modal close action.
+     */
+    bindMediaModal() {
+        const { app } = this;
+        const mediaModalCloseBtn = app.dom.mediaModal?.querySelector('.close-btn');
+
+        if (mediaModalCloseBtn) {
+            mediaModalCloseBtn.addEventListener('click', () => app.closeMediaModal());
+        }
+
+        if (app.dom.mediaModal) {
+            app.dom.mediaModal.addEventListener('click', (e) => {
+                if (e.target === app.dom.mediaModal) app.closeMediaModal();
+            });
+        }
+    }
+
+    // ─── File Actions ─────────────────────────────────────────────────────────
+
+    /**
+     * Binds file management toolbar buttons (add, import, export, clear).
+     */
+    bindFileActions() {
+        const { app } = this;
+
+        app.dom.addFileBtn.addEventListener('click', () => app.addNewFile());
+        app.dom.addFolderBtn?.addEventListener('click', () => app.addNewFolder());
+        app.dom.clearAllFilesBtn?.addEventListener('click', () => app.clearAllFiles());
+        app.dom.importFileBtn.addEventListener('click', () => app.importFile());
+        app.dom.importFolderBtn?.addEventListener('click', () => app.importFolder());
+        app.dom.importZipBtn.addEventListener('click', () => app.importArchive());
+        app.dom.exportZipBtn.addEventListener('click', () => app.exportZip());
+
+        app.setupMainHtmlDropdownEvents();
+
+        // Close custom dropdowns when clicking outside their boundaries
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.file-type-dropdown')) app.closeAllFileTypeDropdowns();
+            if (!e.target.closest('.settings-select-dropdown')) app.closeAllSettingsSelectDropdowns();
+        });
+    }
+
+    // ─── Settings Modal ───────────────────────────────────────────────────────
+
+    /**
+     * Binds settings button, settings modal close/backdrop, and all setting controls.
+     * Uses a declarative binding table to eliminate repetitive handler blocks.
+     */
+    bindSettingsModal() {
+        const { app } = this;
+
+        app.dom.settingsBtn?.addEventListener('click', () => app.toggleSettingsModal(true));
+
+        if (!app.dom.settingsModal) return;
+
+        // Close on backdrop click
+        app.dom.settingsModal.addEventListener('click', (e) => {
+            if (e.target === app.dom.settingsModal) app.toggleSettingsModal(false);
+        });
+
+        // Custom dropdown: open/select
+        app.dom.settingsModal.addEventListener('click', (e) => {
+            const trigger = e.target.closest('.settings-select-dropdown-trigger');
+            if (trigger) {
+                app.toggleSettingsSelectDropdown(trigger.closest('.settings-select-dropdown'));
+                return;
+            }
+            const option = e.target.closest('.settings-select-dropdown-option');
+            if (option) {
+                app.selectSettingsDropdownOption(option.closest('.settings-select-dropdown'), option);
+            }
+        });
+
+        // Custom dropdown: keyboard navigation
+        app.dom.settingsModal.addEventListener('keydown', (e) => {
+            const dropdown = e.target.closest('.settings-select-dropdown');
+            if (!dropdown) return;
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                app.toggleSettingsSelectDropdown(dropdown, true);
+                app.moveSettingsDropdownFocus(dropdown, 1);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                app.toggleSettingsSelectDropdown(dropdown, true);
+                app.moveSettingsDropdownFocus(dropdown, -1);
+            } else if (e.key === 'Enter' || e.key === ' ') {
+                const option = e.target.closest('.settings-select-dropdown-option');
+                if (option) {
+                    e.preventDefault();
+                    app.selectSettingsDropdownOption(dropdown, option);
+                } else if (e.target.closest('.settings-select-dropdown-trigger')) {
+                    e.preventDefault();
+                    app.toggleSettingsSelectDropdown(dropdown);
+                }
+            }
+        });
+
+        // Close button
+        const settingsCloseBtn = app.dom.settingsModal.querySelector('.close-btn');
+        if (settingsCloseBtn) {
+            settingsCloseBtn.addEventListener('click', () => app.toggleSettingsModal(false));
+        }
+
+        // ESC to close (registered once on document to avoid duplicates)
+        if (!app.state.settingsEscHandler) {
+            app.state.settingsEscHandler = (e) => {
+                if (e.key === 'Escape' && app.isSettingsModalOpen()) {
+                    const hasOpenDropdown = !!app.dom.settingsModal?.querySelector(
+                        '.settings-select-dropdown-trigger[aria-expanded="true"]'
+                    );
+                    if (hasOpenDropdown) {
+                        app.closeAllSettingsSelectDropdowns();
+                        return;
+                    }
+                    app.toggleSettingsModal(false);
+                }
+            };
+            document.addEventListener('keydown', app.state.settingsEscHandler);
+        }
+
+        this._bindSettingControls();
+    }
+
+    /**
+     * Declarative table-driven binding for individual setting controls.
+     * Each entry maps a DOM element to a state property and a value reader.
+     * This replaces nine near-identical if-block handlers.
+     * @private
+     */
+    _bindSettingControls() {
+        const { app } = this;
+
+        /** @type {Array<{domKey: string, stateKey: string, readValue: function, refreshEditors?: boolean}>} */
+        const SETTING_BINDINGS = [
+            { domKey: 'settingLineNumbers',    stateKey: 'lineNumbers',       readValue: (el) => el.checked,                  refreshEditors: true  },
+            { domKey: 'settingLineWrap',        stateKey: 'lineWrapping',      readValue: (el) => el.checked,                  refreshEditors: true  },
+            { domKey: 'settingAutoFormat',      stateKey: 'autoFormatOnType',  readValue: (el) => el.checked,                  refreshEditors: false },
+            { domKey: 'settingFontSize',        stateKey: 'fontSize',          readValue: (el) => Number(el.value) || 14,      refreshEditors: true  },
+            { domKey: 'settingEditorTheme',     stateKey: 'theme',             readValue: (el) => el.value || 'dracula',       refreshEditors: true  },
+            { domKey: 'settingTabSize',         stateKey: 'tabSize',           readValue: (el) => Number(el.value) || 4,       refreshEditors: true  },
+            { domKey: 'settingIndentWithTabs',  stateKey: 'indentWithTabs',    readValue: (el) => el.checked,                  refreshEditors: true  },
+            { domKey: 'settingAutoCloseBrackets', stateKey: 'autoCloseBrackets', readValue: (el) => el.checked,               refreshEditors: true  },
+            { domKey: 'settingMatchBrackets',   stateKey: 'matchBrackets',     readValue: (el) => el.checked,                  refreshEditors: true  },
+        ];
+
+        const applySetting = (updateFn, { refreshEditors = false } = {}) => {
+            updateFn();
+            app.state.settings = app.normalizeSettings(app.state.settings);
+            app.syncSettingsUI();
+            if (refreshEditors) app.applyEditorSettingsToAllEditors();
+            app.saveSettings();
+        };
+
+        SETTING_BINDINGS.forEach(({ domKey, stateKey, readValue, refreshEditors }) => {
+            const el = app.dom[domKey];
+            if (!el) return;
+            el.addEventListener('change', () => {
+                applySetting(() => { app.state.settings[stateKey] = readValue(el); }, { refreshEditors });
+            });
+        });
+    }
+
+    // ─── Viewport Resize ──────────────────────────────────────────────────────
+
+    /**
+     * Registers debounced window-resize and visualViewport-resize handlers.
+     * Guards against duplicate registration.
+     */
+    bindViewportResize() {
+        const { app } = this;
+
+        if (!app.state.viewportResizeHandler) {
+            app.state.viewportResizeHandler = () => {
+                clearTimeout(app.state.viewportResizeTimer);
+                app.state.viewportResizeTimer = setTimeout(() => {
+                    app.updatePanelMoveButtonDirections();
+                    app.updateCodeModalHeaderAndButtons();
+                    app.updateAdaptiveLayoutMode();
+                }, 80);
+            };
+
+            // A single named handler avoids creating a second anonymous wrapper for dock resize.
+            const onWindowResize = () => {
+                app.state.viewportResizeHandler();
+                app.handleDockViewportResize();
+            };
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        if (!app.state.visualViewportResizeHandler && window.visualViewport) {
+            app.state.visualViewportResizeHandler = () => {
+                app.updatePreviewViewportHeight();
+                app.handleDockViewportResize();
+            };
+            window.visualViewport.addEventListener('resize', app.state.visualViewportResizeHandler);
+            window.visualViewport.addEventListener('scroll', app.state.visualViewportResizeHandler);
+        }
     }
 }
 
@@ -1191,13 +1550,13 @@ const CodePreviewer = {
         this.initSettingsCustomDropdowns();
         this.loadSettings();
         this.initEditors();
-        this.bindEvents();
+        this.eventManager.bindAll();
         this.bindFileTreeEvents();
         this.initExistingFilePanels();
         this.ensureDefaultContentFile();
         this.applyEditorSettingsToAllEditors();
         this.syncSettingsUI();
-        this.console.init(this.dom.consoleOutput, this.dom.clearConsoleBtn, this.dom.previewFrame);
+        this.consoleBridge.init(this.dom.consoleOutput, this.dom.clearConsoleBtn, this.dom.previewFrame);
         this.updatePreviewActionButtons();
         this.updatePreviewViewportHeight();
         this.updateAdaptiveLayoutMode();
@@ -1257,21 +1616,38 @@ const CodePreviewer = {
             codeModalSearchCloseBtn: document.getElementById('code-modal-search-close-btn'),
             saveCodeBtn: document.getElementById('save-code-btn'),
             mediaModal: document.getElementById('media-modal'),
+            codeModal: document.getElementById('code-modal'),
             mediaModalContent: document.getElementById('media-modal-content'),
             mediaModalTitle: document.getElementById('media-modal-title'),
         };
     },
 
+    /**
+     * Returns the parent element of the given element ID, or null if not found.
+     * @param {string} elementId
+     * @returns {HTMLElement|null}
+     */
     getSafeParentElement(elementId) {
         const element = document.getElementById(elementId);
         return element ? element.parentElement : null;
     },
 
+    /**
+     * Escapes special HTML characters in an attribute value.
+     * Delegates to escapeHtml which is a strict superset of this function.
+     * @param {string|null|undefined} str
+     * @returns {string}
+     */
     escapeHtmlAttribute(str) {
-        if (!str) return '';
-        return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        return this.escapeHtml(str);
     },
 
+    /**
+     * Escapes special HTML characters in any value.
+     * Handles null/undefined gracefully — returns an empty string.
+     * @param {unknown} str
+     * @returns {string}
+     */
     escapeHtml(str) {
         if (str === null || str === undefined) return '';
         return String(str)
@@ -1338,6 +1714,11 @@ const CodePreviewer = {
         return objectUrl;
     },
 
+    /**
+     * Returns true if the given string is a blob: URL.
+     * @param {unknown} url
+     * @returns {boolean}
+     */
     isBlobUrl(url) {
         return typeof url === 'string' && url.startsWith('blob:');
     },
@@ -1350,6 +1731,10 @@ const CodePreviewer = {
         return sourceUrl;
     },
 
+    /**
+     * Revokes all object URLs in the provided Set and clears it.
+     * @param {Set<string>} urlSet
+     */
     revokeTrackedObjectUrls(urlSet) {
         for (const url of urlSet) {
             URL.revokeObjectURL(url);
@@ -1904,345 +2289,14 @@ This content is loaded from a markdown file.
         this.updateBackgroundScrollLock();
     },
 
+    /**
+     * @deprecated Use eventManager.bindAll() via init().
+     * Preserved as a no-op shim so any external callers don't break.
+     */
     bindEvents() {
-        this.eventManager.bindPrimaryActions();
-        this.dom.toggleConsoleBtn.addEventListener('click', () => this.toggleConsole());
-        this.dom.dockPreviewBtn?.addEventListener('click', () => this.togglePreviewDock());
-        this.dom.previewDockDivider?.addEventListener('pointerdown', (event) => this.startPreviewDockResize(event));
-        this.dom.modalOverlay.addEventListener('click', (e) => {
-            if (this.state.isPreviewDocked) return;
-            if (e.target === this.dom.modalOverlay) this.toggleModal(false);
-        });
-        
-        document.addEventListener('keydown', (e) => {
-            const activePanel = this.getActiveEditorPanel();
-
-            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                e.preventDefault();
-                this.renderPreview('modal');
-            }
-
-            if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'k') {
-                e.preventDefault();
-                this.focusSidebarSearch();
-            }
-
-            if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'f') {
-                const codeModal = document.getElementById('code-modal');
-                const isCodeModalOpen = codeModal && codeModal.getAttribute('aria-hidden') === 'false';
-                if (isCodeModalOpen) {
-                    e.preventDefault();
-                    this.openCodeModalSearch();
-                } else if (activePanel) {
-                    e.preventDefault();
-                    this.openPanelSearch(activePanel);
-                }
-            }
-
-            if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'e' && activePanel) {
-                e.preventDefault();
-                this.expandCode(activePanel);
-            }
-
-            if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'f' && activePanel) {
-                e.preventDefault();
-                this.formatPanelCode(activePanel, false);
-            }
-
-            if (e.key === 'Escape') {
-                if (this.dom.modalOverlay.getAttribute('aria-hidden') === 'false') {
-                    this.toggleModal(false);
-                }
-
-                this.toggleSettingsModal(false);
-
-                const codeModal = document.getElementById('code-modal');
-                if (codeModal && codeModal.getAttribute('aria-hidden') === 'false') {
-                    this.closeCodeModal();
-                }
-
-                const mediaModal = document.getElementById('media-modal');
-                if (mediaModal && mediaModal.getAttribute('aria-hidden') === 'false') {
-                    this.closeMediaModal();
-                }
-            }
-        });
-
-        const codeModal = document.getElementById('code-modal');
-        const codeModalCloseBtn = codeModal?.querySelector('.close-btn');
-        
-        if (codeModalCloseBtn) {
-            codeModalCloseBtn.addEventListener('click', () => this.closeCodeModal());
-        }
-        
-        if (this.dom.codeModalSearchBtn) {
-            this.dom.codeModalSearchBtn.addEventListener('click', () => this.toggleCodeModalSearch());
-        }
-
-        if (this.dom.codeModalSearchInput) {
-            this.dom.codeModalSearchInput.addEventListener('input', () => this.searchInCodeModal(false));
-            this.dom.codeModalSearchInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    this.searchInCodeModal(true);
-                }
-            });
-        }
-
-        if (this.dom.codeModalSearchNextBtn) {
-            this.dom.codeModalSearchNextBtn.addEventListener('click', () => this.searchInCodeModal(true));
-        }
-
-        if (this.dom.codeModalSearchCloseBtn) {
-            this.dom.codeModalSearchCloseBtn.addEventListener('click', () => this.closeCodeModalSearch());
-        }
-
-        if (this.dom.saveCodeBtn) {
-            this.dom.saveCodeBtn.addEventListener('click', () => this.saveCodeModal());
-        }
-        
-        if (codeModal) {
-            codeModal.addEventListener('click', (e) => {
-                if (e.target === codeModal) this.closeCodeModal();
-            });
-        }
-
-        const mediaModal = document.getElementById('media-modal');
-        const mediaModalCloseBtn = mediaModal?.querySelector('.close-btn');
-        
-        if (mediaModalCloseBtn) {
-            mediaModalCloseBtn.addEventListener('click', () => this.closeMediaModal());
-        }
-        
-        if (mediaModal) {
-            mediaModal.addEventListener('click', (e) => {
-                if (e.target === mediaModal) this.closeMediaModal();
-            });
-        }
-
-        this.dom.addFileBtn.addEventListener('click', () => this.addNewFile());
-        if (this.dom.addFolderBtn) {
-            this.dom.addFolderBtn.addEventListener('click', () => this.addNewFolder());
-        }
-        if (this.dom.clearAllFilesBtn) {
-            this.dom.clearAllFilesBtn.addEventListener('click', () => this.clearAllFiles());
-        }
-        this.dom.importFileBtn.addEventListener('click', () => this.importFile());
-        if (this.dom.importFolderBtn) {
-            this.dom.importFolderBtn.addEventListener('click', () => this.importFolder());
-        }
-        this.dom.importZipBtn.addEventListener('click', () => this.importArchive());
-        this.dom.exportZipBtn.addEventListener('click', () => this.exportZip());
-        this.setupMainHtmlDropdownEvents();
-
-        if (this.dom.settingsBtn) {
-            this.dom.settingsBtn.addEventListener('click', () => {
-                this.toggleSettingsModal(true);
-            });
-        }
-
-        // Settings modal events
-        if (this.dom.settingsModal) {
-            // Close modal when clicking backdrop
-            this.dom.settingsModal.addEventListener('click', (e) => {
-                if (e.target === this.dom.settingsModal) {
-                    this.toggleSettingsModal(false);
-                }
-            });
-            
-            // Custom settings dropdown interactions
-            this.dom.settingsModal.addEventListener('click', (e) => {
-                const trigger = e.target.closest('.settings-select-dropdown-trigger');
-                if (trigger) {
-                    const dropdown = trigger.closest('.settings-select-dropdown');
-                    this.toggleSettingsSelectDropdown(dropdown);
-                    return;
-                }
-
-                const option = e.target.closest('.settings-select-dropdown-option');
-                if (option) {
-                    const dropdown = option.closest('.settings-select-dropdown');
-                    this.selectSettingsDropdownOption(dropdown, option);
-                }
-            });
-
-            this.dom.settingsModal.addEventListener('keydown', (e) => {
-                const dropdown = e.target.closest('.settings-select-dropdown');
-                if (!dropdown) {
-                    return;
-                }
-
-                if (e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    this.toggleSettingsSelectDropdown(dropdown, true);
-                    this.moveSettingsDropdownFocus(dropdown, 1);
-                    return;
-                }
-
-                if (e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    this.toggleSettingsSelectDropdown(dropdown, true);
-                    this.moveSettingsDropdownFocus(dropdown, -1);
-                    return;
-                }
-
-                if (e.key === 'Enter' || e.key === ' ') {
-                    const option = e.target.closest('.settings-select-dropdown-option');
-                    if (option) {
-                        e.preventDefault();
-                        this.selectSettingsDropdownOption(dropdown, option);
-                        return;
-                    }
-
-                    if (e.target.closest('.settings-select-dropdown-trigger')) {
-                        e.preventDefault();
-                        this.toggleSettingsSelectDropdown(dropdown);
-                    }
-                }
-            });
-
-            // Close button
-            const settingsCloseBtn = this.dom.settingsModal.querySelector('.close-btn');
-            if (settingsCloseBtn) {
-                settingsCloseBtn.addEventListener('click', () => {
-                    this.toggleSettingsModal(false);
-                });
-            }
-            
-            // ESC key to close - avoid duplicates
-            if (!this.state.settingsEscHandler) {
-                this.state.settingsEscHandler = (e) => {
-                    if (e.key === 'Escape' && this.isSettingsModalOpen()) {
-                        const hasOpenDropdown = !!this.dom.settingsModal?.querySelector('.settings-select-dropdown-trigger[aria-expanded="true"]');
-                        if (hasOpenDropdown) {
-                            this.closeAllSettingsSelectDropdowns();
-                            return;
-                        }
-
-                        this.toggleSettingsModal(false);
-                    }
-                };
-                document.addEventListener('keydown', this.state.settingsEscHandler);
-            }
-        }
-
-        const applySetting = (updateFn, { refreshEditors = false } = {}) => {
-            updateFn();
-            this.state.settings = this.normalizeSettings(this.state.settings);
-            this.syncSettingsUI();
-            if (refreshEditors) {
-                this.applyEditorSettingsToAllEditors();
-            }
-            this.saveSettings();
-        };
-
-        if (this.dom.settingLineNumbers) {
-            this.dom.settingLineNumbers.addEventListener('change', () => {
-                applySetting(() => {
-                    this.state.settings.lineNumbers = this.dom.settingLineNumbers.checked;
-                }, { refreshEditors: true });
-            });
-        }
-
-        if (this.dom.settingLineWrap) {
-            this.dom.settingLineWrap.addEventListener('change', () => {
-                applySetting(() => {
-                    this.state.settings.lineWrapping = this.dom.settingLineWrap.checked;
-                }, { refreshEditors: true });
-            });
-        }
-
-        if (this.dom.settingAutoFormat) {
-            this.dom.settingAutoFormat.addEventListener('change', () => {
-                applySetting(() => {
-                    this.state.settings.autoFormatOnType = this.dom.settingAutoFormat.checked;
-                });
-            });
-        }
-
-        if (this.dom.settingFontSize) {
-            this.dom.settingFontSize.addEventListener('change', () => {
-                applySetting(() => {
-                    this.state.settings.fontSize = Number(this.dom.settingFontSize.value) || 14;
-                }, { refreshEditors: true });
-            });
-        }
-
-        if (this.dom.settingEditorTheme) {
-            this.dom.settingEditorTheme.addEventListener('change', () => {
-                applySetting(() => {
-                    this.state.settings.theme = this.dom.settingEditorTheme.value || 'dracula';
-                }, { refreshEditors: true });
-            });
-        }
-
-        if (this.dom.settingTabSize) {
-            this.dom.settingTabSize.addEventListener('change', () => {
-                applySetting(() => {
-                    this.state.settings.tabSize = Number(this.dom.settingTabSize.value) || 4;
-                }, { refreshEditors: true });
-            });
-        }
-
-        if (this.dom.settingIndentWithTabs) {
-            this.dom.settingIndentWithTabs.addEventListener('change', () => {
-                applySetting(() => {
-                    this.state.settings.indentWithTabs = this.dom.settingIndentWithTabs.checked;
-                }, { refreshEditors: true });
-            });
-        }
-
-        if (this.dom.settingAutoCloseBrackets) {
-            this.dom.settingAutoCloseBrackets.addEventListener('change', () => {
-                applySetting(() => {
-                    this.state.settings.autoCloseBrackets = this.dom.settingAutoCloseBrackets.checked;
-                }, { refreshEditors: true });
-            });
-        }
-
-        if (this.dom.settingMatchBrackets) {
-            this.dom.settingMatchBrackets.addEventListener('change', () => {
-                applySetting(() => {
-                    this.state.settings.matchBrackets = this.dom.settingMatchBrackets.checked;
-                }, { refreshEditors: true });
-            });
-        }
-
-        document.addEventListener('click', (event) => {
-            if (!event.target.closest('.file-type-dropdown')) {
-                this.closeAllFileTypeDropdowns();
-            }
-
-            if (!event.target.closest('.settings-select-dropdown')) {
-                this.closeAllSettingsSelectDropdowns();
-            }
-        });
-
-        if (!this.state.viewportResizeHandler) {
-            this.state.viewportResizeHandler = () => {
-                if (this.state.viewportResizeTimer) {
-                    clearTimeout(this.state.viewportResizeTimer);
-                }
-
-                this.state.viewportResizeTimer = setTimeout(() => {
-                    this.updatePanelMoveButtonDirections();
-                    this.updateCodeModalHeaderAndButtons();
-                    this.updateAdaptiveLayoutMode();
-                }, 80);
-            };
-            window.addEventListener('resize', this.state.viewportResizeHandler);
-            window.addEventListener('resize', () => this.handleDockViewportResize());
-        }
-
-        if (!this.state.visualViewportResizeHandler && window.visualViewport) {
-            this.state.visualViewportResizeHandler = () => {
-                this.updatePreviewViewportHeight();
-                this.handleDockViewportResize();
-            };
-            window.visualViewport.addEventListener('resize', this.state.visualViewportResizeHandler);
-            window.visualViewport.addEventListener('scroll', this.state.visualViewportResizeHandler);
-        }
-
+        // All event binding has been moved to EventManager.bindAll(),
+        // which is called directly from init(). This method is kept
+        // as a backward-compat shim only.
     },
 
     updatePreviewViewportHeight() {
@@ -3575,24 +3629,13 @@ This content is loaded from a markdown file.
         });
     },
 
+    /**
+     * Returns the static list of supported file-type choices.
+     * The array is defined once and shared; callers must not mutate it.
+     * @returns {ReadonlyArray<{value: string, label: string, icon: string}>}
+     */
     getFileTypeChoices() {
-        return [
-            { value: 'html', label: 'HTML', icon: SVG_ICONS.fileHtml },
-            { value: 'css', label: 'CSS', icon: SVG_ICONS.fileCss },
-            { value: 'javascript', label: 'JavaScript', icon: SVG_ICONS.fileJs },
-            { value: 'javascript-module', label: 'JavaScript Module', icon: SVG_ICONS.package },
-            { value: 'json', label: 'JSON', icon: SVG_ICONS.fileJson },
-            { value: 'xml', label: 'XML', icon: SVG_ICONS.fileXml },
-            { value: 'markdown', label: 'Markdown', icon: SVG_ICONS.fileMarkdown },
-            { value: 'text', label: 'Text', icon: SVG_ICONS.fileText },
-            { value: 'svg', label: 'SVG', icon: SVG_ICONS.fileImage },
-            { value: 'image', label: 'Image', icon: SVG_ICONS.fileImage },
-            { value: 'audio', label: 'Audio', icon: SVG_ICONS.fileAudio },
-            { value: 'video', label: 'Video', icon: SVG_ICONS.fileVideo },
-            { value: 'font', label: 'Font', icon: SVG_ICONS.fileFont },
-            { value: 'pdf', label: 'PDF', icon: SVG_ICONS.filePdf },
-            { value: 'binary', label: 'Binary', icon: SVG_ICONS.fileBinary }
-        ];
+        return CodePreviewer._FILE_TYPE_CHOICES;
     },
 
     getFileTypeChoice(fileType) {
@@ -5565,7 +5608,7 @@ This content is loaded from a markdown file.
     },
 
     injectConsoleScript(htmlContent, fileSystem = null, mainHtmlPath = 'index.html') {
-        const captureScript = this.console.getCaptureScript(fileSystem, mainHtmlPath);
+        const captureScript = this.consoleBridge.getCaptureScript(fileSystem, mainHtmlPath);
         
         if (htmlContent.includes('</head>')) {
             return htmlContent.replace('</head>', captureScript + '\n</head>');
@@ -5713,7 +5756,7 @@ This content is loaded from a markdown file.
             '    <meta charset="UTF-8">\n' +
             '    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
             '    <title>Preview</title>\n' +
-            '    ' + this.console.getCaptureScript(fileSystem, mainHtmlPath) + '\n' +
+            '    ' + this.consoleBridge.getCaptureScript(fileSystem, mainHtmlPath) + '\n' +
             '    ' + workerScript + '\n' +
             '    <style>' + css + '</style>\n' +
             '</head>\n' +
@@ -5725,6 +5768,10 @@ This content is loaded from a markdown file.
             '</html>';
     },
 
+    /**
+     * Generates the full HTML document string for the current preview.
+     * @returns {string} Complete HTML document ready to be injected into the iframe
+     */
     generatePreviewContent() {
         return this.generateMultiFilePreview();
     },
@@ -5800,6 +5847,10 @@ This content is loaded from a markdown file.
         }
     },
 
+    /**
+     * Delegates preview rendering to PreviewRenderer.
+     * @param {'modal'|'tab'} target - Where to display the preview
+     */
     renderPreview(target) {
         this.previewRenderer.render(target);
     },
@@ -6010,10 +6061,10 @@ This content is loaded from a markdown file.
             
             // Update the reference to the new iframe
             this.dom.previewFrame = newIframe;
-            this.console.previewFrame = newIframe;
+            this.consoleBridge.previewFrame = newIframe;
             
             // Clear console
-            this.console.clear();
+            this.consoleBridge.clear();
             this.cleanupPreviewAssetUrlsIfUnused();
         }
 
@@ -6365,8 +6416,7 @@ This content is loaded from a markdown file.
         }
     },
 
-    _flattenArchiveTree(obj, prefix) {
-        prefix = prefix || '';
+    _flattenArchiveTree(obj, prefix = '') {
         const entries = [];
         for (const key of Object.keys(obj)) {
             if (obj[key] instanceof File) {
@@ -6553,11 +6603,8 @@ This content is loaded from a markdown file.
 
             container.appendChild(notification);
 
-            const closeBtn = notification.querySelector('.notification-close-btn');
-            if (closeBtn) {
-                closeBtn.addEventListener('click', () => dismiss());
-            }
-
+            // Define dismiss before attaching the close-button listener so the
+            // reference is unambiguously resolved (avoids temporal dead zone).
             const dismiss = () => {
                 if (notification.classList.contains('notification-hiding')) return;
                 notification.classList.add('notification-hiding');
@@ -6565,6 +6612,11 @@ This content is loaded from a markdown file.
                     notification.remove();
                 }, { once: true });
             };
+
+            const closeBtn = notification.querySelector('.notification-close-btn');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', dismiss);
+            }
 
             setTimeout(dismiss, 3000);
         },
@@ -6968,7 +7020,7 @@ This content is loaded from a markdown file.
     // ============================================================================
     // CONSOLE CAPTURE AND LOGGING
     // ============================================================================
-    console: {
+    consoleBridge: {
         logCounts: { log: 0, warn: 0, error: 0, info: 0 },
         filters: { log: true, warn: true, error: true, info: true },
         
@@ -7282,5 +7334,34 @@ ${arg.stack}` : ''}`;
         },
     },
 };
+
+
+// ============================================================================
+// STATIC CACHED CONSTANTS
+// These are defined after the object literal so they can reference SVG_ICONS.
+// ============================================================================
+
+/**
+ * Immutable list of supported file-type choices. Cached here to avoid
+ * allocating a new array on every getFileTypeChoices() call.
+ * @type {ReadonlyArray<{value: string, label: string, icon: string}>}
+ */
+CodePreviewer._FILE_TYPE_CHOICES = Object.freeze([
+    { value: 'html',              label: 'HTML',              icon: SVG_ICONS.fileHtml     },
+    { value: 'css',               label: 'CSS',               icon: SVG_ICONS.fileCss      },
+    { value: 'javascript',        label: 'JavaScript',        icon: SVG_ICONS.fileJs       },
+    { value: 'javascript-module', label: 'JavaScript Module', icon: SVG_ICONS.package      },
+    { value: 'json',              label: 'JSON',              icon: SVG_ICONS.fileJson     },
+    { value: 'xml',               label: 'XML',               icon: SVG_ICONS.fileXml      },
+    { value: 'markdown',          label: 'Markdown',          icon: SVG_ICONS.fileMarkdown },
+    { value: 'text',              label: 'Text',              icon: SVG_ICONS.fileText     },
+    { value: 'svg',               label: 'SVG',               icon: SVG_ICONS.fileImage    },
+    { value: 'image',             label: 'Image',             icon: SVG_ICONS.fileImage    },
+    { value: 'audio',             label: 'Audio',             icon: SVG_ICONS.fileAudio    },
+    { value: 'video',             label: 'Video',             icon: SVG_ICONS.fileVideo    },
+    { value: 'font',              label: 'Font',              icon: SVG_ICONS.fileFont     },
+    { value: 'pdf',               label: 'PDF',               icon: SVG_ICONS.filePdf      },
+    { value: 'binary',            label: 'Binary',            icon: SVG_ICONS.fileBinary   },
+]);
 
 document.addEventListener('DOMContentLoaded', () => CodePreviewer.init());
