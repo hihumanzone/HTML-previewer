@@ -421,6 +421,16 @@ button > svg,
     background: var(--accent-hover);
 }
 
+.save-btn.active,
+.save-btn.active:hover {
+    background: var(--warn-color);
+}
+
+#code-modal-dock-btn.active,
+#code-modal-dock-btn.active:hover {
+    background: var(--warn-color) !important;
+}
+
 .save-btn[hidden] {
     display: none !important;
 }
