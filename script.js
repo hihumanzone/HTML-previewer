@@ -248,6 +248,7 @@ class EventManager {
         this.app.dom.modalBtn.addEventListener('click', () => this.app.renderPreview('modal'));
         this.app.dom.tabBtn.addEventListener('click', () => this.app.renderPreview('tab'));
         this.app.dom.closeModalBtn.addEventListener('click', () => this.app.toggleModal(false));
+        this.app.dom.refreshPreviewBtn?.addEventListener('click', () => this.app.refreshModalPreview());
     }
 
     // ─── Console ──────────────────────────────────────────────────────────────
@@ -679,6 +680,7 @@ const CodePreviewer = {
             TAB_BTN: 'preview-tab-btn',
             CLEAR_CONSOLE_BTN: 'clear-console-btn',
             TOGGLE_CONSOLE_BTN: 'toggle-console-btn',
+            REFRESH_PREVIEW_BTN: 'refresh-preview-btn',
             ADD_FILE_BTN: 'add-file-btn',
             ADD_FOLDER_BTN: 'add-folder-btn',
             CLEAR_ALL_FILES_BTN: 'clear-all-files-btn',
@@ -1583,6 +1585,7 @@ const CodePreviewer = {
             tabBtn: document.getElementById(CONTROL_IDS.TAB_BTN),
             clearConsoleBtn: document.getElementById(CONTROL_IDS.CLEAR_CONSOLE_BTN),
             toggleConsoleBtn: document.getElementById(CONTROL_IDS.TOGGLE_CONSOLE_BTN),
+            refreshPreviewBtn: document.getElementById(CONTROL_IDS.REFRESH_PREVIEW_BTN),
             dockPreviewBtn: document.getElementById('dock-preview-btn'),
             previewDockDivider: document.getElementById('preview-dock-divider'),
             addFileBtn: document.getElementById(CONTROL_IDS.ADD_FILE_BTN),
@@ -5998,6 +6001,24 @@ This content is loaded from a markdown file.
         this.previewRenderer.render(target);
     },
 
+
+    /**
+     * Regenerates and reloads preview content in the modal iframe.
+     */
+    refreshModalPreview() {
+        const availability = this.getPreviewAvailability();
+        if (!availability.allowed) {
+            this.showNotification('No HTML file found. Import or create an HTML file to preview.', 'warn');
+            this.updatePreviewActionButtons();
+            return;
+        }
+
+        this.revokeTrackedObjectUrls(this.state.previewAssetUrls);
+        const content = this.generatePreviewContent();
+        this.consoleBridge.clear();
+        this.previewRenderer.safeWritePreviewFrame(content);
+        this.showNotification('Preview refreshed.', 'success');
+    },
 
     getPreviewDockOrientation() {
         const isPortraitMobile = window.matchMedia('(max-width: 900px) and (orientation: portrait)').matches;
