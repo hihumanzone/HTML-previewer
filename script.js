@@ -2054,7 +2054,7 @@ This content is loaded from a markdown file.
 
     normalizeSettings(nextSettings = {}) {
         const allowedFontSizes = new Set([12, 13, 14, 15, 16, 18]);
-        const allowedThemes = new Set(['dracula', 'default']);
+        const allowedThemes = new Set(['dracula', 'default', 'material', 'monokai', 'nord', 'eclipse', 'idea']);
         const allowedTabSizes = new Set([2, 4, 8]);
 
         const fontSize = Number(nextSettings.fontSize);
