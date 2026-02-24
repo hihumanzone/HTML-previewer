@@ -365,6 +365,10 @@ class EventManager {
             });
         }
 
+        if (app.dom.codeModalDockBtn) {
+            app.dom.codeModalDockBtn.addEventListener('click', () => app.toggleCodeModalDockLeft());
+        }
+
         if (app.dom.codeModalSearchBtn) {
             app.dom.codeModalSearchBtn.addEventListener('click', () => app.toggleCodeModalSearch());
         }
@@ -641,6 +645,7 @@ const CodePreviewer = {
         previewDockOrientation: 'right',
         previewDockSize: { right: null, bottom: null },
         dockResizeSession: null,
+        isCodeModalDockedLeft: false,
         settingsCloseHandler: null,
         settingsEscHandler: null,
         settings: {
@@ -1612,6 +1617,7 @@ const CodePreviewer = {
             consoleOutput: document.getElementById(CONSOLE_ID),
             modalConsolePanel: document.getElementById(MODAL_CONSOLE_PANEL_ID),
             editorGrid: document.querySelector('.editor-grid'),
+            codeModalDockBtn: document.getElementById('code-modal-dock-btn'),
             codeModalSearchBtn: document.getElementById('code-modal-search-btn'),
             codeModalSearch: document.getElementById('code-modal-search'),
             codeModalSearchInput: document.getElementById('code-modal-search-input'),
@@ -2314,6 +2320,48 @@ This content is loaded from a markdown file.
         return this.getAvailableEditorWidth() <= 768;
     },
 
+    canDockCodeModalLeft() {
+        return this.state.isPreviewDocked && this.state.previewDockOrientation === 'right'
+            && this.dom.modalOverlay?.getAttribute('aria-hidden') === 'false';
+    },
+
+    updateCodeModalDockButton() {
+        const dockBtn = this.dom.codeModalDockBtn;
+        if (!dockBtn) return;
+
+        const canDockLeft = this.canDockCodeModalLeft();
+        dockBtn.hidden = !canDockLeft;
+
+        if (!canDockLeft) return;
+
+        const isDockedLeft = this.state.isCodeModalDockedLeft;
+        dockBtn.classList.toggle('active', isDockedLeft);
+        dockBtn.innerHTML = isDockedLeft ? SVG_ICONS.dock + ' Undock Left' : SVG_ICONS.dock + ' Dock Left';
+        dockBtn.setAttribute('aria-label', isDockedLeft
+            ? 'Undock expanded code view from left side'
+            : 'Dock expanded code view to the left of preview');
+        dockBtn.title = isDockedLeft ? 'Undock expanded code view from left side' : 'Dock expanded code view to left';
+    },
+
+    applyCodeModalDockLayout() {
+        if (!this.dom.codeModal) return;
+
+        const shouldDockLeft = this.canDockCodeModalLeft() && this.state.isCodeModalDockedLeft;
+        this.dom.codeModal.classList.toggle('is-docked-left', shouldDockLeft);
+    },
+
+    toggleCodeModalDockLeft(forceState = null) {
+        if (!this.canDockCodeModalLeft()) return;
+
+        this.state.isCodeModalDockedLeft = typeof forceState === 'boolean'
+            ? forceState
+            : !this.state.isCodeModalDockedLeft;
+
+        this.updateCodeModalDockButton();
+        this.applyCodeModalDockLayout();
+        this.refreshCodeModalEditor();
+    },
+
     updateCodeModalHeaderAndButtons(fileName = null) {
         const modalTitle = document.getElementById('code-modal-title');
         const isMobile = this.isMobileViewport();
@@ -2323,6 +2371,11 @@ This content is loaded from a markdown file.
 
         if (modalTitle) {
             modalTitle.textContent = isMobile ? displayFileName : `Code View - ${displayFileName}`;
+        }
+
+        if (this.dom.codeModalDockBtn && !this.dom.codeModalDockBtn.hidden) {
+            const dockText = this.state.isCodeModalDockedLeft ? 'Undock Left' : 'Dock Left';
+            this.dom.codeModalDockBtn.innerHTML = isMobile ? SVG_ICONS.dock : SVG_ICONS.dock + ' ' + dockText;
         }
 
         if (this.dom.codeModalSearchBtn) {
@@ -5110,6 +5163,8 @@ This content is loaded from a markdown file.
             this.state.currentCodeModalSource = sourcePanel;
             this.setActiveEditorPanel(sourcePanel);
 
+            this.updateCodeModalDockButton();
+            this.applyCodeModalDockLayout();
             this.updateCodeModalHeaderAndButtons(fileName);
 
             if (window.CodeMirror) {
@@ -5181,6 +5236,7 @@ This content is loaded from a markdown file.
             modal.setAttribute('aria-hidden', 'true');
         }
         this.state.currentCodeModalSource = null;
+        this.dom.codeModal?.classList.remove('is-docked-left');
         this.closeCodeModalSearch();
         this.updateDockDividerVisibility();
         this.updateBackgroundScrollLock();
@@ -5978,6 +6034,8 @@ This content is loaded from a markdown file.
 
         this.updatePreviewDockButton();
         this.updateAdaptiveLayoutMode();
+        this.updateCodeModalDockButton();
+        this.applyCodeModalDockLayout();
         this.updateBackgroundScrollLock();
     },
 
@@ -5989,6 +6047,8 @@ This content is loaded from a markdown file.
         this.state.isPreviewDocked = nextState;
         if (nextState) {
             this.state.previewDockOrientation = this.getPreviewDockOrientation();
+        } else {
+            this.state.isCodeModalDockedLeft = false;
         }
         this.applyPreviewDockLayout();
     },
