@@ -2471,7 +2471,7 @@ This content is loaded from a markdown file.
         const fileSize = this.formatFileSize(new Blob([content]).size);
         const metaParts = [fileSize];
 
-        if (this.isTextFile(fileInfo.type)) {
+        if (this.isTextFileType(fileInfo)) {
             const lineCount = content.length === 0 ? 1 : content.split(/\r\n|\r|\n/).length;
             metaParts.push(`${lineCount} line${lineCount === 1 ? '' : 's'}`);
         }
@@ -4010,6 +4010,19 @@ This content is loaded from a markdown file.
 
     isEditableFileType(fileType) {
         return this.fileTypeUtils.isEditableType(fileType);
+    },
+
+
+    isTextFileType(fileInfo) {
+        if (!fileInfo || fileInfo.isBinary) return false;
+
+        const mimeType = this.fileTypeUtils.getMimeTypeFromFileType(fileInfo.type) || '';
+        return mimeType.startsWith('text/')
+            || mimeType === 'application/json'
+            || mimeType === 'application/xml'
+            || mimeType.endsWith('+json')
+            || mimeType.endsWith('+xml')
+            || fileInfo.type === 'svg';
     },
 
     supportsFormattingForType(fileType) {
