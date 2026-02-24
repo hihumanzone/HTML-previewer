@@ -349,7 +349,7 @@ class EventManager {
     // ─── Code Modal ───────────────────────────────────────────────────────────
 
     /**
-     * Binds code-view modal close, search, and save actions.
+     * Binds code-view modal close and search actions.
      */
     bindCodeModal() {
         const { app } = this;
@@ -363,6 +363,10 @@ class EventManager {
             app.dom.codeModal.addEventListener('click', (e) => {
                 if (e.target === app.dom.codeModal) app.closeCodeModal();
             });
+        }
+
+        if (app.dom.codeModalDockBtn) {
+            app.dom.codeModalDockBtn.addEventListener('click', () => app.toggleCodeModalDockLeft());
         }
 
         if (app.dom.codeModalSearchBtn) {
@@ -387,9 +391,6 @@ class EventManager {
             app.dom.codeModalSearchCloseBtn.addEventListener('click', () => app.closeCodeModalSearch());
         }
 
-        if (app.dom.saveCodeBtn) {
-            app.dom.saveCodeBtn.addEventListener('click', () => app.saveCodeModal());
-        }
     }
 
     // ─── Media Modal ──────────────────────────────────────────────────────────
@@ -641,6 +642,9 @@ const CodePreviewer = {
         previewDockOrientation: 'right',
         previewDockSize: { right: null, bottom: null },
         dockResizeSession: null,
+        isCodeModalDockedLeft: false,
+        isSyncingCodeModalToSource: false,
+        codeModalPlaintextInputHandlerBound: false,
         settingsCloseHandler: null,
         settingsEscHandler: null,
         settings: {
@@ -1612,12 +1616,12 @@ const CodePreviewer = {
             consoleOutput: document.getElementById(CONSOLE_ID),
             modalConsolePanel: document.getElementById(MODAL_CONSOLE_PANEL_ID),
             editorGrid: document.querySelector('.editor-grid'),
+            codeModalDockBtn: document.getElementById('code-modal-dock-btn'),
             codeModalSearchBtn: document.getElementById('code-modal-search-btn'),
             codeModalSearch: document.getElementById('code-modal-search'),
             codeModalSearchInput: document.getElementById('code-modal-search-input'),
             codeModalSearchNextBtn: document.getElementById('code-modal-search-next-btn'),
             codeModalSearchCloseBtn: document.getElementById('code-modal-search-close-btn'),
-            saveCodeBtn: document.getElementById('save-code-btn'),
             mediaModal: document.getElementById('media-modal'),
             codeModal: document.getElementById('code-modal'),
             mediaModalContent: document.getElementById('media-modal-content'),
@@ -2306,6 +2310,42 @@ This content is loaded from a markdown file.
         document.body.classList.toggle('compact-editor-layout', isCompact);
     },
 
+    updateDockedModalCompactModes() {
+        const previewIsNarrow = this.state.isPreviewDocked
+            && this.state.previewDockOrientation === 'right'
+            && this.getDockSizePx('right') <= 460;
+        document.body.classList.toggle('preview-dock-compact-controls', previewIsNarrow);
+
+        const codeDockedLeft = this.isCodeModalCurrentlyDocked();
+        const codeModalWidth = this.getViewportWidth() - this.getDockSizePx('right');
+        const codeIsNarrow = codeDockedLeft
+            && this.state.isPreviewDocked
+            && this.state.previewDockOrientation === 'right'
+            && codeModalWidth <= 720;
+
+        this.dom.codeModal?.classList.toggle('is-compact-docked', codeIsNarrow);
+
+        this.updatePreviewDockControlButtons();
+        if (this.dom.codeModal?.getAttribute('aria-hidden') === 'false') {
+            this.updateCodeModalHeaderAndButtons();
+        }
+    },
+
+    updatePreviewDockControlButtons() {
+        const isCompact = document.body.classList.contains('preview-dock-compact-controls');
+
+        if (this.dom.toggleConsoleBtn) {
+            const isConsoleVisible = !this.dom.modalConsolePanel.classList.contains('hidden');
+            const consoleText = isConsoleVisible ? 'Hide Console' : 'Console';
+            this.dom.toggleConsoleBtn.innerHTML = isCompact ? SVG_ICONS.clipboard : SVG_ICONS.clipboard + ' ' + consoleText;
+        }
+
+        if (this.dom.dockPreviewBtn) {
+            const dockText = this.state.isPreviewDocked ? 'Undock' : 'Dock';
+            this.dom.dockPreviewBtn.innerHTML = isCompact ? SVG_ICONS.dock : SVG_ICONS.dock + ' ' + dockText;
+        }
+    },
+
     isMobileViewport() {
         return window.matchMedia('(max-width: 768px)').matches;
     },
@@ -2314,9 +2354,76 @@ This content is loaded from a markdown file.
         return this.getAvailableEditorWidth() <= 768;
     },
 
+    canDockCodeModalLeft() {
+        return this.state.isPreviewDocked
+            && this.dom.modalOverlay?.getAttribute('aria-hidden') === 'false';
+    },
+
+    isPreviewDockedBottom() {
+        return this.state.previewDockOrientation === 'bottom';
+    },
+
+    isCodeModalCurrentlyDocked() {
+        return this.dom.codeModal?.classList.contains('is-docked-left');
+    },
+
+    setCodeModalDockedState(shouldDock) {
+        if (!this.dom.codeModal) return;
+        this.dom.codeModal.classList.toggle('is-docked-left', !!shouldDock);
+    },
+
+    getCodeModalDockButtonText(isDockedLeft = this.state.isCodeModalDockedLeft) {
+        const isBottomDock = this.isPreviewDockedBottom();
+        if (isBottomDock) {
+            return isDockedLeft ? 'Undock' : 'Dock Above';
+        }
+        return isDockedLeft ? 'Undock Left' : 'Dock Left';
+    },
+
+    updateCodeModalDockButton() {
+        const dockBtn = this.dom.codeModalDockBtn;
+        if (!dockBtn) return;
+
+        const canDockLeft = this.canDockCodeModalLeft();
+        dockBtn.hidden = !canDockLeft;
+
+        if (!canDockLeft) return;
+
+        const isDockedLeft = this.state.isCodeModalDockedLeft;
+        const dockButtonText = this.getCodeModalDockButtonText(isDockedLeft);
+        dockBtn.classList.toggle('active', isDockedLeft);
+        dockBtn.innerHTML = SVG_ICONS.dock + ' ' + dockButtonText;
+
+        const isBottomDock = this.isPreviewDockedBottom();
+        const dockTargetDescription = isBottomDock ? 'above the docked preview' : 'to the left of preview';
+        dockBtn.setAttribute('aria-label', isDockedLeft
+            ? 'Undock expanded code view'
+            : `Dock expanded code view ${dockTargetDescription}`);
+        dockBtn.title = isDockedLeft ? 'Undock expanded code view' : `Dock expanded code view ${dockTargetDescription}`;
+    },
+
+    applyCodeModalDockLayout() {
+        const shouldDockLeft = this.canDockCodeModalLeft() && this.state.isCodeModalDockedLeft;
+        this.setCodeModalDockedState(shouldDockLeft);
+    },
+
+    toggleCodeModalDockLeft(forceState = null) {
+        if (!this.canDockCodeModalLeft()) return;
+
+        this.state.isCodeModalDockedLeft = typeof forceState === 'boolean'
+            ? forceState
+            : !this.state.isCodeModalDockedLeft;
+
+        this.updateCodeModalDockButton();
+        this.applyCodeModalDockLayout();
+        this.updateDockedModalCompactModes();
+        this.updateDockDividerVisibility();
+        this.refreshCodeModalEditor();
+    },
+
     updateCodeModalHeaderAndButtons(fileName = null) {
         const modalTitle = document.getElementById('code-modal-title');
-        const isMobile = this.isMobileViewport();
+        const isMobile = this.isMobileViewport() || this.dom.codeModal?.classList.contains('is-compact-docked');
         const displayFileName = fileName
             || this.state.currentCodeModalSource?.querySelector('.file-name-input')?.value
             || 'Code';
@@ -2325,13 +2432,15 @@ This content is loaded from a markdown file.
             modalTitle.textContent = isMobile ? displayFileName : `Code View - ${displayFileName}`;
         }
 
+        if (this.dom.codeModalDockBtn && !this.dom.codeModalDockBtn.hidden) {
+            const dockText = this.getCodeModalDockButtonText();
+            this.dom.codeModalDockBtn.innerHTML = isMobile ? SVG_ICONS.dock : SVG_ICONS.dock + ' ' + dockText;
+        }
+
         if (this.dom.codeModalSearchBtn) {
             this.dom.codeModalSearchBtn.innerHTML = isMobile ? SVG_ICONS.search : SVG_ICONS.search + ' Search';
         }
 
-        if (this.dom.saveCodeBtn) {
-            this.dom.saveCodeBtn.innerHTML = isMobile ? SVG_ICONS.save : SVG_ICONS.save + ' Save';
-        }
     },
 
     updatePanelMoveButtonDirections() {
@@ -5110,6 +5219,8 @@ This content is loaded from a markdown file.
             this.state.currentCodeModalSource = sourcePanel;
             this.setActiveEditorPanel(sourcePanel);
 
+            this.updateCodeModalDockButton();
+            this.applyCodeModalDockLayout();
             this.updateCodeModalHeaderAndButtons(fileName);
 
             if (window.CodeMirror) {
@@ -5129,15 +5240,18 @@ This content is loaded from a markdown file.
                         autoCloseBrackets: !!this.state.settings.autoCloseBrackets,
                         matchBrackets: !!this.state.settings.matchBrackets,
                         viewportMargin: Infinity,
-                        extraKeys: {
-                            'Ctrl-S': () => this.saveCodeModal(false),
-                            'Cmd-S': () => this.saveCodeModal(false),
-                        },
                     });
                 } else {
                     this.state.codeModalEditor.setOption('mode', language);
                     this.state.codeModalEditor.setOption('readOnly', false);
                     this.applySettingsToEditor(this.state.codeModalEditor);
+                }
+
+                if (!this.state.codeModalEditor._liveSyncBound) {
+                    this.state.codeModalEditor.on('change', (cm) => {
+                        this.syncCodeModalToSource(cm.getValue());
+                    });
+                    this.state.codeModalEditor._liveSyncBound = true;
                 }
 
                 this.state.codeModalEditor.setValue(content);
@@ -5156,12 +5270,19 @@ This content is loaded from a markdown file.
                 editorTextarea.style.backgroundColor = '#282a36';
                 editorTextarea.style.color = '#f8f8f2';
                 editorTextarea.style.resize = 'none';
+                if (!this.state.codeModalPlaintextInputHandlerBound) {
+                    editorTextarea.addEventListener('input', () => {
+                        this.syncCodeModalToSource(editorTextarea.value);
+                    });
+                    this.state.codeModalPlaintextInputHandlerBound = true;
+                }
                 editorTextarea.focus();
             }
 
             modal.style.display = 'flex';
             modal.setAttribute('aria-hidden', 'false');
             this.updateDockDividerVisibility();
+            this.updateDockedModalCompactModes();
             this.updateBackgroundScrollLock();
 
             if (window.CodeMirror && this.state.codeModalEditor) {
@@ -5181,6 +5302,8 @@ This content is loaded from a markdown file.
             modal.setAttribute('aria-hidden', 'true');
         }
         this.state.currentCodeModalSource = null;
+        this.setCodeModalDockedState(false);
+        this.dom.codeModal?.classList.remove('is-compact-docked');
         this.closeCodeModalSearch();
         this.updateDockDividerVisibility();
         this.updateBackgroundScrollLock();
@@ -5292,43 +5415,32 @@ This content is loaded from a markdown file.
             }
         }
     },
-    saveCodeModal(closeAfterSave = true) {
+    syncCodeModalToSource(content) {
         try {
-            if (!this.state.currentCodeModalSource) {
-                console.error('No source panel reference found for saving');
+            if (!this.state.currentCodeModalSource || this.state.isSyncingCodeModalToSource) {
                 return;
             }
 
-            let content = '';
-            
-            if (window.CodeMirror && this.state.codeModalEditor) {
-                content = this.state.codeModalEditor.getValue();
-            } else {
-                const editorTextarea = document.getElementById('code-modal-editor');
-                content = editorTextarea.value;
-            }
-
             const sourceEditor = this.getEditorFromPanel(this.state.currentCodeModalSource);
-            if (sourceEditor) {
-                sourceEditor.setValue(content);
-                
-                if (sourceEditor.refresh) {
-                    setTimeout(() => {
-                        sourceEditor.refresh();
-                    }, 100);
-                }
+            if (!sourceEditor || sourceEditor.getValue() === content) {
+                return;
             }
 
-            if (closeAfterSave) {
-                this.closeCodeModal();
-            } else {
-                this.showNotification('Changes applied', 'success');
+            this.state.isSyncingCodeModalToSource = true;
+            sourceEditor.setValue(content);
+            this.schedulePreviewRefresh();
+
+            if (sourceEditor.refresh) {
+                setTimeout(() => {
+                    sourceEditor.refresh();
+                }, 0);
             }
         } catch (error) {
-            console.error('Error saving code from modal:', error);
+            console.error('Error syncing expanded code view to source editor:', error);
+        } finally {
+            this.state.isSyncingCodeModalToSource = false;
         }
     },
-
     toggleEditorCollapse(panel) {
         const collapseBtn = panel.querySelector('.collapse-btn');
         const toolbarButtons = panel.querySelectorAll('.editor-toolbar .toolbar-btn:not(.collapse-btn)');
@@ -5896,8 +6008,8 @@ This content is loaded from a markdown file.
         if (!this.dom.dockPreviewBtn) return;
         const isDocked = this.state.isPreviewDocked;
         this.dom.dockPreviewBtn.classList.toggle('active', isDocked);
-        this.dom.dockPreviewBtn.innerHTML = isDocked ? SVG_ICONS.dock + ' Undock' : SVG_ICONS.dock + ' Dock';
         this.dom.dockPreviewBtn.setAttribute('aria-label', isDocked ? 'Undock preview panel' : 'Dock preview panel');
+        this.updatePreviewDockControlButtons();
     },
 
     getViewportWidth() {
@@ -5936,7 +6048,8 @@ This content is loaded from a markdown file.
         const codeOpen = document.getElementById('code-modal')?.getAttribute('aria-hidden') === 'false';
         const mediaOpen = this.dom.mediaModal?.getAttribute('aria-hidden') === 'false';
         const settingsOpen = this.isSettingsModalOpen();
-        return codeOpen || mediaOpen || settingsOpen;
+        const codeModalOverDivider = codeOpen && !this.state.isCodeModalDockedLeft;
+        return codeModalOverDivider || mediaOpen || settingsOpen;
     },
 
     updateBackgroundScrollLock() {
@@ -5978,6 +6091,9 @@ This content is loaded from a markdown file.
 
         this.updatePreviewDockButton();
         this.updateAdaptiveLayoutMode();
+        this.updateCodeModalDockButton();
+        this.applyCodeModalDockLayout();
+        this.updateDockedModalCompactModes();
         this.updateBackgroundScrollLock();
     },
 
@@ -5989,6 +6105,8 @@ This content is loaded from a markdown file.
         this.state.isPreviewDocked = nextState;
         if (nextState) {
             this.state.previewDockOrientation = this.getPreviewDockOrientation();
+        } else {
+            this.state.isCodeModalDockedLeft = false;
         }
         this.applyPreviewDockLayout();
     },
@@ -6071,7 +6189,7 @@ This content is loaded from a markdown file.
             this.applyPreviewDockLayout();
             this.dom.modalConsolePanel.classList.add('hidden');
             this.dom.toggleConsoleBtn.classList.remove('active');
-            this.dom.toggleConsoleBtn.innerHTML = SVG_ICONS.clipboard + ' Console';
+            this.updatePreviewDockControlButtons();
         } else {
             this.togglePreviewDock(false);
             if (this.state.previewRefreshTimer) {
@@ -6104,16 +6222,16 @@ This content is loaded from a markdown file.
 
     toggleConsole() {
         const isHidden = this.dom.modalConsolePanel.classList.contains('hidden');
-        
+
         if (isHidden) {
             this.dom.modalConsolePanel.classList.remove('hidden');
             this.dom.toggleConsoleBtn.classList.add('active');
-            this.dom.toggleConsoleBtn.innerHTML = SVG_ICONS.clipboard + ' Hide Console';
         } else {
             this.dom.modalConsolePanel.classList.add('hidden');
             this.dom.toggleConsoleBtn.classList.remove('active');
-            this.dom.toggleConsoleBtn.innerHTML = SVG_ICONS.clipboard + ' Console';
         }
+
+        this.updatePreviewDockControlButtons();
     },
 
     movePanel(panel, direction) {
