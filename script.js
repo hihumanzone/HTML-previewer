@@ -5772,6 +5772,21 @@ This content is loaded from a markdown file.
 
     replaceAssetReferences(htmlContent, fileSystem, currentFilePath = '', processedHtmlFiles = null) {
         if (!processedHtmlFiles) processedHtmlFiles = new Map();
+
+        // Protect inline script content from regex-based asset replacements.
+        // HTML-like patterns inside JavaScript strings/templates (e.g. template literals
+        // containing <link>, <script src="...">, <img>, etc.) would otherwise be incorrectly
+        // matched and replaced by the asset replacement regexes, corrupting the JS code.
+        const inlineScriptBlocks = [];
+        htmlContent = htmlContent.replace(/<script((?:\s[^>]*)?)>([\s\S]*?)<\/script>/gi, (match, attrs, content) => {
+            if (/\ssrc\s*=/i.test(attrs) || !content.trim()) {
+                return match; // Leave src-based and empty scripts untouched for replaceScriptTags
+            }
+            const placeholder = `<!--__INLINE_SCRIPT_${inlineScriptBlocks.length}__-->`;
+            inlineScriptBlocks.push(match);
+            return placeholder;
+        });
+
         htmlContent = this.assetReplacers.replaceAllConfigBased(htmlContent, fileSystem, currentFilePath);
         htmlContent = this.assetReplacers.replaceDownloadLinks(htmlContent, fileSystem, currentFilePath, processedHtmlFiles);
         htmlContent = this.assetReplacers.replaceStyleTags(htmlContent, fileSystem, currentFilePath);
@@ -5792,6 +5807,11 @@ This content is loaded from a markdown file.
         
         const workerFileSet = new Set(workerFileNames);
         htmlContent = this.assetReplacers.replaceScriptTags(htmlContent, fileSystem, currentFilePath, workerFileSet);
+
+        // Restore protected inline script blocks
+        for (let i = 0; i < inlineScriptBlocks.length; i++) {
+            htmlContent = htmlContent.replace(`<!--__INLINE_SCRIPT_${i}__-->`, inlineScriptBlocks[i]);
+        }
         
         return htmlContent;
     },
