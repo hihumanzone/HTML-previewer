@@ -349,7 +349,7 @@ class EventManager {
     // ─── Code Modal ───────────────────────────────────────────────────────────
 
     /**
-     * Binds code-view modal close, search, and save actions.
+     * Binds code-view modal close and search actions.
      */
     bindCodeModal() {
         const { app } = this;
@@ -391,9 +391,6 @@ class EventManager {
             app.dom.codeModalSearchCloseBtn.addEventListener('click', () => app.closeCodeModalSearch());
         }
 
-        if (app.dom.saveCodeBtn) {
-            app.dom.saveCodeBtn.addEventListener('click', () => app.saveCodeModal());
-        }
     }
 
     // ─── Media Modal ──────────────────────────────────────────────────────────
@@ -646,6 +643,8 @@ const CodePreviewer = {
         previewDockSize: { right: null, bottom: null },
         dockResizeSession: null,
         isCodeModalDockedLeft: false,
+        isSyncingCodeModalToSource: false,
+        codeModalPlaintextInputHandlerBound: false,
         settingsCloseHandler: null,
         settingsEscHandler: null,
         settings: {
@@ -1623,7 +1622,6 @@ const CodePreviewer = {
             codeModalSearchInput: document.getElementById('code-modal-search-input'),
             codeModalSearchNextBtn: document.getElementById('code-modal-search-next-btn'),
             codeModalSearchCloseBtn: document.getElementById('code-modal-search-close-btn'),
-            saveCodeBtn: document.getElementById('save-code-btn'),
             mediaModal: document.getElementById('media-modal'),
             codeModal: document.getElementById('code-modal'),
             mediaModalContent: document.getElementById('media-modal-content'),
@@ -2383,9 +2381,6 @@ This content is loaded from a markdown file.
             this.dom.codeModalSearchBtn.innerHTML = isMobile ? SVG_ICONS.search : SVG_ICONS.search + ' Search';
         }
 
-        if (this.dom.saveCodeBtn) {
-            this.dom.saveCodeBtn.innerHTML = isMobile ? SVG_ICONS.save : SVG_ICONS.save + ' Save';
-        }
     },
 
     updatePanelMoveButtonDirections() {
@@ -5185,15 +5180,18 @@ This content is loaded from a markdown file.
                         autoCloseBrackets: !!this.state.settings.autoCloseBrackets,
                         matchBrackets: !!this.state.settings.matchBrackets,
                         viewportMargin: Infinity,
-                        extraKeys: {
-                            'Ctrl-S': () => this.saveCodeModal(false),
-                            'Cmd-S': () => this.saveCodeModal(false),
-                        },
                     });
                 } else {
                     this.state.codeModalEditor.setOption('mode', language);
                     this.state.codeModalEditor.setOption('readOnly', false);
                     this.applySettingsToEditor(this.state.codeModalEditor);
+                }
+
+                if (!this.state.codeModalEditor._liveSyncBound) {
+                    this.state.codeModalEditor.on('change', (cm) => {
+                        this.syncCodeModalToSource(cm.getValue());
+                    });
+                    this.state.codeModalEditor._liveSyncBound = true;
                 }
 
                 this.state.codeModalEditor.setValue(content);
@@ -5212,6 +5210,12 @@ This content is loaded from a markdown file.
                 editorTextarea.style.backgroundColor = '#282a36';
                 editorTextarea.style.color = '#f8f8f2';
                 editorTextarea.style.resize = 'none';
+                if (!this.state.codeModalPlaintextInputHandlerBound) {
+                    editorTextarea.addEventListener('input', () => {
+                        this.syncCodeModalToSource(editorTextarea.value);
+                    });
+                    this.state.codeModalPlaintextInputHandlerBound = true;
+                }
                 editorTextarea.focus();
             }
 
@@ -5349,43 +5353,31 @@ This content is loaded from a markdown file.
             }
         }
     },
-    saveCodeModal(closeAfterSave = true) {
+    syncCodeModalToSource(content) {
         try {
-            if (!this.state.currentCodeModalSource) {
-                console.error('No source panel reference found for saving');
+            if (!this.state.currentCodeModalSource || this.state.isSyncingCodeModalToSource) {
                 return;
             }
 
-            let content = '';
-            
-            if (window.CodeMirror && this.state.codeModalEditor) {
-                content = this.state.codeModalEditor.getValue();
-            } else {
-                const editorTextarea = document.getElementById('code-modal-editor');
-                content = editorTextarea.value;
-            }
-
             const sourceEditor = this.getEditorFromPanel(this.state.currentCodeModalSource);
-            if (sourceEditor) {
-                sourceEditor.setValue(content);
-                
-                if (sourceEditor.refresh) {
-                    setTimeout(() => {
-                        sourceEditor.refresh();
-                    }, 100);
-                }
+            if (!sourceEditor || sourceEditor.getValue() === content) {
+                return;
             }
 
-            if (closeAfterSave) {
-                this.closeCodeModal();
-            } else {
-                this.showNotification('Changes applied', 'success');
+            this.state.isSyncingCodeModalToSource = true;
+            sourceEditor.setValue(content);
+
+            if (sourceEditor.refresh) {
+                setTimeout(() => {
+                    sourceEditor.refresh();
+                }, 0);
             }
         } catch (error) {
-            console.error('Error saving code from modal:', error);
+            console.error('Error syncing expanded code view to source editor:', error);
+        } finally {
+            this.state.isSyncingCodeModalToSource = false;
         }
     },
-
     toggleEditorCollapse(panel) {
         const collapseBtn = panel.querySelector('.collapse-btn');
         const toolbarButtons = panel.querySelectorAll('.editor-toolbar .toolbar-btn:not(.collapse-btn)');
