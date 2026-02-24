@@ -2310,6 +2310,42 @@ This content is loaded from a markdown file.
         document.body.classList.toggle('compact-editor-layout', isCompact);
     },
 
+    updateDockedModalCompactModes() {
+        const previewIsNarrow = this.state.isPreviewDocked
+            && this.state.previewDockOrientation === 'right'
+            && this.getDockSizePx('right') <= 460;
+        document.body.classList.toggle('preview-dock-compact-controls', previewIsNarrow);
+
+        const codeDockedLeft = this.dom.codeModal?.classList.contains('is-docked-left');
+        const codeModalWidth = this.getViewportWidth() - this.getDockSizePx('right');
+        const codeIsNarrow = codeDockedLeft
+            && this.state.isPreviewDocked
+            && this.state.previewDockOrientation === 'right'
+            && codeModalWidth <= 720;
+
+        this.dom.codeModal?.classList.toggle('is-compact-docked', codeIsNarrow);
+
+        this.updatePreviewDockControlButtons();
+        if (this.dom.codeModal?.getAttribute('aria-hidden') === 'false') {
+            this.updateCodeModalHeaderAndButtons();
+        }
+    },
+
+    updatePreviewDockControlButtons() {
+        const isCompact = document.body.classList.contains('preview-dock-compact-controls');
+
+        if (this.dom.toggleConsoleBtn) {
+            const isConsoleVisible = !this.dom.modalConsolePanel.classList.contains('hidden');
+            const consoleText = isConsoleVisible ? 'Hide Console' : 'Console';
+            this.dom.toggleConsoleBtn.innerHTML = isCompact ? SVG_ICONS.clipboard : SVG_ICONS.clipboard + ' ' + consoleText;
+        }
+
+        if (this.dom.dockPreviewBtn) {
+            const dockText = this.state.isPreviewDocked ? 'Undock' : 'Dock';
+            this.dom.dockPreviewBtn.innerHTML = isCompact ? SVG_ICONS.dock : SVG_ICONS.dock + ' ' + dockText;
+        }
+    },
+
     isMobileViewport() {
         return window.matchMedia('(max-width: 768px)').matches;
     },
@@ -2357,13 +2393,14 @@ This content is loaded from a markdown file.
 
         this.updateCodeModalDockButton();
         this.applyCodeModalDockLayout();
+        this.updateDockedModalCompactModes();
         this.updateDockDividerVisibility();
         this.refreshCodeModalEditor();
     },
 
     updateCodeModalHeaderAndButtons(fileName = null) {
         const modalTitle = document.getElementById('code-modal-title');
-        const isMobile = this.isMobileViewport();
+        const isMobile = this.isMobileViewport() || this.dom.codeModal?.classList.contains('is-compact-docked');
         const displayFileName = fileName
             || this.state.currentCodeModalSource?.querySelector('.file-name-input')?.value
             || 'Code';
@@ -5222,6 +5259,7 @@ This content is loaded from a markdown file.
             modal.style.display = 'flex';
             modal.setAttribute('aria-hidden', 'false');
             this.updateDockDividerVisibility();
+            this.updateDockedModalCompactModes();
             this.updateBackgroundScrollLock();
 
             if (window.CodeMirror && this.state.codeModalEditor) {
@@ -5242,6 +5280,7 @@ This content is loaded from a markdown file.
         }
         this.state.currentCodeModalSource = null;
         this.dom.codeModal?.classList.remove('is-docked-left');
+        this.dom.codeModal?.classList.remove('is-compact-docked');
         this.closeCodeModalSearch();
         this.updateDockDividerVisibility();
         this.updateBackgroundScrollLock();
@@ -5946,8 +5985,8 @@ This content is loaded from a markdown file.
         if (!this.dom.dockPreviewBtn) return;
         const isDocked = this.state.isPreviewDocked;
         this.dom.dockPreviewBtn.classList.toggle('active', isDocked);
-        this.dom.dockPreviewBtn.innerHTML = isDocked ? SVG_ICONS.dock + ' Undock' : SVG_ICONS.dock + ' Dock';
         this.dom.dockPreviewBtn.setAttribute('aria-label', isDocked ? 'Undock preview panel' : 'Dock preview panel');
+        this.updatePreviewDockControlButtons();
     },
 
     getViewportWidth() {
@@ -6031,6 +6070,7 @@ This content is loaded from a markdown file.
         this.updateAdaptiveLayoutMode();
         this.updateCodeModalDockButton();
         this.applyCodeModalDockLayout();
+        this.updateDockedModalCompactModes();
         this.updateBackgroundScrollLock();
     },
 
@@ -6126,7 +6166,7 @@ This content is loaded from a markdown file.
             this.applyPreviewDockLayout();
             this.dom.modalConsolePanel.classList.add('hidden');
             this.dom.toggleConsoleBtn.classList.remove('active');
-            this.dom.toggleConsoleBtn.innerHTML = SVG_ICONS.clipboard + ' Console';
+            this.updatePreviewDockControlButtons();
         } else {
             this.togglePreviewDock(false);
             if (this.state.previewRefreshTimer) {
@@ -6159,16 +6199,16 @@ This content is loaded from a markdown file.
 
     toggleConsole() {
         const isHidden = this.dom.modalConsolePanel.classList.contains('hidden');
-        
+
         if (isHidden) {
             this.dom.modalConsolePanel.classList.remove('hidden');
             this.dom.toggleConsoleBtn.classList.add('active');
-            this.dom.toggleConsoleBtn.innerHTML = SVG_ICONS.clipboard + ' Hide Console';
         } else {
             this.dom.modalConsolePanel.classList.add('hidden');
             this.dom.toggleConsoleBtn.classList.remove('active');
-            this.dom.toggleConsoleBtn.innerHTML = SVG_ICONS.clipboard + ' Console';
         }
+
+        this.updatePreviewDockControlButtons();
     },
 
     movePanel(panel, direction) {
