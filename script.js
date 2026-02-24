@@ -1628,6 +1628,8 @@ const CodePreviewer = {
             codeModalSearchCloseBtn: document.getElementById('code-modal-search-close-btn'),
             mediaModal: document.getElementById('media-modal'),
             codeModal: document.getElementById('code-modal'),
+            codeModalTitle: document.getElementById('code-modal-title'),
+            codeModalFileMeta: document.getElementById('code-modal-file-meta'),
             mediaModalContent: document.getElementById('media-modal-content'),
             mediaModalTitle: document.getElementById('media-modal-title'),
         };
@@ -2458,41 +2460,45 @@ This content is loaded from a markdown file.
         return `${roundedSize} ${units[unitIndex]}`;
     },
 
-    getCodeModalFileMeta(fileName = null) {
-        const resolvedName = fileName
+    getCurrentCodeModalFileName(fallbackName = '') {
+        return fallbackName
             || this.state.currentCodeModalSource?.querySelector('.file-name-input')?.value
-            || '';
+            || 'Code';
+    },
+
+    getLineCount(content) {
+        return content.length === 0 ? 1 : content.split(/\r\n|\r|\n/).length;
+    },
+
+    getCodeModalFileMeta(fileName = null) {
         const sourceFileId = this.state.currentCodeModalSource?.dataset?.fileId;
         const fileInfo = this.state.files.find(file => file.id === sourceFileId);
-
         if (!fileInfo) return '';
 
+        const displayFileName = this.getCurrentCodeModalFileName(fileName || '');
         const content = fileInfo.editor?.getValue?.() ?? fileInfo.content ?? '';
-        const fileSize = this.formatFileSize(new Blob([content]).size);
-        const metaParts = [fileSize];
+        const metaParts = [this.formatFileSize(new Blob([content]).size)];
 
         if (this.isTextFileType(fileInfo)) {
-            const lineCount = content.length === 0 ? 1 : content.split(/\r\n|\r|\n/).length;
+            const lineCount = this.getLineCount(content);
             metaParts.push(`${lineCount} line${lineCount === 1 ? '' : 's'}`);
         }
 
-        return `${resolvedName ? `${resolvedName} • ` : ''}${metaParts.join(' • ')}`;
+        return `${displayFileName} • ${metaParts.join(' • ')}`;
     },
 
     updateCodeModalHeaderAndButtons(fileName = null) {
-        const modalTitle = document.getElementById('code-modal-title');
-        const modalFileMeta = document.getElementById('code-modal-file-meta');
+        const modalTitle = this.dom.codeModalTitle;
+        const modalFileMeta = this.dom.codeModalFileMeta;
         const isMobile = this.isMobileViewport() || this.dom.codeModal?.classList.contains('is-compact-docked');
-        const displayFileName = fileName
-            || this.state.currentCodeModalSource?.querySelector('.file-name-input')?.value
-            || 'Code';
+        const displayFileName = this.getCurrentCodeModalFileName(fileName);
 
         if (modalTitle) {
             modalTitle.textContent = isMobile ? displayFileName : `Code View - ${displayFileName}`;
         }
 
         if (modalFileMeta) {
-            modalFileMeta.textContent = this.getCodeModalFileMeta(fileName);
+            modalFileMeta.textContent = this.getCodeModalFileMeta(displayFileName);
         }
 
         if (this.dom.codeModalDockBtn && !this.dom.codeModalDockBtn.hidden) {
@@ -5283,8 +5289,8 @@ This content is loaded from a markdown file.
 
     openCodeModal(content, fileName, language, sourcePanel) {
         try {
-            const modal = document.getElementById('code-modal');
-            const modalTitle = document.getElementById('code-modal-title');
+            const modal = this.dom.codeModal;
+            const modalTitle = this.dom.codeModalTitle;
             const editorTextarea = document.getElementById('code-modal-editor');
 
             if (!modal || !modalTitle || !editorTextarea) {
