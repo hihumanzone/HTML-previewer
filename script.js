@@ -37,6 +37,7 @@ const SVG_ICONS = {
     save: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 1.5h9.5L14 4v10.5H2V1.5z"/><rect x="4.5" y="1.5" width="5" height="4"/><rect x="4.5" y="9.5" width="7" height="5"/></svg>',
     close: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg>',
     dock: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="2" width="13" height="12" rx="1"/><line x1="10" y1="2" x2="10" y2="14"/></svg>',
+    refresh: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3v4H9"/><path d="M3 13v-4h4"/><path d="M4.1 6.1A5 5 0 0 1 13 7"/><path d="M11.9 9.9A5 5 0 0 1 3 9"/></svg>',
     eye: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z"/><circle cx="8" cy="8" r="2"/></svg>',
     pencil: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 1.5l3 3-9 9H2.5v-3l9-9z"/></svg>',
     move: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="8" x2="14" y2="8"/><polyline points="10,4 14,8 10,12"/></svg>',
@@ -2346,6 +2347,10 @@ This content is loaded from a markdown file.
         if (this.dom.dockPreviewBtn) {
             const dockText = this.state.isPreviewDocked ? 'Undock' : 'Dock';
             this.dom.dockPreviewBtn.innerHTML = isCompact ? SVG_ICONS.dock : SVG_ICONS.dock + ' ' + dockText;
+        }
+
+        if (this.dom.refreshPreviewBtn) {
+            this.dom.refreshPreviewBtn.innerHTML = isCompact ? SVG_ICONS.refresh : SVG_ICONS.refresh + ' Refresh';
         }
     },
 
