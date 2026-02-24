@@ -2341,17 +2341,29 @@ This content is loaded from a markdown file.
         if (this.dom.toggleConsoleBtn) {
             const isConsoleVisible = !this.dom.modalConsolePanel.classList.contains('hidden');
             const consoleText = isConsoleVisible ? 'Hide Console' : 'Console';
-            this.dom.toggleConsoleBtn.innerHTML = isCompact ? SVG_ICONS.clipboard : SVG_ICONS.clipboard + ' ' + consoleText;
+            this.setIconButtonLabel(this.dom.toggleConsoleBtn, SVG_ICONS.clipboard, consoleText, isCompact);
         }
 
         if (this.dom.dockPreviewBtn) {
             const dockText = this.state.isPreviewDocked ? 'Undock' : 'Dock';
-            this.dom.dockPreviewBtn.innerHTML = isCompact ? SVG_ICONS.dock : SVG_ICONS.dock + ' ' + dockText;
+            this.setIconButtonLabel(this.dom.dockPreviewBtn, SVG_ICONS.dock, dockText, isCompact);
         }
 
         if (this.dom.refreshPreviewBtn) {
-            this.dom.refreshPreviewBtn.innerHTML = isCompact ? SVG_ICONS.refresh : SVG_ICONS.refresh + ' Refresh';
+            this.setIconButtonLabel(this.dom.refreshPreviewBtn, SVG_ICONS.refresh, 'Refresh', isCompact);
         }
+    },
+
+    /**
+     * Updates a header control button with icon-only (compact) or icon+label content.
+     * @param {HTMLButtonElement | null} button
+     * @param {string} iconMarkup
+     * @param {string} label
+     * @param {boolean} isCompact
+     */
+    setIconButtonLabel(button, iconMarkup, label, isCompact) {
+        if (!button) return;
+        button.innerHTML = isCompact ? iconMarkup : `${iconMarkup} ${label}`;
     },
 
     isMobileViewport() {
