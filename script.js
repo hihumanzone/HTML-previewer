@@ -2316,7 +2316,7 @@ This content is loaded from a markdown file.
             && this.getDockSizePx('right') <= 460;
         document.body.classList.toggle('preview-dock-compact-controls', previewIsNarrow);
 
-        const codeDockedLeft = this.dom.codeModal?.classList.contains('is-docked-left');
+        const codeDockedLeft = this.isCodeModalCurrentlyDocked();
         const codeModalWidth = this.getViewportWidth() - this.getDockSizePx('right');
         const codeIsNarrow = codeDockedLeft
             && this.state.isPreviewDocked
@@ -2359,8 +2359,21 @@ This content is loaded from a markdown file.
             && this.dom.modalOverlay?.getAttribute('aria-hidden') === 'false';
     },
 
+    isPreviewDockedBottom() {
+        return this.state.previewDockOrientation === 'bottom';
+    },
+
+    isCodeModalCurrentlyDocked() {
+        return this.dom.codeModal?.classList.contains('is-docked-left');
+    },
+
+    setCodeModalDockedState(shouldDock) {
+        if (!this.dom.codeModal) return;
+        this.dom.codeModal.classList.toggle('is-docked-left', !!shouldDock);
+    },
+
     getCodeModalDockButtonText(isDockedLeft = this.state.isCodeModalDockedLeft) {
-        const isBottomDock = this.state.previewDockOrientation === 'bottom';
+        const isBottomDock = this.isPreviewDockedBottom();
         if (isBottomDock) {
             return isDockedLeft ? 'Undock' : 'Dock Above';
         }
@@ -2381,7 +2394,7 @@ This content is loaded from a markdown file.
         dockBtn.classList.toggle('active', isDockedLeft);
         dockBtn.innerHTML = SVG_ICONS.dock + ' ' + dockButtonText;
 
-        const isBottomDock = this.state.previewDockOrientation === 'bottom';
+        const isBottomDock = this.isPreviewDockedBottom();
         const dockTargetDescription = isBottomDock ? 'above the docked preview' : 'to the left of preview';
         dockBtn.setAttribute('aria-label', isDockedLeft
             ? 'Undock expanded code view'
@@ -2390,10 +2403,8 @@ This content is loaded from a markdown file.
     },
 
     applyCodeModalDockLayout() {
-        if (!this.dom.codeModal) return;
-
         const shouldDockLeft = this.canDockCodeModalLeft() && this.state.isCodeModalDockedLeft;
-        this.dom.codeModal.classList.toggle('is-docked-left', shouldDockLeft);
+        this.setCodeModalDockedState(shouldDockLeft);
     },
 
     toggleCodeModalDockLeft(forceState = null) {
@@ -5291,7 +5302,7 @@ This content is loaded from a markdown file.
             modal.setAttribute('aria-hidden', 'true');
         }
         this.state.currentCodeModalSource = null;
-        this.dom.codeModal?.classList.remove('is-docked-left');
+        this.setCodeModalDockedState(false);
         this.dom.codeModal?.classList.remove('is-compact-docked');
         this.closeCodeModalSearch();
         this.updateDockDividerVisibility();
