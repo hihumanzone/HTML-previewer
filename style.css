@@ -1546,6 +1546,8 @@ body.modal-scroll-lock .container {
     display: flex;
     align-items: center;
     gap: var(--space-sm);
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }
 
 .modal-body {
@@ -1566,9 +1568,64 @@ body.modal-scroll-lock .container {
 
 #preview-frame {
     width: 100%;
-    flex: 1;
+    height: 100%;
     border: none;
     background-color: #fff;
+}
+
+.preview-device-label {
+    font-size: 0.78rem;
+    color: rgba(var(--primary-rgb), 0.72);
+}
+
+.preview-device-select,
+.preview-custom-size input {
+    background: rgba(var(--secondary-rgb), 0.85);
+    color: var(--primary-color);
+    border: 1px solid rgba(var(--accent-rgb), 0.25);
+    border-radius: 6px;
+    font-size: 0.78rem;
+    padding: 0.25rem 0.45rem;
+}
+
+.preview-device-select {
+    min-width: 9.5rem;
+}
+
+.preview-custom-size {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: rgba(var(--primary-rgb), 0.72);
+    font-size: 0.75rem;
+}
+
+.preview-custom-size input {
+    width: 4.2rem;
+}
+
+.preview-viewport {
+    flex: 1;
+    min-height: 0;
+    padding: var(--space-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: rgba(var(--bg-dark-rgb), 0.4);
+    --preview-target-width: 100%;
+    --preview-target-height: 100%;
+    --preview-target-scale: 1;
+}
+
+.preview-stage {
+    width: var(--preview-target-width);
+    height: var(--preview-target-height);
+    transform: scale(var(--preview-target-scale));
+    transform-origin: center center;
+    max-width: 100%;
+    max-height: 100%;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
 body.preview-docked {
@@ -2902,4 +2959,19 @@ body.compact-editor-layout.preview-docked #preview-modal.is-docked .console-filt
 
 body.compact-editor-layout.preview-docked #preview-modal.is-docked .console-filter-btn .filter-icon {
     display: inline-block;
+}
+
+
+@media (max-width: 900px) {
+    .preview-device-label {
+        display: none;
+    }
+
+    .preview-device-select {
+        min-width: 7.8rem;
+    }
+
+    .preview-custom-size input {
+        width: 3.4rem;
+    }
 }

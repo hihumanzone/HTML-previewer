@@ -229,6 +229,7 @@ class EventManager {
     bindAll() {
         this.bindPrimaryActions();
         this.bindConsoleActions();
+        this.bindPreviewResponsiveControls();
         this.bindPreviewDock();
         this.bindModalOverlay();
         this.bindKeyboard();
@@ -257,6 +258,26 @@ class EventManager {
      */
     bindConsoleActions() {
         this.app.dom.toggleConsoleBtn.addEventListener('click', () => this.app.toggleConsole());
+    }
+
+    /**
+     * Binds preview device preset and custom size controls.
+     */
+    bindPreviewResponsiveControls() {
+        const { app } = this;
+        const presetSelect = app.dom.previewDevicePreset;
+        const widthInput = app.dom.previewCustomWidth;
+        const heightInput = app.dom.previewCustomHeight;
+        if (!presetSelect || !widthInput || !heightInput) return;
+
+        presetSelect.addEventListener('change', () => app.setPreviewDevicePreset(presetSelect.value));
+
+        const handleCustomInput = () => {
+            app.setPreviewCustomSize(widthInput.value, heightInput.value);
+        };
+
+        widthInput.addEventListener('input', handleCustomInput);
+        heightInput.addEventListener('input', handleCustomInput);
     }
 
     // ─── Preview Dock ─────────────────────────────────────────────────────────
@@ -575,6 +596,7 @@ class EventManager {
                     app.updatePanelMoveButtonDirections();
                     app.updateCodeModalHeaderAndButtons();
                     app.updateAdaptiveLayoutMode();
+                    app.applyPreviewDeviceViewport();
                 }, 80);
             };
 
@@ -590,6 +612,7 @@ class EventManager {
             app.state.visualViewportResizeHandler = () => {
                 app.updatePreviewViewportHeight();
                 app.handleDockViewportResize();
+                app.applyPreviewDeviceViewport();
             };
             window.visualViewport.addEventListener('resize', app.state.visualViewportResizeHandler);
             window.visualViewport.addEventListener('scroll', app.state.visualViewportResizeHandler);
@@ -638,6 +661,8 @@ const CodePreviewer = {
         filePanelPreviewUrls: new Map(),
         previewRefreshTimer: null,
         previewRefreshDelay: 1000,
+        previewDevicePreset: 'auto',
+        previewCustomSize: { width: 1280, height: 720 },
         isPreviewDocked: false,
         previewDockOrientation: 'right',
         previewDockSize: { right: null, bottom: null },
@@ -1584,6 +1609,12 @@ const CodePreviewer = {
             clearConsoleBtn: document.getElementById(CONTROL_IDS.CLEAR_CONSOLE_BTN),
             toggleConsoleBtn: document.getElementById(CONTROL_IDS.TOGGLE_CONSOLE_BTN),
             dockPreviewBtn: document.getElementById('dock-preview-btn'),
+            previewViewport: document.getElementById('preview-viewport'),
+            previewStage: document.getElementById('preview-stage'),
+            previewDevicePreset: document.getElementById('preview-device-preset'),
+            previewCustomSize: document.getElementById('preview-custom-size'),
+            previewCustomWidth: document.getElementById('preview-custom-width'),
+            previewCustomHeight: document.getElementById('preview-custom-height'),
             previewDockDivider: document.getElementById('preview-dock-divider'),
             addFileBtn: document.getElementById(CONTROL_IDS.ADD_FILE_BTN),
             addFolderBtn: document.getElementById(CONTROL_IDS.ADD_FOLDER_BTN),
@@ -2289,6 +2320,7 @@ This content is loaded from a markdown file.
 
         this.updateDockDividerVisibility();
         this.updateBackgroundScrollLock();
+        this.applyPreviewDeviceViewport();
     },
 
     updatePreviewViewportHeight() {
@@ -5190,6 +5222,7 @@ This content is loaded from a markdown file.
         this.dom.mediaModal.setAttribute('aria-hidden', 'false');
         this.updateDockDividerVisibility();
         this.updateBackgroundScrollLock();
+        this.applyPreviewDeviceViewport();
     },
 
     closeMediaModal() {
@@ -5203,6 +5236,7 @@ This content is loaded from a markdown file.
         }
         this.updateDockDividerVisibility();
         this.updateBackgroundScrollLock();
+        this.applyPreviewDeviceViewport();
     },
 
     openCodeModal(content, fileName, language, sourcePanel) {
@@ -5284,6 +5318,7 @@ This content is loaded from a markdown file.
             this.updateDockDividerVisibility();
             this.updateDockedModalCompactModes();
             this.updateBackgroundScrollLock();
+        this.applyPreviewDeviceViewport();
 
             if (window.CodeMirror && this.state.codeModalEditor) {
                 setTimeout(() => {
@@ -5307,6 +5342,7 @@ This content is loaded from a markdown file.
         this.closeCodeModalSearch();
         this.updateDockDividerVisibility();
         this.updateBackgroundScrollLock();
+        this.applyPreviewDeviceViewport();
     },
 
 
@@ -6095,6 +6131,7 @@ This content is loaded from a markdown file.
         this.applyCodeModalDockLayout();
         this.updateDockedModalCompactModes();
         this.updateBackgroundScrollLock();
+        this.applyPreviewDeviceViewport();
     },
 
     togglePreviewDock(forceState = null) {
@@ -6190,6 +6227,8 @@ This content is loaded from a markdown file.
             this.dom.modalConsolePanel.classList.add('hidden');
             this.dom.toggleConsoleBtn.classList.remove('active');
             this.updatePreviewDockControlButtons();
+            this.syncPreviewResponsiveControls();
+            this.applyPreviewDeviceViewport();
         } else {
             this.togglePreviewDock(false);
             if (this.state.previewRefreshTimer) {
@@ -6218,6 +6257,7 @@ This content is loaded from a markdown file.
 
         this.updateDockDividerVisibility();
         this.updateBackgroundScrollLock();
+        this.applyPreviewDeviceViewport();
     },
 
     toggleConsole() {
@@ -6232,6 +6272,81 @@ This content is loaded from a markdown file.
         }
 
         this.updatePreviewDockControlButtons();
+        this.applyPreviewDeviceViewport();
+    },
+
+    getPreviewDevicePresets() {
+        return {
+            mobile: { width: 375, height: 667 },
+            tablet: { width: 768, height: 1024 },
+            laptop: { width: 1024, height: 768 },
+            desktop: { width: 1440, height: 900 }
+        };
+    },
+
+    setPreviewDevicePreset(preset) {
+        const allowed = ['auto', 'mobile', 'tablet', 'laptop', 'desktop', 'custom'];
+        const nextPreset = allowed.includes(preset) ? preset : 'auto';
+        this.state.previewDevicePreset = nextPreset;
+        this.syncPreviewResponsiveControls();
+        this.applyPreviewDeviceViewport();
+    },
+
+    setPreviewCustomSize(widthValue, heightValue) {
+        const width = Number.parseInt(widthValue, 10);
+        const height = Number.parseInt(heightValue, 10);
+
+        if (Number.isFinite(width) && width > 0) {
+            this.state.previewCustomSize.width = width;
+        }
+        if (Number.isFinite(height) && height > 0) {
+            this.state.previewCustomSize.height = height;
+        }
+
+        this.state.previewDevicePreset = 'custom';
+        this.syncPreviewResponsiveControls();
+        this.applyPreviewDeviceViewport();
+    },
+
+    getRequestedPreviewSize() {
+        if (this.state.previewDevicePreset === 'custom') {
+            return this.state.previewCustomSize;
+        }
+
+        const presets = this.getPreviewDevicePresets();
+        return presets[this.state.previewDevicePreset] || null;
+    },
+
+    syncPreviewResponsiveControls() {
+        if (!this.dom.previewDevicePreset || !this.dom.previewCustomSize || !this.dom.previewCustomWidth || !this.dom.previewCustomHeight) return;
+
+        this.dom.previewDevicePreset.value = this.state.previewDevicePreset;
+        const showCustom = this.state.previewDevicePreset === 'custom';
+        this.dom.previewCustomSize.hidden = !showCustom;
+        this.dom.previewCustomWidth.value = this.state.previewCustomSize.width;
+        this.dom.previewCustomHeight.value = this.state.previewCustomSize.height;
+    },
+
+    applyPreviewDeviceViewport() {
+        if (!this.dom.previewViewport || !this.dom.previewStage) return;
+
+        const requested = this.getRequestedPreviewSize();
+        if (!requested) {
+            this.dom.previewViewport.style.removeProperty('--preview-target-width');
+            this.dom.previewViewport.style.removeProperty('--preview-target-height');
+            this.dom.previewViewport.style.removeProperty('--preview-target-scale');
+            return;
+        }
+
+        const availableWidth = Math.max(1, this.dom.previewViewport.clientWidth);
+        const availableHeight = Math.max(1, this.dom.previewViewport.clientHeight);
+        const targetWidth = Math.max(1, requested.width);
+        const targetHeight = Math.max(1, requested.height);
+        const scale = Math.min(availableWidth / targetWidth, availableHeight / targetHeight, 1);
+
+        this.dom.previewViewport.style.setProperty('--preview-target-width', `${targetWidth}px`);
+        this.dom.previewViewport.style.setProperty('--preview-target-height', `${targetHeight}px`);
+        this.dom.previewViewport.style.setProperty('--preview-target-scale', String(scale));
     },
 
     movePanel(panel, direction) {
