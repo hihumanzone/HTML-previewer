@@ -2441,8 +2441,47 @@ This content is loaded from a markdown file.
         this.refreshCodeModalEditor();
     },
 
+    formatFileSize(bytes) {
+        const normalized = Number.isFinite(bytes) && bytes >= 0 ? bytes : 0;
+        if (normalized < 1024) return `${normalized} B`;
+
+        const units = ['KB', 'MB', 'GB'];
+        let size = normalized;
+        let unitIndex = -1;
+
+        while (size >= 1024 && unitIndex < units.length - 1) {
+            size /= 1024;
+            unitIndex += 1;
+        }
+
+        const roundedSize = size >= 10 ? Math.round(size) : Math.round(size * 10) / 10;
+        return `${roundedSize} ${units[unitIndex]}`;
+    },
+
+    getCodeModalFileMeta(fileName = null) {
+        const resolvedName = fileName
+            || this.state.currentCodeModalSource?.querySelector('.file-name-input')?.value
+            || '';
+        const sourceFileId = this.state.currentCodeModalSource?.dataset?.fileId;
+        const fileInfo = this.state.files.find(file => file.id === sourceFileId);
+
+        if (!fileInfo) return '';
+
+        const content = fileInfo.editor?.getValue?.() ?? fileInfo.content ?? '';
+        const fileSize = this.formatFileSize(new Blob([content]).size);
+        const metaParts = [fileSize];
+
+        if (this.isTextFile(fileInfo.type)) {
+            const lineCount = content.length === 0 ? 1 : content.split(/\r\n|\r|\n/).length;
+            metaParts.push(`${lineCount} line${lineCount === 1 ? '' : 's'}`);
+        }
+
+        return `${resolvedName ? `${resolvedName} • ` : ''}${metaParts.join(' • ')}`;
+    },
+
     updateCodeModalHeaderAndButtons(fileName = null) {
         const modalTitle = document.getElementById('code-modal-title');
+        const modalFileMeta = document.getElementById('code-modal-file-meta');
         const isMobile = this.isMobileViewport() || this.dom.codeModal?.classList.contains('is-compact-docked');
         const displayFileName = fileName
             || this.state.currentCodeModalSource?.querySelector('.file-name-input')?.value
@@ -2450,6 +2489,10 @@ This content is loaded from a markdown file.
 
         if (modalTitle) {
             modalTitle.textContent = isMobile ? displayFileName : `Code View - ${displayFileName}`;
+        }
+
+        if (modalFileMeta) {
+            modalFileMeta.textContent = this.getCodeModalFileMeta(fileName);
         }
 
         if (this.dom.codeModalDockBtn && !this.dom.codeModalDockBtn.hidden) {
@@ -5448,6 +5491,7 @@ This content is loaded from a markdown file.
 
             this.state.isSyncingCodeModalToSource = true;
             sourceEditor.setValue(content);
+            this.updateCodeModalHeaderAndButtons();
             this.schedulePreviewRefresh();
 
             if (sourceEditor.refresh) {
