@@ -2359,6 +2359,7 @@ This content is loaded from a markdown file.
 
         this.updateCodeModalDockButton();
         this.applyCodeModalDockLayout();
+        this.updateDockDividerVisibility();
         this.refreshCodeModalEditor();
     },
 
@@ -5992,7 +5993,8 @@ This content is loaded from a markdown file.
         const codeOpen = document.getElementById('code-modal')?.getAttribute('aria-hidden') === 'false';
         const mediaOpen = this.dom.mediaModal?.getAttribute('aria-hidden') === 'false';
         const settingsOpen = this.isSettingsModalOpen();
-        return codeOpen || mediaOpen || settingsOpen;
+        const codeModalOverDivider = codeOpen && !this.state.isCodeModalDockedLeft;
+        return codeModalOverDivider || mediaOpen || settingsOpen;
     },
 
     updateBackgroundScrollLock() {

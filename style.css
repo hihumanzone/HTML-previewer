@@ -1625,7 +1625,7 @@ body.preview-docked-bottom #preview-modal.is-docked .modal-content {
     bottom: 0;
     width: 18px;
     cursor: col-resize;
-    z-index: 1005;
+    z-index: 1210;
     left: calc(100vw - var(--preview-dock-size) - 9px);
     background: transparent;
     touch-action: none;
