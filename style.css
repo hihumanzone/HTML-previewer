@@ -1818,6 +1818,31 @@ body.preview-docked-right #code-modal.is-docked-left .modal-content {
 }
 
 
+body.preview-docked-bottom #code-modal.is-docked-left {
+    background: transparent;
+    padding: 0;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: none;
+    justify-content: stretch;
+    align-items: flex-start;
+    z-index: 1010;
+}
+
+body.preview-docked-bottom #code-modal.is-docked-left .modal-content {
+    pointer-events: auto;
+    width: 100vw;
+    height: calc(var(--preview-viewport-height, 100vh) - var(--preview-dock-size));
+    max-height: calc(var(--preview-viewport-height, 100vh) - var(--preview-dock-size));
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+    border-top: 0;
+    border-bottom: 1px solid var(--border-color);
+    box-shadow: none;
+}
+
+
 /* ==========================================================================
    MEDIA MODAL
    ========================================================================== */
@@ -2697,6 +2722,21 @@ body.preview-docked-right #code-modal.is-docked-left .modal-content {
     body.preview-docked-right #code-modal.is-docked-left .modal-content {
         width: 100%;
         height: 100%;
+        border: none;
+    }
+
+    body.preview-docked-bottom #code-modal.is-docked-left {
+        justify-content: center;
+        align-items: center;
+        background-color: var(--modal-bg);
+        padding: 0;
+        pointer-events: auto;
+    }
+
+    body.preview-docked-bottom #code-modal.is-docked-left .modal-content {
+        width: 100%;
+        height: 100%;
+        max-height: none;
         border: none;
     }
 

@@ -2355,8 +2355,16 @@ This content is loaded from a markdown file.
     },
 
     canDockCodeModalLeft() {
-        return this.state.isPreviewDocked && this.state.previewDockOrientation === 'right'
+        return this.state.isPreviewDocked
             && this.dom.modalOverlay?.getAttribute('aria-hidden') === 'false';
+    },
+
+    getCodeModalDockButtonText(isDockedLeft = this.state.isCodeModalDockedLeft) {
+        const isBottomDock = this.state.previewDockOrientation === 'bottom';
+        if (isBottomDock) {
+            return isDockedLeft ? 'Undock' : 'Dock Above';
+        }
+        return isDockedLeft ? 'Undock Left' : 'Dock Left';
     },
 
     updateCodeModalDockButton() {
@@ -2369,12 +2377,16 @@ This content is loaded from a markdown file.
         if (!canDockLeft) return;
 
         const isDockedLeft = this.state.isCodeModalDockedLeft;
+        const dockButtonText = this.getCodeModalDockButtonText(isDockedLeft);
         dockBtn.classList.toggle('active', isDockedLeft);
-        dockBtn.innerHTML = isDockedLeft ? SVG_ICONS.dock + ' Undock Left' : SVG_ICONS.dock + ' Dock Left';
+        dockBtn.innerHTML = SVG_ICONS.dock + ' ' + dockButtonText;
+
+        const isBottomDock = this.state.previewDockOrientation === 'bottom';
+        const dockTargetDescription = isBottomDock ? 'above the docked preview' : 'to the left of preview';
         dockBtn.setAttribute('aria-label', isDockedLeft
-            ? 'Undock expanded code view from left side'
-            : 'Dock expanded code view to the left of preview');
-        dockBtn.title = isDockedLeft ? 'Undock expanded code view from left side' : 'Dock expanded code view to left';
+            ? 'Undock expanded code view'
+            : `Dock expanded code view ${dockTargetDescription}`);
+        dockBtn.title = isDockedLeft ? 'Undock expanded code view' : `Dock expanded code view ${dockTargetDescription}`;
     },
 
     applyCodeModalDockLayout() {
@@ -2410,7 +2422,7 @@ This content is loaded from a markdown file.
         }
 
         if (this.dom.codeModalDockBtn && !this.dom.codeModalDockBtn.hidden) {
-            const dockText = this.state.isCodeModalDockedLeft ? 'Undock Left' : 'Dock Left';
+            const dockText = this.getCodeModalDockButtonText();
             this.dom.codeModalDockBtn.innerHTML = isMobile ? SVG_ICONS.dock : SVG_ICONS.dock + ' ' + dockText;
         }
 
