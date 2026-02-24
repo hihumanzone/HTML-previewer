@@ -37,6 +37,7 @@ const SVG_ICONS = {
     save: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 1.5h9.5L14 4v10.5H2V1.5z"/><rect x="4.5" y="1.5" width="5" height="4"/><rect x="4.5" y="9.5" width="7" height="5"/></svg>',
     close: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg>',
     dock: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="2" width="13" height="12" rx="1"/><line x1="10" y1="2" x2="10" y2="14"/></svg>',
+    refresh: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3v4H9"/><path d="M3 13v-4h4"/><path d="M4.1 6.1A5 5 0 0 1 13 7"/><path d="M11.9 9.9A5 5 0 0 1 3 9"/></svg>',
     eye: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z"/><circle cx="8" cy="8" r="2"/></svg>',
     pencil: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 1.5l3 3-9 9H2.5v-3l9-9z"/></svg>',
     move: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="8" x2="14" y2="8"/><polyline points="10,4 14,8 10,12"/></svg>',
@@ -248,6 +249,7 @@ class EventManager {
         this.app.dom.modalBtn.addEventListener('click', () => this.app.renderPreview('modal'));
         this.app.dom.tabBtn.addEventListener('click', () => this.app.renderPreview('tab'));
         this.app.dom.closeModalBtn.addEventListener('click', () => this.app.toggleModal(false));
+        this.app.dom.refreshPreviewBtn?.addEventListener('click', () => this.app.refreshModalPreview());
     }
 
     // ─── Console ──────────────────────────────────────────────────────────────
@@ -679,6 +681,7 @@ const CodePreviewer = {
             TAB_BTN: 'preview-tab-btn',
             CLEAR_CONSOLE_BTN: 'clear-console-btn',
             TOGGLE_CONSOLE_BTN: 'toggle-console-btn',
+            REFRESH_PREVIEW_BTN: 'refresh-preview-btn',
             ADD_FILE_BTN: 'add-file-btn',
             ADD_FOLDER_BTN: 'add-folder-btn',
             CLEAR_ALL_FILES_BTN: 'clear-all-files-btn',
@@ -1583,6 +1586,7 @@ const CodePreviewer = {
             tabBtn: document.getElementById(CONTROL_IDS.TAB_BTN),
             clearConsoleBtn: document.getElementById(CONTROL_IDS.CLEAR_CONSOLE_BTN),
             toggleConsoleBtn: document.getElementById(CONTROL_IDS.TOGGLE_CONSOLE_BTN),
+            refreshPreviewBtn: document.getElementById(CONTROL_IDS.REFRESH_PREVIEW_BTN),
             dockPreviewBtn: document.getElementById('dock-preview-btn'),
             previewDockDivider: document.getElementById('preview-dock-divider'),
             addFileBtn: document.getElementById(CONTROL_IDS.ADD_FILE_BTN),
@@ -2337,13 +2341,29 @@ This content is loaded from a markdown file.
         if (this.dom.toggleConsoleBtn) {
             const isConsoleVisible = !this.dom.modalConsolePanel.classList.contains('hidden');
             const consoleText = isConsoleVisible ? 'Hide Console' : 'Console';
-            this.dom.toggleConsoleBtn.innerHTML = isCompact ? SVG_ICONS.clipboard : SVG_ICONS.clipboard + ' ' + consoleText;
+            this.setIconButtonLabel(this.dom.toggleConsoleBtn, SVG_ICONS.clipboard, consoleText, isCompact);
         }
 
         if (this.dom.dockPreviewBtn) {
             const dockText = this.state.isPreviewDocked ? 'Undock' : 'Dock';
-            this.dom.dockPreviewBtn.innerHTML = isCompact ? SVG_ICONS.dock : SVG_ICONS.dock + ' ' + dockText;
+            this.setIconButtonLabel(this.dom.dockPreviewBtn, SVG_ICONS.dock, dockText, isCompact);
         }
+
+        if (this.dom.refreshPreviewBtn) {
+            this.setIconButtonLabel(this.dom.refreshPreviewBtn, SVG_ICONS.refresh, 'Refresh', isCompact);
+        }
+    },
+
+    /**
+     * Updates a header control button with icon-only (compact) or icon+label content.
+     * @param {HTMLButtonElement | null} button
+     * @param {string} iconMarkup
+     * @param {string} label
+     * @param {boolean} isCompact
+     */
+    setIconButtonLabel(button, iconMarkup, label, isCompact) {
+        if (!button) return;
+        button.innerHTML = isCompact ? iconMarkup : `${iconMarkup} ${label}`;
     },
 
     isMobileViewport() {
@@ -5998,6 +6018,24 @@ This content is loaded from a markdown file.
         this.previewRenderer.render(target);
     },
 
+
+    /**
+     * Regenerates and reloads preview content in the modal iframe.
+     */
+    refreshModalPreview() {
+        const availability = this.getPreviewAvailability();
+        if (!availability.allowed) {
+            this.showNotification('No HTML file found. Import or create an HTML file to preview.', 'warn');
+            this.updatePreviewActionButtons();
+            return;
+        }
+
+        this.revokeTrackedObjectUrls(this.state.previewAssetUrls);
+        const content = this.generatePreviewContent();
+        this.consoleBridge.clear();
+        this.previewRenderer.safeWritePreviewFrame(content);
+        this.showNotification('Preview refreshed.', 'success');
+    },
 
     getPreviewDockOrientation() {
         const isPortraitMobile = window.matchMedia('(max-width: 900px) and (orientation: portrait)').matches;
