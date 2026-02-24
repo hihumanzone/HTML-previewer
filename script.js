@@ -5366,6 +5366,7 @@ This content is loaded from a markdown file.
 
             this.state.isSyncingCodeModalToSource = true;
             sourceEditor.setValue(content);
+            this.schedulePreviewRefresh();
 
             if (sourceEditor.refresh) {
                 setTimeout(() => {
