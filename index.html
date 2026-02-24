@@ -343,10 +343,7 @@
     <div id="code-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="code-modal-title" aria-hidden="true">
         <div class="modal-content">
             <div class="modal-header">
-                <div class="modal-title-group">
-                    <h2 id="code-modal-title">Code View</h2>
-                    <p id="code-modal-file-meta" class="code-modal-file-meta" aria-live="polite"></p>
-                </div>
+                <h2 id="code-modal-title">Code View</h2>
                 <div class="modal-controls">
                     <button id="code-modal-dock-btn" class="save-btn" aria-label="Dock expanded code view to the left of preview" title="Dock expanded code view to left" hidden><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="2" width="13" height="12" rx="1"/><line x1="10" y1="2" x2="10" y2="14"/></svg> Dock Left</button>
                     <button id="code-modal-search-btn" class="save-btn" aria-label="Search in code" title="Search in code" aria-expanded="false"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.5" cy="6.5" r="4.5"/><line x1="10" y1="10" x2="14.5" y2="14.5"/></svg> Search</button>
@@ -362,6 +359,7 @@
                 <div id="code-modal-editor-container">
                     <textarea id="code-modal-editor"></textarea>
                 </div>
+                <p id="code-modal-file-meta" class="code-modal-file-meta" aria-live="polite"></p>
             </div>
         </div>
     </div>
