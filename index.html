@@ -319,13 +319,31 @@
             <div class="modal-header">
                 <h2 id="modal-title">Preview</h2>
                 <div class="modal-controls">
+                    <label for="preview-device-preset" class="preview-device-label">Device</label>
+                    <select id="preview-device-preset" class="preview-device-select" aria-label="Select preview device size preset">
+                        <option value="auto">Auto</option>
+                        <option value="mobile">Mobile (375×667)</option>
+                        <option value="tablet">Tablet (768×1024)</option>
+                        <option value="laptop">Laptop (1024×768)</option>
+                        <option value="desktop">Desktop (1440×900)</option>
+                        <option value="custom">Custom (W×H)</option>
+                    </select>
+                    <div id="preview-custom-size" class="preview-custom-size" hidden>
+                        <input id="preview-custom-width" type="number" min="1" step="1" inputmode="numeric" aria-label="Custom preview width" placeholder="W">
+                        <span aria-hidden="true">×</span>
+                        <input id="preview-custom-height" type="number" min="1" step="1" inputmode="numeric" aria-label="Custom preview height" placeholder="H">
+                    </div>
                     <button id="toggle-console-btn" class="toggle-console-btn" aria-label="Toggle console visibility"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="2.5" width="10" height="12" rx="1"/><path d="M5.5 2.5V2a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 .5.5v.5"/><line x1="5.5" y1="7" x2="10.5" y2="7"/><line x1="5.5" y1="9.5" x2="10.5" y2="9.5"/><line x1="5.5" y1="12" x2="8.5" y2="12"/></svg> Console</button>
                     <button id="dock-preview-btn" class="toggle-console-btn" aria-label="Dock preview panel"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="2" width="13" height="12" rx="1"/><line x1="10" y1="2" x2="10" y2="14"/></svg> Dock</button>
                     <button class="close-btn" aria-label="Close preview modal">&times;</button>
                 </div>
             </div>
             <div class="modal-body">
-                <iframe id="preview-frame" sandbox="allow-scripts allow-same-origin" title="Code Preview"></iframe>
+                <div id="preview-viewport" class="preview-viewport">
+                    <div id="preview-stage" class="preview-stage">
+                        <iframe id="preview-frame" sandbox="allow-scripts allow-same-origin" title="Code Preview"></iframe>
+                    </div>
+                </div>
                 <div id="modal-console-panel" class="modal-console-panel">
                     <div class="console-header">
                         <span>Console</span>
