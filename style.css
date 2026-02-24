@@ -1715,6 +1715,21 @@ body.preview-docked-bottom.is-resizing-preview-dock {
    CODE MODAL
    ========================================================================== */
 
+
+.code-modal-file-meta {
+    margin: 0;
+    padding: 0.45rem var(--space-lg);
+    border-top: 1px solid rgba(var(--border-rgb), 0.45);
+    background: linear-gradient(180deg, rgba(var(--header-bg-rgb), 0.78) 0%, rgba(var(--header-bg-rgb), 0.62) 100%);
+    color: rgba(var(--primary-rgb), 0.78);
+    font-size: 0.78rem;
+    line-height: 1.35;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 0;
+}
+
 #code-modal .modal-body {
     flex: 1;
     height: auto;

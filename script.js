@@ -1628,6 +1628,8 @@ const CodePreviewer = {
             codeModalSearchCloseBtn: document.getElementById('code-modal-search-close-btn'),
             mediaModal: document.getElementById('media-modal'),
             codeModal: document.getElementById('code-modal'),
+            codeModalTitle: document.getElementById('code-modal-title'),
+            codeModalFileMeta: document.getElementById('code-modal-file-meta'),
             mediaModalContent: document.getElementById('media-modal-content'),
             mediaModalTitle: document.getElementById('media-modal-title'),
         };
@@ -2441,15 +2443,62 @@ This content is loaded from a markdown file.
         this.refreshCodeModalEditor();
     },
 
-    updateCodeModalHeaderAndButtons(fileName = null) {
-        const modalTitle = document.getElementById('code-modal-title');
-        const isMobile = this.isMobileViewport() || this.dom.codeModal?.classList.contains('is-compact-docked');
-        const displayFileName = fileName
+    formatFileSize(bytes) {
+        const normalized = Number.isFinite(bytes) && bytes >= 0 ? bytes : 0;
+        if (normalized < 1024) return `${normalized} B`;
+
+        const units = ['KB', 'MB', 'GB'];
+        let size = normalized;
+        let unitIndex = -1;
+
+        while (size >= 1024 && unitIndex < units.length - 1) {
+            size /= 1024;
+            unitIndex += 1;
+        }
+
+        const roundedSize = size >= 10 ? Math.round(size) : Math.round(size * 10) / 10;
+        return `${roundedSize} ${units[unitIndex]}`;
+    },
+
+    getCurrentCodeModalFileName(fallbackName = '') {
+        return fallbackName
             || this.state.currentCodeModalSource?.querySelector('.file-name-input')?.value
             || 'Code';
+    },
+
+    getLineCount(content) {
+        return content.length === 0 ? 1 : content.split(/\r\n|\r|\n/).length;
+    },
+
+    getCodeModalFileMeta(fileName = null) {
+        const sourceFileId = this.state.currentCodeModalSource?.dataset?.fileId;
+        const fileInfo = this.state.files.find(file => file.id === sourceFileId);
+        if (!fileInfo) return '';
+
+        const displayFileName = this.getCurrentCodeModalFileName(fileName || '');
+        const content = fileInfo.editor?.getValue?.() ?? fileInfo.content ?? '';
+        const metaParts = [this.formatFileSize(new Blob([content]).size)];
+
+        if (this.isTextFileType(fileInfo)) {
+            const lineCount = this.getLineCount(content);
+            metaParts.push(`${lineCount} line${lineCount === 1 ? '' : 's'}`);
+        }
+
+        return `${displayFileName} • ${metaParts.join(' • ')}`;
+    },
+
+    updateCodeModalHeaderAndButtons(fileName = null) {
+        const modalTitle = this.dom.codeModalTitle;
+        const modalFileMeta = this.dom.codeModalFileMeta;
+        const isMobile = this.isMobileViewport() || this.dom.codeModal?.classList.contains('is-compact-docked');
+        const displayFileName = this.getCurrentCodeModalFileName(fileName);
 
         if (modalTitle) {
             modalTitle.textContent = isMobile ? displayFileName : `Code View - ${displayFileName}`;
+        }
+
+        if (modalFileMeta) {
+            modalFileMeta.textContent = this.getCodeModalFileMeta(displayFileName);
         }
 
         if (this.dom.codeModalDockBtn && !this.dom.codeModalDockBtn.hidden) {
@@ -3969,6 +4018,19 @@ This content is loaded from a markdown file.
         return this.fileTypeUtils.isEditableType(fileType);
     },
 
+
+    isTextFileType(fileInfo) {
+        if (!fileInfo || fileInfo.isBinary) return false;
+
+        const mimeType = this.fileTypeUtils.getMimeTypeFromFileType(fileInfo.type) || '';
+        return mimeType.startsWith('text/')
+            || mimeType === 'application/json'
+            || mimeType === 'application/xml'
+            || mimeType.endsWith('+json')
+            || mimeType.endsWith('+xml')
+            || fileInfo.type === 'svg';
+    },
+
     supportsFormattingForType(fileType) {
         return ['html', 'css', 'javascript', 'javascript-module', 'json', 'xml', 'svg'].includes(fileType);
     },
@@ -5227,8 +5289,8 @@ This content is loaded from a markdown file.
 
     openCodeModal(content, fileName, language, sourcePanel) {
         try {
-            const modal = document.getElementById('code-modal');
-            const modalTitle = document.getElementById('code-modal-title');
+            const modal = this.dom.codeModal;
+            const modalTitle = this.dom.codeModalTitle;
             const editorTextarea = document.getElementById('code-modal-editor');
 
             if (!modal || !modalTitle || !editorTextarea) {
@@ -5448,6 +5510,7 @@ This content is loaded from a markdown file.
 
             this.state.isSyncingCodeModalToSource = true;
             sourceEditor.setValue(content);
+            this.updateCodeModalHeaderAndButtons();
             this.schedulePreviewRefresh();
 
             if (sourceEditor.refresh) {
