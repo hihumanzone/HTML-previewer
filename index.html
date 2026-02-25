@@ -3,484 +3,189 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Code Previewer</title>
-    
+    <title>OpenCode Web</title>
     <link rel="stylesheet" href="style.css">
-    
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/codemirror.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/theme/dracula.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/theme/default.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/theme/material.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/theme/monokai.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/theme/nord.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/theme/eclipse.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/theme/idea.min.css">
 </head>
 <body>
-
-    <div class="container">
-        <header class="app-header" role="banner">
-            <div>
-                <p class="app-eyebrow">Frontend Playground</p>
-                <h1>HTML Previewer</h1>
-                <p class="app-subtitle">Build, organize, and preview full web projects in one streamlined workspace.</p>
+    <!-- Settings Modal -->
+    <div id="settings-overlay" class="modal-overlay hidden">
+        <div class="modal settings-modal">
+            <div class="modal-header">
+                <h2>Settings</h2>
+                <button class="icon-btn" id="close-settings">&times;</button>
             </div>
-            <span class="app-status-pill" aria-label="Application mode">Local-first</span>
-        </header>
-        <main class="main-content">
-            <div id="multi-file-container" class="editor-container">
-                <div class="files-header">
-                    <span>Files</span>
-                    <div class="files-header-buttons">
-                    <div class="settings-menu" id="settings-menu">
-                        <button id="settings-btn" class="settings-btn" aria-label="Open settings"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="14" y2="8"/><line x1="2" y1="12" x2="14" y2="12"/><circle cx="5" cy="4" r="1.5" fill="currentColor"/><circle cx="10" cy="8" r="1.5" fill="currentColor"/><circle cx="7" cy="12" r="1.5" fill="currentColor"/></svg> Settings</button>
-                    </div>
-                        <button id="clear-all-files-btn" class="clear-all-files-btn" aria-label="Clear all files"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h10l-1 10H4L3 4z"/><path d="M1 4h14"/><path d="M6 4V2.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5V4"/><line x1="6.5" y1="7" x2="6.5" y2="11"/><line x1="9.5" y1="7" x2="9.5" y2="11"/></svg> Clear All</button>
-                        <button id="import-zip-btn" class="import-zip-btn" aria-label="Import archive project"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1L14 4v8l-6 3L2 12V4l6-3z"/><path d="M8 8v7"/><path d="M2 4l6 4 6-4"/></svg> Import Archive</button>
-                        <button id="export-zip-btn" class="export-zip-btn" aria-label="Export project as ZIP"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1L14 4v8l-6 3L2 12V4l6-3z"/><path d="M8 8v7"/><path d="M2 4l6 4 6-4"/></svg> Export ZIP</button>
-                        <button id="import-file-btn" class="import-file-btn" aria-label="Import file"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5h4l2 2h7v8h-13v-10z"/></svg> Import</button>
-                        <button id="import-folder-btn" class="import-file-btn" aria-label="Import folder"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5h4l2 2h7v8h-13v-10z"/><path d="M5 3.5V1.5h4v2"/></svg> Import Folder</button>
-                        <button id="add-folder-btn" class="add-folder-btn" aria-label="Add new folder">+ New Folder</button>
-                        <button id="add-file-btn" class="add-file-btn" aria-label="Add new file">+ New File</button>
+            <div class="modal-body">
+                <div class="setting-group">
+                    <label for="setting-base-url">API Base URL</label>
+                    <input type="text" id="setting-base-url" placeholder="https://api.openai.com/v1" spellcheck="false">
+                    <span class="setting-hint">OpenAI-compatible endpoint (e.g. https://api.openai.com/v1)</span>
+                </div>
+                <div class="setting-group">
+                    <label for="setting-api-key">API Key</label>
+                    <input type="password" id="setting-api-key" placeholder="sk-..." spellcheck="false">
+                    <span class="setting-hint">Your API key (stored locally in your browser)</span>
+                </div>
+                <div class="setting-group">
+                    <label for="setting-model">Model</label>
+                    <input type="text" id="setting-model" placeholder="gpt-4o" spellcheck="false">
+                    <span class="setting-hint">Model name (e.g. gpt-4o, claude-sonnet-4-20250514, etc.)</span>
+                </div>
+                <div class="setting-group">
+                    <label for="setting-system-prompt">System Prompt</label>
+                    <textarea id="setting-system-prompt" rows="6" placeholder="You are a helpful AI coding assistant..."></textarea>
+                    <span class="setting-hint">Custom system prompt sent with every message</span>
+                </div>
+                <div class="setting-group">
+                    <label for="setting-temperature">Temperature</label>
+                    <div class="range-row">
+                        <input type="range" id="setting-temperature" min="0" max="2" step="0.1" value="0.7">
+                        <span id="temperature-value">0.7</span>
                     </div>
                 </div>
-                <div class="main-html-selector" id="main-html-selector" style="display: none;">
-                    <label id="main-html-label" for="main-html-select">Main HTML file:</label>
-                    <div class="main-html-dropdown" id="main-html-dropdown">
-                        <button type="button" id="main-html-dropdown-trigger" class="main-html-dropdown-trigger" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="main-html-label main-html-dropdown-trigger">Auto-detect</button>
-                        <ul id="main-html-dropdown-list" class="main-html-dropdown-list" role="listbox" aria-labelledby="main-html-label" tabindex="-1" hidden></ul>
-                    </div>
-                    <select id="main-html-select" aria-label="Select main HTML file for preview" class="visually-hidden-select">
-                        <option value="">Auto-detect</option>
+                <div class="setting-group">
+                    <label for="setting-max-tokens">Max Output Tokens</label>
+                    <input type="number" id="setting-max-tokens" placeholder="4096" min="1" max="128000">
+                    <span class="setting-hint">Maximum number of tokens in the response</span>
+                </div>
+                <div class="setting-group">
+                    <label for="setting-theme">Theme</label>
+                    <select id="setting-theme">
+                        <option value="dark">Dark</option>
+                        <option value="light">Light</option>
+                        <option value="system">System</option>
                     </select>
                 </div>
-                <section class="workspace-layout" aria-label="Project workspace">
-                    <div id="file-tree-container" class="file-tree-container"></div>
-                    <div class="editor-grid">
-                    <div class="editor-panel" data-file-type="html" data-file-id="default-html">
-                        <div class="panel-header">
-                            <div class="panel-move-controls" aria-label="Move panel">
-                            <button class="move-panel-btn" data-direction="left" aria-label="Move panel left" title="Move left">←</button>
-                            <button class="move-panel-btn" data-direction="right" aria-label="Move panel right" title="Move right">→</button>
-                        </div>
-                            <input type="text" class="file-name-input" value="index.html" aria-label="HTML file name">
-                            <div class="file-type-dropdown" data-file-type-dropdown>
-                            <button type="button" class="file-type-dropdown-trigger" aria-haspopup="listbox" aria-expanded="false">HTML</button>
-                            <ul class="file-type-dropdown-list" role="listbox" tabindex="-1" hidden>
-                                
-                                <li role="option" aria-selected="true"><button type="button" class="file-type-dropdown-option is-selected" data-value="html">HTML</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="css">CSS</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="javascript">JavaScript</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="javascript-module">JavaScript Module</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="json">JSON</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="xml">XML</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="markdown">Markdown</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="text">Text</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="svg">SVG</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="image">Image</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="audio">Audio</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="video">Video</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="font">Font</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="pdf">PDF</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="binary">Binary</button></li>
-                            
-                            </ul>
-                            <select class="file-type-selector visually-hidden-select" aria-label="File type">
-                                <option value="html" selected>HTML</option>
-                                <option value="css">CSS</option>
-                                <option value="javascript">JavaScript</option>
-                                <option value="javascript-module">JavaScript Module</option>
-                                <option value="json">JSON</option>
-                                <option value="xml">XML</option>
-                                <option value="markdown">Markdown</option>
-                                <option value="text">Text</option>
-                                <option value="svg">SVG</option>
-                                <option value="image">Image</option>
-                                <option value="audio">Audio</option>
-                                <option value="video">Video</option>
-                                <option value="font">Font</option>
-                                <option value="pdf">PDF</option>
-                                <option value="binary">Binary</option>
-                            </select>
-                        </div>
-                            <button class="remove-file-btn" aria-label="Close panel" title="Close panel (file stays in sidebar)">&times;</button>
-                        </div>
-                        <div class="editor-toolbar">
-                            <button class="toolbar-btn clear-btn" aria-label="Clear content" title="Clear">
-                                <span class="btn-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h10l-1 10H4L3 4z"/><path d="M1 4h14"/><path d="M6 4V2.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5V4"/><line x1="6.5" y1="7" x2="6.5" y2="11"/><line x1="9.5" y1="7" x2="9.5" y2="11"/></svg></span> Clear
-                            </button>
-                            <button class="toolbar-btn paste-btn" aria-label="Paste from clipboard" title="Paste">
-                                <span class="btn-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="2.5" width="10" height="12" rx="1"/><path d="M5.5 2.5V2a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 .5.5v.5"/><line x1="5.5" y1="7" x2="10.5" y2="7"/><line x1="5.5" y1="9.5" x2="10.5" y2="9.5"/><line x1="5.5" y1="12" x2="8.5" y2="12"/></svg></span> Paste
-                            </button>
-                            <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
-                                <span class="btn-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 1.5h5.5L13 5v9.5H4V1.5z"/><path d="M9 1.5v4h4"/></svg></span> Copy
-                            </button>
-                            <button class="toolbar-btn search-btn" aria-label="Search in file" title="Search in file">
-                                <span class="btn-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.5" cy="6.5" r="4.5"/><line x1="10" y1="10" x2="14.5" y2="14.5"/></svg></span> Search
-                            </button>
-                            <button class="toolbar-btn format-btn" aria-label="Format code" title="Format code">
-                                <span class="btn-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="13" x2="10" y2="2"/><path d="M10 2l1.5 3"/><path d="M1 6l2-2 2 2"/><circle cx="12.5" cy="3.5" r="0.75" fill="currentColor" stroke="none"/></svg></span> Format
-                            </button>
-                            <button class="toolbar-btn expand-btn" aria-label="Expand code view" title="Expand">
-                                <span class="btn-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="10,2 14,2 14,6"/><polyline points="6,14 2,14 2,10"/><line x1="14" y1="2" x2="9.5" y2="6.5"/><line x1="2" y1="14" x2="6.5" y2="9.5"/></svg></span> Expand
-                            </button>
-                            <button class="toolbar-btn export-btn" aria-label="Export file" title="Export">
-                                <span class="btn-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 1.5h9.5L14 4v10.5H2V1.5z"/><rect x="4.5" y="1.5" width="5" height="4"/><rect x="4.5" y="9.5" width="7" height="5"/></svg></span> Export
-                            </button>
-                            <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
-                                <span class="btn-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5h4l2 2h7v8h-13v-10z"/></svg></span> Collapse
-                            </button>
-                        </div>
-                        <div class="panel-search" hidden>
-                            <input type="search" class="panel-search-input" placeholder="Search in this file" aria-label="Search in this file">
-                            <button class="panel-search-next-btn" aria-label="Find next match" title="Find next">Next</button>
-                            <button class="panel-search-close-btn" aria-label="Close search" title="Close search"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg></button>
-                        </div>
-                        <label for="html-editor" class="sr-only">HTML Code Editor</label>
-                        <div class="editor-wrapper">
-                            <textarea id="html-editor"></textarea>
-                        </div>
-                    </div>
-                    <div class="editor-panel" data-file-type="css" data-file-id="default-css">
-                        <div class="panel-header">
-                            <div class="panel-move-controls" aria-label="Move panel">
-                            <button class="move-panel-btn" data-direction="left" aria-label="Move panel left" title="Move left">←</button>
-                            <button class="move-panel-btn" data-direction="right" aria-label="Move panel right" title="Move right">→</button>
-                        </div>
-                            <input type="text" class="file-name-input" value="styles.css" aria-label="CSS file name">
-                            <div class="file-type-dropdown" data-file-type-dropdown>
-                            <button type="button" class="file-type-dropdown-trigger" aria-haspopup="listbox" aria-expanded="false">CSS</button>
-                            <ul class="file-type-dropdown-list" role="listbox" tabindex="-1" hidden>
-                                
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="html">HTML</button></li>
-                                <li role="option" aria-selected="true"><button type="button" class="file-type-dropdown-option is-selected" data-value="css">CSS</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="javascript">JavaScript</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="javascript-module">JavaScript Module</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="json">JSON</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="xml">XML</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="markdown">Markdown</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="text">Text</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="svg">SVG</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="image">Image</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="audio">Audio</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="video">Video</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="font">Font</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="pdf">PDF</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="binary">Binary</button></li>
-                            
-                            </ul>
-                            <select class="file-type-selector visually-hidden-select" aria-label="File type">
-                                <option value="html">HTML</option>
-                                <option value="css" selected>CSS</option>
-                                <option value="javascript">JavaScript</option>
-                                <option value="javascript-module">JavaScript Module</option>
-                                <option value="json">JSON</option>
-                                <option value="xml">XML</option>
-                                <option value="markdown">Markdown</option>
-                                <option value="text">Text</option>
-                                <option value="svg">SVG</option>
-                                <option value="image">Image</option>
-                                <option value="audio">Audio</option>
-                                <option value="video">Video</option>
-                                <option value="font">Font</option>
-                                <option value="pdf">PDF</option>
-                                <option value="binary">Binary</option>
-                            </select>
-                        </div>
-                            <button class="remove-file-btn" aria-label="Close panel" title="Close panel (file stays in sidebar)">&times;</button>
-                        </div>
-                        <div class="editor-toolbar">
-                            <button class="toolbar-btn clear-btn" aria-label="Clear content" title="Clear">
-                                <span class="btn-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h10l-1 10H4L3 4z"/><path d="M1 4h14"/><path d="M6 4V2.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5V4"/><line x1="6.5" y1="7" x2="6.5" y2="11"/><line x1="9.5" y1="7" x2="9.5" y2="11"/></svg></span> Clear
-                            </button>
-                            <button class="toolbar-btn paste-btn" aria-label="Paste from clipboard" title="Paste">
-                                <span class="btn-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="2.5" width="10" height="12" rx="1"/><path d="M5.5 2.5V2a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 .5.5v.5"/><line x1="5.5" y1="7" x2="10.5" y2="7"/><line x1="5.5" y1="9.5" x2="10.5" y2="9.5"/><line x1="5.5" y1="12" x2="8.5" y2="12"/></svg></span> Paste
-                            </button>
-                            <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
-                                <span class="btn-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 1.5h5.5L13 5v9.5H4V1.5z"/><path d="M9 1.5v4h4"/></svg></span> Copy
-                            </button>
-                            <button class="toolbar-btn search-btn" aria-label="Search in file" title="Search in file">
-                                <span class="btn-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.5" cy="6.5" r="4.5"/><line x1="10" y1="10" x2="14.5" y2="14.5"/></svg></span> Search
-                            </button>
-                            <button class="toolbar-btn format-btn" aria-label="Format code" title="Format code">
-                                <span class="btn-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="13" x2="10" y2="2"/><path d="M10 2l1.5 3"/><path d="M1 6l2-2 2 2"/><circle cx="12.5" cy="3.5" r="0.75" fill="currentColor" stroke="none"/></svg></span> Format
-                            </button>
-                            <button class="toolbar-btn expand-btn" aria-label="Expand code view" title="Expand">
-                                <span class="btn-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="10,2 14,2 14,6"/><polyline points="6,14 2,14 2,10"/><line x1="14" y1="2" x2="9.5" y2="6.5"/><line x1="2" y1="14" x2="6.5" y2="9.5"/></svg></span> Expand
-                            </button>
-                            <button class="toolbar-btn export-btn" aria-label="Export file" title="Export">
-                                <span class="btn-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 1.5h9.5L14 4v10.5H2V1.5z"/><rect x="4.5" y="1.5" width="5" height="4"/><rect x="4.5" y="9.5" width="7" height="5"/></svg></span> Export
-                            </button>
-                            <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
-                                <span class="btn-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5h4l2 2h7v8h-13v-10z"/></svg></span> Collapse
-                            </button>
-                        </div>
-                        <div class="panel-search" hidden>
-                            <input type="search" class="panel-search-input" placeholder="Search in this file" aria-label="Search in this file">
-                            <button class="panel-search-next-btn" aria-label="Find next match" title="Find next">Next</button>
-                            <button class="panel-search-close-btn" aria-label="Close search" title="Close search"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg></button>
-                        </div>
-                        <label for="css-editor" class="sr-only">CSS Code Editor</label>
-                        <div class="editor-wrapper">
-                            <textarea id="css-editor"></textarea>
-                        </div>
-                    </div>
-                    <div class="editor-panel" data-file-type="javascript" data-file-id="default-js">
-                        <div class="panel-header">
-                            <div class="panel-move-controls" aria-label="Move panel">
-                            <button class="move-panel-btn" data-direction="left" aria-label="Move panel left" title="Move left">←</button>
-                            <button class="move-panel-btn" data-direction="right" aria-label="Move panel right" title="Move right">→</button>
-                        </div>
-                            <input type="text" class="file-name-input" value="script.js" aria-label="JavaScript file name">
-                            <div class="file-type-dropdown" data-file-type-dropdown>
-                            <button type="button" class="file-type-dropdown-trigger" aria-haspopup="listbox" aria-expanded="false">JavaScript</button>
-                            <ul class="file-type-dropdown-list" role="listbox" tabindex="-1" hidden>
-                                
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="html">HTML</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="css">CSS</button></li>
-                                <li role="option" aria-selected="true"><button type="button" class="file-type-dropdown-option is-selected" data-value="javascript">JavaScript</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="javascript-module">JavaScript Module</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="json">JSON</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="xml">XML</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="markdown">Markdown</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="text">Text</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="svg">SVG</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="image">Image</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="audio">Audio</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="video">Video</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="font">Font</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="pdf">PDF</button></li>
-                                <li role="option" aria-selected="false"><button type="button" class="file-type-dropdown-option" data-value="binary">Binary</button></li>
-                            
-                            </ul>
-                            <select class="file-type-selector visually-hidden-select" aria-label="File type">
-                                <option value="html">HTML</option>
-                                <option value="css">CSS</option>
-                                <option value="javascript" selected>JavaScript</option>
-                                <option value="javascript-module">JavaScript Module</option>
-                                <option value="json">JSON</option>
-                                <option value="xml">XML</option>
-                                <option value="markdown">Markdown</option>
-                                <option value="text">Text</option>
-                                <option value="svg">SVG</option>
-                                <option value="image">Image</option>
-                                <option value="audio">Audio</option>
-                                <option value="video">Video</option>
-                                <option value="font">Font</option>
-                                <option value="pdf">PDF</option>
-                                <option value="binary">Binary</option>
-                            </select>
-                        </div>
-                            <button class="remove-file-btn" aria-label="Close panel" title="Close panel (file stays in sidebar)">&times;</button>
-                        </div>
-                        <div class="editor-toolbar">
-                            <button class="toolbar-btn clear-btn" aria-label="Clear content" title="Clear">
-                                <span class="btn-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h10l-1 10H4L3 4z"/><path d="M1 4h14"/><path d="M6 4V2.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5V4"/><line x1="6.5" y1="7" x2="6.5" y2="11"/><line x1="9.5" y1="7" x2="9.5" y2="11"/></svg></span> Clear
-                            </button>
-                            <button class="toolbar-btn paste-btn" aria-label="Paste from clipboard" title="Paste">
-                                <span class="btn-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="2.5" width="10" height="12" rx="1"/><path d="M5.5 2.5V2a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 .5.5v.5"/><line x1="5.5" y1="7" x2="10.5" y2="7"/><line x1="5.5" y1="9.5" x2="10.5" y2="9.5"/><line x1="5.5" y1="12" x2="8.5" y2="12"/></svg></span> Paste
-                            </button>
-                            <button class="toolbar-btn copy-btn" aria-label="Copy to clipboard" title="Copy">
-                                <span class="btn-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 1.5h5.5L13 5v9.5H4V1.5z"/><path d="M9 1.5v4h4"/></svg></span> Copy
-                            </button>
-                            <button class="toolbar-btn search-btn" aria-label="Search in file" title="Search in file">
-                                <span class="btn-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.5" cy="6.5" r="4.5"/><line x1="10" y1="10" x2="14.5" y2="14.5"/></svg></span> Search
-                            </button>
-                            <button class="toolbar-btn format-btn" aria-label="Format code" title="Format code">
-                                <span class="btn-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="13" x2="10" y2="2"/><path d="M10 2l1.5 3"/><path d="M1 6l2-2 2 2"/><circle cx="12.5" cy="3.5" r="0.75" fill="currentColor" stroke="none"/></svg></span> Format
-                            </button>
-                            <button class="toolbar-btn expand-btn" aria-label="Expand code view" title="Expand">
-                                <span class="btn-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="10,2 14,2 14,6"/><polyline points="6,14 2,14 2,10"/><line x1="14" y1="2" x2="9.5" y2="6.5"/><line x1="2" y1="14" x2="6.5" y2="9.5"/></svg></span> Expand
-                            </button>
-                            <button class="toolbar-btn export-btn" aria-label="Export file" title="Export">
-                                <span class="btn-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 1.5h9.5L14 4v10.5H2V1.5z"/><rect x="4.5" y="1.5" width="5" height="4"/><rect x="4.5" y="9.5" width="7" height="5"/></svg></span> Export
-                            </button>
-                            <button class="toolbar-btn collapse-btn" aria-label="Collapse/Expand editor" title="Collapse/Expand">
-                                <span class="btn-icon"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5h4l2 2h7v8h-13v-10z"/></svg></span> Collapse
-                            </button>
-                        </div>
-                        <div class="panel-search" hidden>
-                            <input type="search" class="panel-search-input" placeholder="Search in this file" aria-label="Search in this file">
-                            <button class="panel-search-next-btn" aria-label="Find next match" title="Find next">Next</button>
-                            <button class="panel-search-close-btn" aria-label="Close search" title="Close search"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg></button>
-                        </div>
-                        <label for="js-editor" class="sr-only">JavaScript Code Editor</label>
-                        <div class="editor-wrapper">
-                            <textarea id="js-editor"></textarea>
-                        </div>
-                    </div>
-                    </div>
-                </section>
+                <div class="setting-group">
+                    <label for="setting-stream">Streaming</label>
+                    <select id="setting-stream">
+                        <option value="true">Enabled</option>
+                        <option value="false">Disabled</option>
+                    </select>
+                </div>
+                <div class="setting-actions">
+                    <button class="btn btn-secondary" id="reset-settings">Reset to Defaults</button>
+                    <button class="btn btn-primary" id="save-settings">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Modal -->
+    <div id="export-overlay" class="modal-overlay hidden">
+        <div class="modal export-modal">
+            <div class="modal-header">
+                <h2>Export Conversation</h2>
+                <button class="icon-btn" id="close-export">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="export-options">
+                    <button class="btn btn-secondary" id="export-json">Export as JSON</button>
+                    <button class="btn btn-secondary" id="export-md">Export as Markdown</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Layout -->
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+                    <span class="logo-text">OpenCode</span>
+                </div>
+                <button class="icon-btn" id="new-session-btn" title="New Session">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
             </div>
 
-            <div class="controls">
-                <button id="preview-modal-btn" class="btn">Preview in Modal</button>
-                <button id="preview-tab-btn" class="btn">Open in New Tab</button>
+            <div class="sidebar-search">
+                <input type="text" id="session-search" placeholder="Search sessions..." spellcheck="false">
+            </div>
+
+            <div class="session-list" id="session-list"></div>
+
+            <div class="sidebar-footer">
+                <button class="sidebar-footer-btn" id="open-settings" title="Settings">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                    <span>Settings</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Mobile sidebar toggle -->
+        <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle sidebar">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
+
+        <!-- Main Chat Area -->
+        <main class="chat-area">
+            <!-- Chat Header -->
+            <div class="chat-header">
+                <div class="chat-header-left">
+                    <h2 class="session-title" id="session-title">New Session</h2>
+                    <button class="icon-btn edit-title-btn" id="edit-title-btn" title="Edit title">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                    </button>
+                </div>
+                <div class="chat-header-right">
+                    <div class="agent-selector">
+                        <button class="agent-btn active" data-agent="build" title="Build agent - full access for development">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                            Build
+                        </button>
+                        <button class="agent-btn" data-agent="plan" title="Plan agent - read-only analysis">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
+                            Plan
+                        </button>
+                    </div>
+                    <div class="model-badge" id="model-badge" title="Current model">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+                        <span id="model-name-display">No model set</span>
+                    </div>
+                    <button class="icon-btn" id="export-btn" title="Export conversation">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Messages Area -->
+            <div class="messages-area" id="messages-area">
+                <div class="welcome-screen" id="welcome-screen">
+                    <div class="welcome-logo">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+                    </div>
+                    <h1>OpenCode</h1>
+                    <p class="welcome-subtitle">The open source AI coding agent</p>
+                    <div class="welcome-actions" id="welcome-actions">
+                        <p class="setup-hint">Configure your API settings to get started</p>
+                        <button class="btn btn-primary" id="welcome-settings-btn">Open Settings</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input Area -->
+            <div class="input-area">
+                <div class="input-wrapper">
+                    <div class="input-row">
+                        <textarea id="message-input" placeholder="Send a message..." rows="1" spellcheck="false"></textarea>
+                        <button class="send-btn" id="send-btn" title="Send message (Enter)">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                        </button>
+                        <button class="stop-btn hidden" id="stop-btn" title="Stop generation">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
+                        </button>
+                    </div>
+                    <div class="input-footer">
+                        <span class="token-info" id="token-info"></span>
+                        <span class="input-hint">Enter to send, Shift+Enter for new line</span>
+                    </div>
+                </div>
             </div>
         </main>
     </div>
 
-    <div id="preview-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-hidden="true">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 id="modal-title">Preview</h2>
-                <div class="modal-controls">
-                    <button id="refresh-preview-btn" class="toggle-console-btn" aria-label="Refresh preview content"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3v4H9"/><path d="M3 13v-4h4"/><path d="M4.1 6.1A5 5 0 0 1 13 7"/><path d="M11.9 9.9A5 5 0 0 1 3 9"/></svg> Refresh</button>
-                    <button id="toggle-console-btn" class="toggle-console-btn" aria-label="Toggle console visibility"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="2.5" width="10" height="12" rx="1"/><path d="M5.5 2.5V2a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 .5.5v.5"/><line x1="5.5" y1="7" x2="10.5" y2="7"/><line x1="5.5" y1="9.5" x2="10.5" y2="9.5"/><line x1="5.5" y1="12" x2="8.5" y2="12"/></svg> Console</button>
-                    <button id="dock-preview-btn" class="toggle-console-btn" aria-label="Dock preview panel"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="2" width="13" height="12" rx="1"/><line x1="10" y1="2" x2="10" y2="14"/></svg> Dock</button>
-                    <button class="close-btn" aria-label="Close preview modal">&times;</button>
-                </div>
-            </div>
-            <div class="modal-body">
-                <iframe id="preview-frame" sandbox="allow-scripts allow-same-origin" title="Code Preview"></iframe>
-                <div id="modal-console-panel" class="modal-console-panel">
-                    <div class="console-header">
-                        <span>Console</span>
-                        <button id="clear-console-btn" class="clear-btn" aria-label="Clear console output">Clear</button>
-                    </div>
-                    <div id="console-output" role="log" aria-live="polite"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="preview-dock-divider" class="preview-dock-divider" aria-hidden="true" hidden></div>
-
-    <div id="code-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="code-modal-title" aria-hidden="true">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 id="code-modal-title">Code View</h2>
-                <div class="modal-controls">
-                    <button id="code-modal-dock-btn" class="save-btn" aria-label="Dock expanded code view to the left of preview" title="Dock expanded code view to left" hidden><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="2" width="13" height="12" rx="1"/><line x1="10" y1="2" x2="10" y2="14"/></svg> Dock Left</button>
-                    <button id="code-modal-search-btn" class="save-btn" aria-label="Search in code" title="Search in code" aria-expanded="false"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.5" cy="6.5" r="4.5"/><line x1="10" y1="10" x2="14.5" y2="14.5"/></svg> Search</button>
-                    <button class="close-btn" aria-label="Close code modal">&times;</button>
-                </div>
-            </div>
-            <div class="modal-body">
-                <div id="code-modal-search" class="code-modal-search" hidden>
-                    <input type="search" id="code-modal-search-input" placeholder="Search in this file" aria-label="Search in expanded code view">
-                    <button id="code-modal-search-next-btn" type="button" aria-label="Find next match">Next</button>
-                    <button id="code-modal-search-close-btn" type="button" aria-label="Close search"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg></button>
-                </div>
-                <div id="code-modal-editor-container">
-                    <textarea id="code-modal-editor"></textarea>
-                </div>
-                <p id="code-modal-file-meta" class="code-modal-file-meta" aria-live="polite"></p>
-            </div>
-        </div>
-    </div>
-
-    <div id="media-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="media-modal-title" aria-hidden="true">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 id="media-modal-title">Media Preview</h2>
-                <div class="modal-controls">
-                    <button class="close-btn" aria-label="Close media modal">&times;</button>
-                </div>
-            </div>
-            <div class="modal-body">
-                <div id="media-modal-content"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Settings Modal -->
-    <div id="settings-modal" class="modal-overlay settings-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title" aria-hidden="true" hidden>
-        <div class="modal-content settings-modal-content">
-            <div class="modal-header">
-                <h2 id="settings-modal-title"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="14" y2="8"/><line x1="2" y1="12" x2="14" y2="12"/><circle cx="5" cy="4" r="1.5" fill="currentColor"/><circle cx="10" cy="8" r="1.5" fill="currentColor"/><circle cx="7" cy="12" r="1.5" fill="currentColor"/></svg> Editor Settings</h2>
-                <button class="close-btn" aria-label="Close settings">&times;</button>
-            </div>
-            <div class="modal-body settings-modal-body">
-                <div class="settings-grid">
-                    <div class="settings-section">
-                        <h3 class="settings-section-title">Display</h3>
-                        <label class="settings-option" for="setting-line-numbers">
-                            <input type="checkbox" id="setting-line-numbers" checked>
-                            <span>Line numbers</span>
-                        </label>
-                        <label class="settings-option" for="setting-line-wrap">
-                            <input type="checkbox" id="setting-line-wrap">
-                            <span>Line wrap</span>
-                        </label>
-                        <label class="settings-option" for="setting-auto-format">
-                            <input type="checkbox" id="setting-auto-format">
-                            <span>Auto-format while typing</span>
-                        </label>
-                    </div>
-
-                    <div class="settings-section">
-                        <h3 class="settings-section-title">Appearance</h3>
-                        <label class="settings-option settings-select" for="setting-font-size">
-                            <span>Font size</span>
-                            <select id="setting-font-size">
-                                <option value="12">12px</option>
-                                <option value="13">13px</option>
-                                <option value="14" selected>14px</option>
-                                <option value="15">15px</option>
-                                <option value="16">16px</option>
-                                <option value="18">18px</option>
-                            </select>
-                        </label>
-                        <label class="settings-option settings-select" for="setting-editor-theme">
-                            <span>Editor theme</span>
-                            <select id="setting-editor-theme">
-                                <option value="dracula" selected>Dracula</option>
-                                <option value="default">Default</option>
-                                <option value="material">Material</option>
-                                <option value="monokai">Monokai</option>
-                                <option value="nord">Nord</option>
-                                <option value="eclipse">Eclipse</option>
-                                <option value="idea">Idea</option>
-                            </select>
-                        </label>
-                    </div>
-
-                    <div class="settings-section">
-                        <h3 class="settings-section-title">Indentation</h3>
-                        <label class="settings-option settings-select" for="setting-tab-size">
-                            <span>Tab size</span>
-                            <select id="setting-tab-size">
-                                <option value="2">2</option>
-                                <option value="4" selected>4</option>
-                                <option value="8">8</option>
-                            </select>
-                        </label>
-                        <label class="settings-option" for="setting-indent-with-tabs">
-                            <input type="checkbox" id="setting-indent-with-tabs">
-                            <span>Indent with tabs</span>
-                        </label>
-                    </div>
-
-                    <div class="settings-section">
-                        <h3 class="settings-section-title">Editing</h3>
-                        <label class="settings-option" for="setting-auto-close-brackets">
-                            <input type="checkbox" id="setting-auto-close-brackets" checked>
-                            <span>Auto-close brackets</span>
-                        </label>
-                        <label class="settings-option" for="setting-match-brackets">
-                            <input type="checkbox" id="setting-match-brackets" checked>
-                            <span>Match brackets</span>
-                        </label>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/codemirror.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/mode/xml/xml.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/mode/javascript/javascript.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/mode/css/css.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/mode/htmlmixed/htmlmixed.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/addon/edit/closetag.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/js-beautify/js/lib/beautify.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/js-beautify/js/lib/beautify-css.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/js-beautify/js/lib/beautify-html.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jszip/dist/jszip.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/pako/dist/pako.min.js"></script>
-    
     <script src="script.js"></script>
-
 </body>
 </html>
