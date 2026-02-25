@@ -807,9 +807,16 @@ const CodePreviewer = {
     // ============================================================================
     fileTypeUtils: {
         BINARY_MIME_PREFIXES: ['image/', 'audio/', 'video/', 'application/', 'font/'],
+        JS_MIME_TYPES: new Set(['text/javascript', 'application/javascript', 'application/x-javascript', 'text/ecmascript', 'application/ecmascript']),
+        MODULE_FILENAME_SUFFIXES: ['.mjs', '.esm.js', '.module.js'],
 
         getExtension(filename) {
             return filename ? filename.split('.').pop().toLowerCase() : '';
+        },
+
+        normalizeMimeType(mimeType) {
+            if (!mimeType || typeof mimeType !== 'string') return '';
+            return mimeType.toLowerCase().split(';')[0].trim();
         },
 
         getTypeFromExtension(filename) {
@@ -826,33 +833,88 @@ const CodePreviewer = {
             return CodePreviewer.constants.FILE_TYPES.MIME_TYPES[fileType] || 'text/plain';
         },
 
-        isBinaryExtension(extension) {
-            return CodePreviewer.constants.FILE_TYPES.BINARY_EXTENSIONS.has(extension?.toLowerCase());
+        getTypeFromMimeType(mimeType) {
+            const normalizedMimeType = this.normalizeMimeType(mimeType);
+            if (!normalizedMimeType) return null;
+            if (this.JS_MIME_TYPES.has(normalizedMimeType)) return 'javascript';
+            if (normalizedMimeType === 'text/html') return 'html';
+            if (normalizedMimeType === 'text/css') return 'css';
+            if (normalizedMimeType === 'application/json' || normalizedMimeType.endsWith('+json')) return 'json';
+            if (normalizedMimeType === 'application/xml' || normalizedMimeType === 'text/xml') return 'xml';
+            if (normalizedMimeType === 'text/markdown') return 'markdown';
+            if (normalizedMimeType === 'image/svg+xml') return 'svg';
+            if (normalizedMimeType.startsWith('image/')) return 'image';
+            if (normalizedMimeType.startsWith('audio/')) return 'audio';
+            if (normalizedMimeType.startsWith('video/')) return 'video';
+            if (normalizedMimeType.startsWith('font/')) return 'font';
+            if (normalizedMimeType === 'application/pdf') return 'pdf';
+            if (normalizedMimeType.startsWith('text/')) return 'text';
+            return null;
         },
 
         hasBinaryMimePrefix(mimeType) {
             return this.BINARY_MIME_PREFIXES.some(prefix => mimeType.startsWith(prefix));
         },
 
+        isBinaryExtension(extension) {
+            return CodePreviewer.constants.FILE_TYPES.BINARY_EXTENSIONS.has(extension?.toLowerCase());
+        },
+
+        isJavaScriptMimeType(mimeType) {
+            return this.JS_MIME_TYPES.has(this.normalizeMimeType(mimeType));
+        },
+
+        hasModuleFilenameHint(filename) {
+            if (!filename || typeof filename !== 'string') return false;
+            const lowerName = filename.toLowerCase();
+            return this.MODULE_FILENAME_SUFFIXES.some(suffix => lowerName.endsWith(suffix));
+        },
+
+        hasModuleMimeHint(mimeType) {
+            return typeof mimeType === 'string' && /(?:^|;)\s*module(?:\s*=\s*(?:1|true))?\s*(?:;|$)/i.test(mimeType);
+        },
+
+        isJavaScriptModule(content, filename, mimeType) {
+            if (this.hasModuleFilenameHint(filename) || this.hasModuleMimeHint(mimeType)) {
+                return true;
+            }
+
+            if (!content || typeof content !== 'string') {
+                return false;
+            }
+
+            const modulePatterns = [
+                /^\s*import\s+/m,
+                /^\s*export\s+/m,
+                /import\s*\(/,
+                /export\s*\{/,
+                /export\s+default\s+/,
+                /export\s+\*/
+            ];
+
+            return modulePatterns.some(pattern => pattern.test(content));
+        },
+
+        detectJavaScriptType(content, filename, mimeType) {
+            return this.isJavaScriptModule(content, filename, mimeType) ? 'javascript-module' : 'javascript';
+        },
+
         isBinaryFile(filename, mimeType) {
             if (!filename) return false;
-            
+
             const extension = this.getExtension(filename);
-            
             if (this.isBinaryExtension(extension)) {
                 return true;
             }
-            
-            if (mimeType) {
-                const normalizedMimeType = mimeType.toLowerCase().split(';')[0].trim();
-                if (normalizedMimeType === 'image/svg+xml' || normalizedMimeType === 'application/json' || normalizedMimeType.endsWith('+json')) {
-                    return false;
-                }
 
-                return this.hasBinaryMimePrefix(normalizedMimeType);
+            const normalizedMimeType = this.normalizeMimeType(mimeType);
+            if (!normalizedMimeType) return false;
+
+            if (normalizedMimeType === 'image/svg+xml' || normalizedMimeType === 'application/json' || normalizedMimeType.endsWith('+json')) {
+                return false;
             }
-            
-            return false;
+
+            return this.hasBinaryMimePrefix(normalizedMimeType);
         },
 
         isEditableType(fileType) {
@@ -867,14 +929,44 @@ const CodePreviewer = {
             return CodePreviewer.constants.FILE_TYPES.CODEMIRROR_MODES[fileType] || 'text';
         },
 
-        detectTypeFromContent(content, filename) {
-            if (!content) return this.getTypeFromExtension(filename);
-            
+        detectTypeFromContent(content, filename, mimeType = '') {
+            const extensionType = this.getTypeFromExtension(filename);
+            if (!content) {
+                if (extensionType === 'javascript' || extensionType === 'javascript-module') {
+                    return this.detectJavaScriptType(content, filename, mimeType);
+                }
+                return extensionType;
+            }
+
             if (/<\s*html/i.test(content)) return 'html';
-            if (CodePreviewer.isModuleFile(content, filename)) return 'javascript-module';
+            if (this.isJavaScriptModule(content, filename, mimeType)) return 'javascript-module';
             if (/^\s*[\.\#\@]|\s*\w+\s*\{/m.test(content)) return 'css';
-            
-            return this.getTypeFromExtension(filename);
+            if (extensionType === 'javascript' || extensionType === 'javascript-module') {
+                return this.detectJavaScriptType(content, filename, mimeType);
+            }
+
+            return extensionType;
+        },
+
+        detectFileType(filename, content, mimeType) {
+            if (!filename) return 'text';
+
+            const extensionType = this.getTypeFromExtension(filename);
+            const mimeTypeType = this.getTypeFromMimeType(mimeType);
+
+            if (this.isBinaryExtension(this.getExtension(filename))) {
+                return extensionType === 'binary' && mimeTypeType ? mimeTypeType : extensionType;
+            }
+
+            if (mimeTypeType && mimeTypeType !== 'javascript') {
+                return mimeTypeType;
+            }
+
+            if (mimeTypeType === 'javascript') {
+                return this.detectJavaScriptType(content, filename, mimeType);
+            }
+
+            return this.detectTypeFromContent(content, filename, mimeType);
         }
     },
 
@@ -2528,41 +2620,12 @@ This content is loaded from a markdown file.
         });
     },
 
-    isModuleFile(content, filename) {
-        if (filename && (filename.endsWith('.mjs') || filename.endsWith('.esm.js'))) {
-            return true;
-        }
-        
-        if (content) {
-            const modulePatterns = [
-                /^\s*import\s+/m,
-                /^\s*export\s+/m,
-                /import\s*\(/,
-                /export\s*\{/,
-                /export\s+default\s+/,
-                /export\s+\*/
-            ];
-            
-            return modulePatterns.some(pattern => pattern.test(content));
-        }
-        
-        return false;
+    isModuleFile(content, filename, mimeType = '') {
+        return this.fileTypeUtils.isJavaScriptModule(content, filename, mimeType);
     },
 
     autoDetectFileType(filename, content, mimeType) {
-        if (!filename) return 'text';
-        
-        const extension = this.fileTypeUtils.getExtension(filename);
-        
-        if (this.fileTypeUtils.isBinaryExtension(extension) || (mimeType && mimeType.startsWith('image/') && mimeType !== 'image/svg+xml')) {
-            return extension === 'svg' ? 'svg' : this.fileTypeUtils.getTypeFromExtension(filename);
-        }
-        
-        if (mimeType && (mimeType.startsWith('audio/') || mimeType.startsWith('video/') || mimeType.startsWith('font/') || mimeType === 'application/pdf')) {
-            return this.fileTypeUtils.getTypeFromExtension(filename);
-        }
-        
-        return this.fileTypeUtils.detectTypeFromContent(content, filename);
+        return this.fileTypeUtils.detectFileType(filename, content, mimeType);
     },
 
     getFileNameFromPanel(fileId) {
