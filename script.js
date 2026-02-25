@@ -723,9 +723,10 @@ const CodePreviewer = {
                 'js': 'javascript', 'jsx': 'javascript', 'ts': 'javascript', 'tsx': 'javascript',
                 'mjs': 'javascript-module', 'esm': 'javascript-module',
                 'json': 'json',
+                'webmanifest': 'json',
                 'xml': 'xml',
                 'md': 'markdown', 'markdown': 'markdown',
-                'txt': 'text',
+                'txt': 'text', 'gitignore': 'text',
                 'svg': 'svg',
                 'jpg': 'image', 'jpeg': 'image', 'png': 'image', 'gif': 'image', 
                 'webp': 'image', 'bmp': 'image', 'ico': 'image', 'tiff': 'image',
@@ -767,7 +768,8 @@ const CodePreviewer = {
                 'eot': 'application/vnd.ms-fontobject',
                 'pdf': 'application/pdf',
                 'txt': 'text/plain', 'html': 'text/html', 'css': 'text/css', 'js': 'text/javascript',
-                'json': 'application/json', 'xml': 'application/xml'
+                'json': 'application/json', 'webmanifest': 'application/manifest+json', 'xml': 'application/xml',
+                'gitignore': 'text/plain'
             },
             
             BINARY_EXTENSIONS: new Set([
