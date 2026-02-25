@@ -871,8 +871,8 @@ const CodePreviewer = {
             if (!content) return this.getTypeFromExtension(filename);
             
             if (/<\s*html/i.test(content)) return 'html';
-            if (/^\s*[\.\#\@]|\s*\w+\s*\{/m.test(content)) return 'css';
             if (CodePreviewer.isModuleFile(content, filename)) return 'javascript-module';
+            if (/^\s*[\.\#\@]|\s*\w+\s*\{/m.test(content)) return 'css';
             
             return this.getTypeFromExtension(filename);
         }
@@ -6529,19 +6529,21 @@ This content is loaded from a markdown file.
                     continue;
                 }
 
-                const extension = result.fileName.split('.').pop().toLowerCase();
+                const extension = this.fileTypeUtils.getExtension(result.fileName);
                 const isBinary = this.fileTypeUtils.isBinaryFile(result.fileName, '');
                 let content;
+                let mimeType = '';
 
                 if (isBinary) {
                     const base64Content = await entry.readBinary();
-                    const mimeType = this.fileTypeUtils.getMimeTypeFromExtension(extension);
+                    mimeType = this.fileTypeUtils.getMimeTypeFromExtension(extension);
                     content = `data:${mimeType};base64,${base64Content}`;
                 } else {
                     content = await entry.readText();
+                    mimeType = this.fileTypeUtils.getMimeTypeFromExtension(extension);
                 }
 
-                const fileType = this.fileTypeUtils.getTypeFromExtension(extension);
+                const fileType = this.autoDetectFileType(result.fileName, isBinary ? null : content, mimeType);
                 this.addNewFileWithContent(result.fileName, fileType, content, isBinary);
                 importedCount++;
             }
