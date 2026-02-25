@@ -5278,20 +5278,12 @@ This content is loaded from a markdown file.
 
         const content = editor.getValue();
         let fileName = 'Code';
-        let language = 'text';
+        const language = this.getCodeMirrorMode(fileType);
 
         const fileNameInput = panel.querySelector('.file-name-input');
         
         if (fileNameInput) {
             fileName = fileNameInput.value || 'Untitled';
-        }
-        
-        if (fileType === 'html') {
-            language = 'htmlmixed';
-        } else if (fileType === 'css') {
-            language = 'css';
-        } else if (fileType === 'javascript' || fileType === 'javascript-module') {
-            language = 'javascript';
         }
 
         this.openCodeModal(content, fileName, language, panel);
