@@ -787,7 +787,7 @@ const CodePreviewer = {
                 'css': 'css',
                 'javascript': 'javascript',
                 'javascript-module': 'javascript',
-                'json': 'javascript',
+                'json': { name: 'javascript', json: true },
                 'xml': 'xml',
                 'markdown': 'markdown',
                 'text': 'text',
