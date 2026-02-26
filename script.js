@@ -6364,7 +6364,15 @@ This content is loaded from a markdown file.
         this.dom.modalOverlay.setAttribute('aria-hidden', !show);
         if (show) {
             this.applyPreviewDockLayout();
-            this.dom.modalConsolePanel.classList.add('hidden');
+
+            const consolePanel = this.dom.modalConsolePanel;
+            consolePanel.classList.add('hidden');
+            consolePanel.setAttribute('aria-hidden', 'true');
+            consolePanel.classList.add('no-transition');
+            requestAnimationFrame(() => {
+                consolePanel.classList.remove('no-transition');
+            });
+
             this.dom.toggleConsoleBtn.classList.remove('active');
             this.updatePreviewDockControlButtons();
         } else {
@@ -6402,9 +6410,11 @@ This content is loaded from a markdown file.
 
         if (isHidden) {
             this.dom.modalConsolePanel.classList.remove('hidden');
+            this.dom.modalConsolePanel.setAttribute('aria-hidden', 'false');
             this.dom.toggleConsoleBtn.classList.add('active');
         } else {
             this.dom.modalConsolePanel.classList.add('hidden');
+            this.dom.modalConsolePanel.setAttribute('aria-hidden', 'true');
             this.dom.toggleConsoleBtn.classList.remove('active');
         }
 

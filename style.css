@@ -1552,6 +1552,7 @@ body.modal-scroll-lock .container {
     display: flex;
     flex-direction: column;
     height: calc(100% - 60px);
+    position: relative;
 }
 
 #code-modal,
@@ -1986,17 +1987,32 @@ body.preview-docked-bottom #code-modal.is-docked-left .modal-content {
    ========================================================================== */
 
 .modal-console-panel {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
     background-color: var(--header-bg);
     border-top: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
     height: 200px;
-    transition: height 0.3s ease;
+    max-height: 60%;
+    transform: translateY(0);
+    opacity: 1;
+    visibility: visible;
+    transition: transform 0.3s ease, opacity 0.2s ease;
 }
 
 .modal-console-panel.hidden {
-    height: 0;
-    overflow: hidden;
+    transform: translateY(100%);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.modal-console-panel.no-transition {
+    transition: none;
 }
 
 .console-header {
