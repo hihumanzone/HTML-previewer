@@ -2677,8 +2677,9 @@ This content is loaded from a markdown file.
         return rewritten;
     },
 
-    buildModuleImportMapScript(fileSystem) {
-        if (!(fileSystem instanceof Map) || fileSystem.size === 0) return '';
+
+    buildModuleImportMap(fileSystem) {
+        if (!(fileSystem instanceof Map) || fileSystem.size === 0) return null;
 
         const imports = {};
         for (const [path, file] of fileSystem.entries()) {
@@ -2693,8 +2694,26 @@ This content is loaded from a markdown file.
             imports['/' + path] = moduleUrl;
         }
 
-        if (Object.keys(imports).length === 0) return '';
+        return Object.keys(imports).length > 0 ? imports : null;
+    },
 
+    createModuleAssetUrl(fileSystem, modulePath) {
+        if (!modulePath || !(fileSystem instanceof Map)) return null;
+        const file = this.fileSystemUtils.findFile(fileSystem, modulePath);
+        if (!file || file.isBinary || (file.type !== 'javascript' && file.type !== 'javascript-module')) {
+            return null;
+        }
+
+        const rewrittenContent = this.rewriteModuleSpecifiers(file.content || '', modulePath);
+        const moduleBlob = new Blob([rewrittenContent], { type: 'text/javascript' });
+        const moduleUrl = URL.createObjectURL(moduleBlob);
+        this.state.previewAssetUrls.add(moduleUrl);
+        return moduleUrl;
+    },
+
+    buildModuleImportMapScript(fileSystem) {
+        const imports = this.buildModuleImportMap(fileSystem);
+        if (!imports) return '';
         return `<script type="importmap">${JSON.stringify({ imports })}</script>`;
     },
 
@@ -7267,11 +7286,13 @@ This content is loaded from a markdown file.
                 if (file && (file.type === 'javascript' || file.type === 'javascript-module')) {
                     const isModule = scriptHasModuleType || file.type === 'javascript-module' || CodePreviewer.isModuleFile(file.content, resolvedPath);
                     if (isModule) {
-                        const moduleSrc = '/' + resolvedPath;
-                        return match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${moduleSrc}"`);
+                        const moduleSrc = CodePreviewer.createModuleAssetUrl(fileSystem, resolvedPath);
+                        if (moduleSrc) {
+                            return match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${moduleSrc}"`);
+                        }
                     }
 
-                    const escapedContent = file.content.replace(/<\/script>/gi, '<\/script>');
+                    const escapedContent = file.content.replace(/<\/script>/gi, '<\\/script>');
                     return `<script>${escapedContent}</script>`;
                 }
 
