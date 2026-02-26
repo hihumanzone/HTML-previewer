@@ -3857,6 +3857,10 @@ This content is loaded from a markdown file.
         fileInput.click();
     },
 
+    shouldAutoOpenImportedPanel(fileName) {
+        return this.getFolderFromPath(fileName) === '';
+    },
+
     async _importFiles(fileList, getFileName, successMessage, options = {}) {
         const files = Array.from(fileList);
         if (files.length === 0) return;
@@ -3896,7 +3900,9 @@ This content is loaded from a markdown file.
 
             const fileData = await this.readFileContent(file);
             const detectedType = this.autoDetectFileType(result.fileName, fileData.isBinary ? null : fileData.content, file.type);
-            this.addNewFileWithContent(result.fileName, detectedType, fileData.content, fileData.isBinary);
+            this.addNewFileWithContent(result.fileName, detectedType, fileData.content, fileData.isBinary, {
+                autoOpenPanel: this.shouldAutoOpenImportedPanel(result.fileName)
+            });
             importedCount++;
         }
 
@@ -3944,7 +3950,8 @@ This content is loaded from a markdown file.
         });
     },
 
-    addNewFileWithContent(fileName, fileType, content, isBinary = false) {
+    addNewFileWithContent(fileName, fileType, content, isBinary = false, options = {}) {
+        const { autoOpenPanel = true } = options;
         const fileId = `file-${this.state.nextFileId++}`;
         
         // Automatically create folder if file has path
@@ -3986,8 +3993,10 @@ This content is loaded from a markdown file.
         this.initFileSavedState(fileId, content, fileName, fileType);
         this.setupEditorChangeListener(fileId, newEditor);
         
-        // Mark panel as open
-        this.state.openPanels.add(fileId);
+        if (autoOpenPanel) {
+            // Mark panel as open
+            this.state.openPanels.add(fileId);
+        }
         
         this.bindFilePanelEvents(document.querySelector(`.editor-panel[data-file-id="${fileId}"]`));
         
@@ -6703,7 +6712,9 @@ This content is loaded from a markdown file.
                 }
 
                 const fileType = this.autoDetectFileType(result.fileName, isBinary ? null : content, mimeType);
-                this.addNewFileWithContent(result.fileName, fileType, content, isBinary);
+                this.addNewFileWithContent(result.fileName, fileType, content, isBinary, {
+                    autoOpenPanel: this.shouldAutoOpenImportedPanel(result.fileName)
+                });
                 importedCount++;
             }
 
