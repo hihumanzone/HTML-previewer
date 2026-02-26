@@ -5846,10 +5846,12 @@ This content is loaded from a markdown file.
 
     replaceAssetReferences(htmlContent, fileSystem, currentFilePath = '', processedHtmlFiles = null) {
         if (!processedHtmlFiles) processedHtmlFiles = new Map();
-        htmlContent = this.assetReplacers.replaceAllConfigBased(htmlContent, fileSystem, currentFilePath);
-        htmlContent = this.assetReplacers.replaceDownloadLinks(htmlContent, fileSystem, currentFilePath, processedHtmlFiles);
-        htmlContent = this.assetReplacers.replaceStyleTags(htmlContent, fileSystem, currentFilePath);
-        
+        htmlContent = this.assetReplacers.withScriptBlocksPreserved(htmlContent, (safeHtmlContent) => {
+            let updatedHtml = this.assetReplacers.replaceAllConfigBased(safeHtmlContent, fileSystem, currentFilePath);
+            updatedHtml = this.assetReplacers.replaceDownloadLinks(updatedHtml, fileSystem, currentFilePath, processedHtmlFiles);
+            return this.assetReplacers.replaceStyleTags(updatedHtml, fileSystem, currentFilePath);
+        });
+
         const workerFileNames = this.extractWorkerFileNames(htmlContent);
         if (workerFileNames.length > 0) {
             const workerScript = this.createWorkerScript(workerFileNames, fileSystem, currentFilePath);
@@ -7035,6 +7037,40 @@ This content is loaded from a markdown file.
     assetReplacers: {
         isExternalAssetPath(path) {
             return /^(?:https?:|\/\/|data:|blob:)/i.test(path || '');
+        },
+
+        withScriptBlocksPreserved(htmlContent, transform) {
+            if (typeof htmlContent !== 'string' || typeof transform !== 'function') {
+                return htmlContent;
+            }
+
+            const preservedBlocks = [];
+            const placeholderPrefixBase = '\uE000PREVIEWER_SCRIPT_BLOCK_';
+            let placeholderPrefix = placeholderPrefixBase;
+            while (htmlContent.includes(placeholderPrefix)) {
+                placeholderPrefix += '_';
+            }
+
+            const htmlWithoutScripts = htmlContent.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, (match) => {
+                const placeholder = `${placeholderPrefix}${preservedBlocks.length}__`;
+                preservedBlocks.push(match);
+                return placeholder;
+            });
+
+            if (preservedBlocks.length === 0) {
+                return transform(htmlContent);
+            }
+
+            const transformedHtml = transform(htmlWithoutScripts);
+            if (typeof transformedHtml !== 'string') {
+                return htmlContent;
+            }
+
+            const placeholderPattern = new RegExp(`${placeholderPrefix}(\\d+)__`, 'g');
+            return transformedHtml.replace(placeholderPattern, (match, index) => {
+                const scriptBlock = preservedBlocks[Number(index)];
+                return typeof scriptBlock === 'string' ? scriptBlock : match;
+            });
         },
 
         createMissingAssetConsoleScript(assetLabel, requestedPath, currentFilePath, options = {}) {
