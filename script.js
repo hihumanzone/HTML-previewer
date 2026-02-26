@@ -2653,13 +2653,18 @@ This content is loaded from a markdown file.
         return specifier.startsWith('.') || specifier.startsWith('/');
     },
 
+    toVirtualModuleSpecifier(path) {
+        const normalized = String(path || '').replace(/^\/+/, '');
+        return `@preview/${normalized}`;
+    },
+
     normalizeModuleSpecifier(specifier, currentFilePath) {
         if (!this.shouldRewriteImportSpecifier(specifier)) return specifier;
         const cleanSpecifier = specifier.split('#')[0].split('?')[0];
         const resolvedPath = cleanSpecifier.startsWith('/')
             ? cleanSpecifier.slice(1)
             : this.fileSystemUtils.resolvePath(currentFilePath, cleanSpecifier);
-        return '/' + resolvedPath;
+        return this.toVirtualModuleSpecifier(resolvedPath);
     },
 
     rewriteModuleSpecifiers(content, currentFilePath = 'index.html') {
@@ -2691,7 +2696,7 @@ This content is loaded from a markdown file.
             const moduleBlob = new Blob([rewrittenContent], { type: 'text/javascript' });
             const moduleUrl = URL.createObjectURL(moduleBlob);
             this.state.previewAssetUrls.add(moduleUrl);
-            imports['/' + path] = moduleUrl;
+            imports[this.toVirtualModuleSpecifier(path)] = moduleUrl;
         }
 
         return Object.keys(imports).length > 0 ? imports : null;
