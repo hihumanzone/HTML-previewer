@@ -1547,7 +1547,6 @@ const CodePreviewer = {
                 error.name = 'PreviewServiceWorkerUnsupportedError';
                 return error;
             };
-            const originalRegister = serviceWorkerContainer.register.bind(serviceWorkerContainer);
             Object.defineProperty(serviceWorkerContainer, 'register', {
                 configurable: true,
                 writable: true,
@@ -1559,7 +1558,6 @@ const CodePreviewer = {
                     return Promise.reject(err);
                 }
             });
-            serviceWorkerContainer.__previewOriginalRegister = originalRegister;
         }
     } catch (serviceWorkerOverrideError) {
         // no-op: preview safety override should never break page execution
@@ -2719,6 +2717,13 @@ This content is loaded from a markdown file.
         return rewritten;
     },
 
+    createRewrittenModuleBlobUrl(fileContent, modulePath) {
+        const rewrittenContent = this.rewriteModuleSpecifiers(fileContent || '', modulePath);
+        const moduleBlob = new Blob([rewrittenContent], { type: 'text/javascript' });
+        const moduleUrl = URL.createObjectURL(moduleBlob);
+        this.state.previewAssetUrls.add(moduleUrl);
+        return moduleUrl;
+    },
 
     buildModuleImportMap(fileSystem) {
         if (!(fileSystem instanceof Map) || fileSystem.size === 0) return null;
@@ -2729,10 +2734,7 @@ This content is loaded from a markdown file.
                 continue;
             }
 
-            const rewrittenContent = this.rewriteModuleSpecifiers(file.content || '', path);
-            const moduleBlob = new Blob([rewrittenContent], { type: 'text/javascript' });
-            const moduleUrl = URL.createObjectURL(moduleBlob);
-            this.state.previewAssetUrls.add(moduleUrl);
+            const moduleUrl = this.createRewrittenModuleBlobUrl(file.content, path);
             imports[this.toVirtualModuleSpecifier(path)] = moduleUrl;
         }
 
@@ -2746,11 +2748,7 @@ This content is loaded from a markdown file.
             return null;
         }
 
-        const rewrittenContent = this.rewriteModuleSpecifiers(file.content || '', modulePath);
-        const moduleBlob = new Blob([rewrittenContent], { type: 'text/javascript' });
-        const moduleUrl = URL.createObjectURL(moduleBlob);
-        this.state.previewAssetUrls.add(moduleUrl);
-        return moduleUrl;
+        return this.createRewrittenModuleBlobUrl(file.content, modulePath);
     },
 
     buildModuleImportMapScript(fileSystem) {
