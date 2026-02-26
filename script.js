@@ -3857,6 +3857,57 @@ This content is loaded from a markdown file.
         fileInput.click();
     },
 
+    normalizeImportPath(path) {
+        return String(path || '').trim().replace(/^\/+/, '');
+    },
+
+    getEffectiveHomeFolderForImports(paths) {
+        const normalizedPaths = paths
+            .map((path) => this.normalizeImportPath(path))
+            .filter(Boolean);
+
+        if (normalizedPaths.some((path) => this.getFolderFromPath(path) === '')) {
+            return '';
+        }
+
+        const topLevelFolders = new Set();
+        normalizedPaths.forEach((path) => {
+            if (!path.includes('/')) return;
+            const topLevelFolder = path.split('/')[0];
+            if (topLevelFolder) {
+                topLevelFolders.add(topLevelFolder);
+            }
+        });
+
+        if (topLevelFolders.size !== 1) {
+            return null;
+        }
+
+        const [effectiveHomeFolder] = topLevelFolders;
+        return effectiveHomeFolder;
+    },
+
+    shouldAutoOpenImportedPanel(fileName, pendingFilePaths = []) {
+        const normalizedFileName = this.normalizeImportPath(fileName);
+        if (!normalizedFileName) return false;
+
+        const folderPath = this.getFolderFromPath(normalizedFileName);
+        if (folderPath === '') {
+            return true;
+        }
+
+        const existingFilePaths = this.state.files.map((file) =>
+            this.getFileNameFromPanel(file.id) || file.fileName || ''
+        );
+        const effectiveHomeFolder = this.getEffectiveHomeFolderForImports([
+            ...existingFilePaths,
+            ...pendingFilePaths,
+            normalizedFileName
+        ]);
+
+        return effectiveHomeFolder !== null && folderPath === effectiveHomeFolder;
+    },
+
     async _importFiles(fileList, getFileName, successMessage, options = {}) {
         const files = Array.from(fileList);
         if (files.length === 0) return;
@@ -3872,6 +3923,8 @@ This content is loaded from a markdown file.
         let importedCount = 0;
         let skippedCount = 0;
         let processedCount = 0;
+
+        const importedFileNames = [];
 
         for (const file of files) {
             processedCount++;
@@ -3896,7 +3949,10 @@ This content is loaded from a markdown file.
 
             const fileData = await this.readFileContent(file);
             const detectedType = this.autoDetectFileType(result.fileName, fileData.isBinary ? null : fileData.content, file.type);
-            this.addNewFileWithContent(result.fileName, detectedType, fileData.content, fileData.isBinary);
+            this.addNewFileWithContent(result.fileName, detectedType, fileData.content, fileData.isBinary, {
+                autoOpenPanel: this.shouldAutoOpenImportedPanel(result.fileName, importedFileNames)
+            });
+            importedFileNames.push(result.fileName);
             importedCount++;
         }
 
@@ -3944,7 +4000,8 @@ This content is loaded from a markdown file.
         });
     },
 
-    addNewFileWithContent(fileName, fileType, content, isBinary = false) {
+    addNewFileWithContent(fileName, fileType, content, isBinary = false, options = {}) {
+        const { autoOpenPanel = true } = options;
         const fileId = `file-${this.state.nextFileId++}`;
         
         // Automatically create folder if file has path
@@ -3986,10 +4043,17 @@ This content is loaded from a markdown file.
         this.initFileSavedState(fileId, content, fileName, fileType);
         this.setupEditorChangeListener(fileId, newEditor);
         
-        // Mark panel as open
-        this.state.openPanels.add(fileId);
+        if (autoOpenPanel) {
+            // Mark panel as open
+            this.state.openPanels.add(fileId);
+        }
         
-        this.bindFilePanelEvents(document.querySelector(`.editor-panel[data-file-id="${fileId}"]`));
+        const createdPanel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+        if (!autoOpenPanel && createdPanel) {
+            createdPanel.style.display = 'none';
+        }
+
+        this.bindFilePanelEvents(createdPanel);
         
         this.refreshPanelAndFileTreeUI();
     },
@@ -4786,6 +4850,11 @@ This content is loaded from a markdown file.
     },
 
     refreshPanelAndFileTreeUI() {
+        document.querySelectorAll('.editor-panel[data-file-id]').forEach((panel) => {
+            const { fileId } = panel.dataset;
+            panel.style.display = this.state.openPanels.has(fileId) ? '' : 'none';
+        });
+
         this.updateRemoveButtonsVisibility();
         this.updateMainHtmlSelector();
         this.renderFileTree();
@@ -6669,6 +6738,8 @@ This content is loaded from a markdown file.
             let importedCount = 0;
             let skippedCount = 0;
 
+            const importedFileNames = [];
+
             for (let i = 0; i < entries.length; i++) {
                 const entry = entries[i];
                 const processedCount = i + 1;
@@ -6703,7 +6774,10 @@ This content is loaded from a markdown file.
                 }
 
                 const fileType = this.autoDetectFileType(result.fileName, isBinary ? null : content, mimeType);
-                this.addNewFileWithContent(result.fileName, fileType, content, isBinary);
+                this.addNewFileWithContent(result.fileName, fileType, content, isBinary, {
+                    autoOpenPanel: this.shouldAutoOpenImportedPanel(result.fileName, importedFileNames)
+                });
+                importedFileNames.push(result.fileName);
                 importedCount++;
             }
 
