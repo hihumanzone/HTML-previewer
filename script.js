@@ -1531,6 +1531,41 @@ const CodePreviewer = {
          * @param {string} messageType - The message type identifier for postMessage communication
          * @returns {string} JavaScript code for console capture
          */
+
+        /**
+         * Generates JavaScript code that safely handles Service Worker registration in preview contexts.
+         * @returns {string} JavaScript code for service worker override
+         */
+        generateServiceWorkerOverrideCode() {
+            return `
+    try {
+        const serviceWorkerContainer = navigator && navigator.serviceWorker;
+        const isPreviewLikeProtocol = /^(about:|data:|blob:)/i.test(window.location.protocol || '') || window.location.href === 'about:srcdoc';
+        if (serviceWorkerContainer && typeof serviceWorkerContainer.register === 'function' && isPreviewLikeProtocol) {
+            const unsupportedError = () => {
+                const error = new Error('Service Worker registration is not supported in preview mode (about:srcdoc/data/blob contexts).');
+                error.name = 'PreviewServiceWorkerUnsupportedError';
+                return error;
+            };
+            const originalRegister = serviceWorkerContainer.register.bind(serviceWorkerContainer);
+            Object.defineProperty(serviceWorkerContainer, 'register', {
+                configurable: true,
+                writable: true,
+                value: function registerServiceWorkerInPreview() {
+                    const err = unsupportedError();
+                    if (window && window.console && typeof window.console.warn === 'function') {
+                        window.console.warn('[Preview] ' + err.message);
+                    }
+                    return Promise.reject(err);
+                }
+            });
+            serviceWorkerContainer.__previewOriginalRegister = originalRegister;
+        }
+    } catch (serviceWorkerOverrideError) {
+        // no-op: preview safety override should never break page execution
+    }`;
+        },
+
         generateConsoleOverrideCode(messageType) {
             return `
     const normalizeSourcePath = (source) => {
@@ -7759,6 +7794,7 @@ ${arg.stack}` : ''}`;
             const audioOverrideCode = fsUtils.generateAudioOverrideCode();
             const cssURLOverrideCode = fsUtils.generateCSSURLOverrideCode();
             const elementSrcOverrideCode = fsUtils.generateElementSrcOverrideCode();
+            const serviceWorkerOverrideCode = fsUtils.generateServiceWorkerOverrideCode();
             const consoleOverrideCode = fsUtils.generateConsoleOverrideCode(MESSAGE_TYPE);
             
             return `<script>
@@ -7774,6 +7810,7 @@ ${arg.stack}` : ''}`;
     ${audioOverrideCode}
     ${cssURLOverrideCode}
     ${elementSrcOverrideCode}
+    ${serviceWorkerOverrideCode}
     ${consoleOverrideCode}
 })();
 </script>`;
