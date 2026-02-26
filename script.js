@@ -3857,8 +3857,41 @@ This content is loaded from a markdown file.
         fileInput.click();
     },
 
+    normalizeImportPath(path) {
+        return String(path || '').trim().replace(/^\/+/, '');
+    },
+
+    getEffectiveHomeFolderForImports(paths) {
+        const normalizedPaths = paths
+            .map((path) => this.normalizeImportPath(path))
+            .filter(Boolean);
+
+        if (normalizedPaths.some((path) => this.getFolderFromPath(path) === '')) {
+            return '';
+        }
+
+        const topLevelFolders = new Set();
+        normalizedPaths.forEach((path) => {
+            if (!path.includes('/')) return;
+            const topLevelFolder = path.split('/')[0];
+            if (topLevelFolder) {
+                topLevelFolders.add(topLevelFolder);
+            }
+        });
+
+        if (topLevelFolders.size !== 1) {
+            return null;
+        }
+
+        const [effectiveHomeFolder] = topLevelFolders;
+        return effectiveHomeFolder;
+    },
+
     shouldAutoOpenImportedPanel(fileName, pendingFilePaths = []) {
-        const folderPath = this.getFolderFromPath(fileName);
+        const normalizedFileName = this.normalizeImportPath(fileName);
+        if (!normalizedFileName) return false;
+
+        const folderPath = this.getFolderFromPath(normalizedFileName);
         if (folderPath === '') {
             return true;
         }
@@ -3866,31 +3899,13 @@ This content is loaded from a markdown file.
         const existingFilePaths = this.state.files.map((file) =>
             this.getFileNameFromPanel(file.id) || file.fileName || ''
         );
-        const combinedPaths = [...existingFilePaths, ...pendingFilePaths, fileName]
-            .filter(Boolean);
+        const effectiveHomeFolder = this.getEffectiveHomeFolderForImports([
+            ...existingFilePaths,
+            ...pendingFilePaths,
+            normalizedFileName
+        ]);
 
-        const rootFiles = combinedPaths.filter((path) => this.getFolderFromPath(path) === '');
-        if (rootFiles.length > 0) {
-            return false;
-        }
-
-        const topLevelFolders = new Set();
-        combinedPaths.forEach((path) => {
-            const normalizedPath = String(path || '').trim().replace(/^\/+/, '');
-            if (!normalizedPath || !normalizedPath.includes('/')) return;
-
-            const topLevelFolder = normalizedPath.split('/')[0];
-            if (topLevelFolder) {
-                topLevelFolders.add(topLevelFolder);
-            }
-        });
-
-        if (topLevelFolders.size !== 1) {
-            return false;
-        }
-
-        const [effectiveHomeFolder] = topLevelFolders;
-        return folderPath === effectiveHomeFolder;
+        return effectiveHomeFolder !== null && folderPath === effectiveHomeFolder;
     },
 
     async _importFiles(fileList, getFileName, successMessage, options = {}) {
