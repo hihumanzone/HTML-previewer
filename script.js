@@ -2660,11 +2660,13 @@ This content is loaded from a markdown file.
 
     normalizeModuleSpecifier(specifier, currentFilePath) {
         if (!this.shouldRewriteImportSpecifier(specifier)) return specifier;
-        const cleanSpecifier = specifier.split('#')[0].split('?')[0];
-        const resolvedPath = cleanSpecifier.startsWith('/')
-            ? cleanSpecifier.slice(1)
-            : this.fileSystemUtils.resolvePath(currentFilePath, cleanSpecifier);
-        return this.toVirtualModuleSpecifier(resolvedPath);
+        const suffixMatch = specifier.match(/([?#].*)$/);
+        const suffix = suffixMatch ? suffixMatch[1] : '';
+        const specifierPath = suffix ? specifier.slice(0, -suffix.length) : specifier;
+        const resolvedPath = specifierPath.startsWith('/')
+            ? specifierPath.slice(1)
+            : this.fileSystemUtils.resolvePath(currentFilePath, specifierPath);
+        return this.toVirtualModuleSpecifier(resolvedPath) + suffix;
     },
 
     rewriteModuleSpecifiers(content, currentFilePath = 'index.html') {
