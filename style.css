@@ -1552,6 +1552,9 @@ body.modal-scroll-lock .container {
     display: flex;
     flex-direction: column;
     height: calc(100% - 60px);
+}
+
+#preview-modal .modal-body {
     position: relative;
 }
 
@@ -2011,9 +2014,6 @@ body.preview-docked-bottom #code-modal.is-docked-left .modal-content {
     pointer-events: none;
 }
 
-.modal-console-panel.no-transition {
-    transition: none;
-}
 
 .console-header {
     background-color: var(--header-bg);

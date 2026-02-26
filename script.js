@@ -6360,22 +6360,20 @@ This content is loaded from a markdown file.
         this.applyPreviewDockLayout();
     },
 
+    setModalConsoleVisibility(isVisible) {
+        this.dom.modalConsolePanel.classList.toggle('hidden', !isVisible);
+        this.dom.modalConsolePanel.setAttribute('aria-hidden', String(!isVisible));
+        this.dom.toggleConsoleBtn.classList.toggle('active', isVisible);
+        this.updatePreviewDockControlButtons();
+    },
+
     toggleModal(show) {
         this.dom.modalOverlay.setAttribute('aria-hidden', !show);
         if (show) {
             this.applyPreviewDockLayout();
-
-            const consolePanel = this.dom.modalConsolePanel;
-            consolePanel.classList.add('hidden');
-            consolePanel.setAttribute('aria-hidden', 'true');
-            consolePanel.classList.add('no-transition');
-            requestAnimationFrame(() => {
-                consolePanel.classList.remove('no-transition');
-            });
-
-            this.dom.toggleConsoleBtn.classList.remove('active');
-            this.updatePreviewDockControlButtons();
+            this.setModalConsoleVisibility(false);
         } else {
+            this.setModalConsoleVisibility(false);
             this.togglePreviewDock(false);
             if (this.state.previewRefreshTimer) {
                 clearTimeout(this.state.previewRefreshTimer);
@@ -6406,19 +6404,8 @@ This content is loaded from a markdown file.
     },
 
     toggleConsole() {
-        const isHidden = this.dom.modalConsolePanel.classList.contains('hidden');
-
-        if (isHidden) {
-            this.dom.modalConsolePanel.classList.remove('hidden');
-            this.dom.modalConsolePanel.setAttribute('aria-hidden', 'false');
-            this.dom.toggleConsoleBtn.classList.add('active');
-        } else {
-            this.dom.modalConsolePanel.classList.add('hidden');
-            this.dom.modalConsolePanel.setAttribute('aria-hidden', 'true');
-            this.dom.toggleConsoleBtn.classList.remove('active');
-        }
-
-        this.updatePreviewDockControlButtons();
+        const isVisible = this.dom.modalConsolePanel.classList.contains('hidden');
+        this.setModalConsoleVisibility(isVisible);
     },
 
     movePanel(panel, direction) {
