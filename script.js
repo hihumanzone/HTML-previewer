@@ -7045,18 +7045,29 @@ This content is loaded from a markdown file.
             }
 
             const preservedBlocks = [];
+            const placeholderPrefixBase = '\uE000PREVIEWER_SCRIPT_BLOCK_';
+            let placeholderPrefix = placeholderPrefixBase;
+            while (htmlContent.includes(placeholderPrefix)) {
+                placeholderPrefix += '_';
+            }
+
             const htmlWithoutScripts = htmlContent.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, (match) => {
-                const placeholder = `__PREVIEWER_SCRIPT_BLOCK_${preservedBlocks.length}__`;
+                const placeholder = `${placeholderPrefix}${preservedBlocks.length}__`;
                 preservedBlocks.push(match);
                 return placeholder;
             });
+
+            if (preservedBlocks.length === 0) {
+                return transform(htmlContent);
+            }
 
             const transformedHtml = transform(htmlWithoutScripts);
             if (typeof transformedHtml !== 'string') {
                 return htmlContent;
             }
 
-            return transformedHtml.replace(/__PREVIEWER_SCRIPT_BLOCK_(\d+)__/g, (match, index) => {
+            const placeholderPattern = new RegExp(`${placeholderPrefix}(\\d+)__`, 'g');
+            return transformedHtml.replace(placeholderPattern, (match, index) => {
                 const scriptBlock = preservedBlocks[Number(index)];
                 return typeof scriptBlock === 'string' ? scriptBlock : match;
             });
