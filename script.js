@@ -2761,6 +2761,20 @@ This content is loaded from a markdown file.
         return this.fileTypeUtils.detectFileType(filename, content, mimeType);
     },
 
+    detectFileTypeForFilename(filename, content = null, mimeType = '', currentType = '') {
+        const extensionType = this.fileTypeUtils.getTypeFromExtension(filename);
+
+        if (extensionType === 'javascript' || extensionType === 'javascript-module') {
+            return this.fileTypeUtils.detectJavaScriptType(content, filename, mimeType);
+        }
+
+        if (extensionType !== 'binary') {
+            return extensionType;
+        }
+
+        return currentType || 'binary';
+    },
+
     getFileNameFromPanel(fileId) {
         const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
         if (panel) {
@@ -3948,7 +3962,7 @@ This content is loaded from a markdown file.
             }
 
             const fileData = await this.readFileContent(file);
-            const detectedType = this.autoDetectFileType(result.fileName, fileData.isBinary ? null : fileData.content, file.type);
+            const detectedType = this.detectFileTypeForFilename(result.fileName, fileData.isBinary ? null : fileData.content, file.type);
             this.addNewFileWithContent(result.fileName, detectedType, fileData.content, fileData.isBinary, {
                 autoOpenPanel: this.shouldAutoOpenImportedPanel(result.fileName, importedFileNames)
             });
@@ -4403,11 +4417,11 @@ This content is loaded from a markdown file.
 
                 const previousExtension = this.fileTypeUtils.getExtension(fileInfo.fileName);
                 const nextExtension = this.fileTypeUtils.getExtension(filename);
-                const suggestedType = this.fileTypeUtils.getTypeFromExtension(filename);
                 const extensionChanged = previousExtension !== nextExtension;
-                const isValidDetectedType = suggestedType !== 'binary';
+                const currentContent = fileInfo.isBinary ? null : (fileInfo.editor ? fileInfo.editor.getValue() : '');
+                const suggestedType = this.detectFileTypeForFilename(filename, currentContent, '', typeSelector.value);
                 const typeDiffers = suggestedType !== typeSelector.value;
-                const shouldAutoChangeType = extensionChanged && isValidDetectedType && typeDiffers;
+                const shouldAutoChangeType = extensionChanged && typeDiffers;
 
                 if (shouldAutoChangeType) {
                     this.applyFileTypeChange(panel, fileId, suggestedType);
@@ -6773,7 +6787,7 @@ This content is loaded from a markdown file.
                     mimeType = this.fileTypeUtils.getMimeTypeFromExtension(extension);
                 }
 
-                const fileType = this.autoDetectFileType(result.fileName, isBinary ? null : content, mimeType);
+                const fileType = this.detectFileTypeForFilename(result.fileName, isBinary ? null : content, mimeType);
                 this.addNewFileWithContent(result.fileName, fileType, content, isBinary, {
                     autoOpenPanel: this.shouldAutoOpenImportedPanel(result.fileName, importedFileNames)
                 });
