@@ -5846,10 +5846,12 @@ This content is loaded from a markdown file.
 
     replaceAssetReferences(htmlContent, fileSystem, currentFilePath = '', processedHtmlFiles = null) {
         if (!processedHtmlFiles) processedHtmlFiles = new Map();
-        htmlContent = this.assetReplacers.replaceAllConfigBased(htmlContent, fileSystem, currentFilePath);
-        htmlContent = this.assetReplacers.replaceDownloadLinks(htmlContent, fileSystem, currentFilePath, processedHtmlFiles);
-        htmlContent = this.assetReplacers.replaceStyleTags(htmlContent, fileSystem, currentFilePath);
-        
+        htmlContent = this.assetReplacers.withScriptBlocksPreserved(htmlContent, (safeHtmlContent) => {
+            let updatedHtml = this.assetReplacers.replaceAllConfigBased(safeHtmlContent, fileSystem, currentFilePath);
+            updatedHtml = this.assetReplacers.replaceDownloadLinks(updatedHtml, fileSystem, currentFilePath, processedHtmlFiles);
+            return this.assetReplacers.replaceStyleTags(updatedHtml, fileSystem, currentFilePath);
+        });
+
         const workerFileNames = this.extractWorkerFileNames(htmlContent);
         if (workerFileNames.length > 0) {
             const workerScript = this.createWorkerScript(workerFileNames, fileSystem, currentFilePath);
@@ -7035,6 +7037,29 @@ This content is loaded from a markdown file.
     assetReplacers: {
         isExternalAssetPath(path) {
             return /^(?:https?:|\/\/|data:|blob:)/i.test(path || '');
+        },
+
+        withScriptBlocksPreserved(htmlContent, transform) {
+            if (typeof htmlContent !== 'string' || typeof transform !== 'function') {
+                return htmlContent;
+            }
+
+            const preservedBlocks = [];
+            const htmlWithoutScripts = htmlContent.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, (match) => {
+                const placeholder = `__PREVIEWER_SCRIPT_BLOCK_${preservedBlocks.length}__`;
+                preservedBlocks.push(match);
+                return placeholder;
+            });
+
+            const transformedHtml = transform(htmlWithoutScripts);
+            if (typeof transformedHtml !== 'string') {
+                return htmlContent;
+            }
+
+            return transformedHtml.replace(/__PREVIEWER_SCRIPT_BLOCK_(\d+)__/g, (match, index) => {
+                const scriptBlock = preservedBlocks[Number(index)];
+                return typeof scriptBlock === 'string' ? scriptBlock : match;
+            });
         },
 
         createMissingAssetConsoleScript(assetLabel, requestedPath, currentFilePath, options = {}) {
