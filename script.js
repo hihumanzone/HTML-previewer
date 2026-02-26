@@ -813,22 +813,24 @@ const CodePreviewer = {
         MODULE_FILENAME_SUFFIXES: ['.mjs', '.esm.js', '.module.js'],
 
         getBaseName(filename) {
-            if (!filename || typeof filename !== 'string') return '';
-            const normalized = filename.replace(/\\+/g, '/').trim();
-            const segments = normalized.split('/');
-            return (segments.pop() || '').toLowerCase();
+            if (typeof filename !== 'string') return '';
+
+            const normalizedPath = filename.trim().replace(/\\/g, '/');
+            if (!normalizedPath) return '';
+
+            const pathSegments = normalizedPath.split('/');
+            return (pathSegments.pop() || '').toLowerCase();
         },
 
         getExtension(filename) {
             const baseName = this.getBaseName(filename);
-            if (!baseName) return '';
+            if (!baseName || baseName === '.' || baseName === '..') return '';
 
-            if (baseName.startsWith('.') && baseName.indexOf('.', 1) === -1) {
-                return baseName.slice(1).toLowerCase();
-            }
+            const lastDotIndex = baseName.lastIndexOf('.');
+            if (lastDotIndex === -1) return '';
+            if (lastDotIndex === 0) return baseName.slice(1).toLowerCase();
 
-            const parts = baseName.split('.');
-            return parts.length > 1 ? parts.pop().toLowerCase() : '';
+            return baseName.slice(lastDotIndex + 1).toLowerCase();
         },
 
         normalizeMimeType(mimeType) {
