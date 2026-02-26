@@ -1149,6 +1149,93 @@ const CodePreviewer = {
         },
 
         /**
+         * Generates JavaScript code that no-ops PWA-only platform APIs in preview mode.
+         * This prevents runtime crashes in apps that assume service workers and install
+         * prompts are always available while still allowing the site to run normally.
+         * @returns {string} JavaScript code for PWA compatibility shims
+         */
+        generatePWACompatibilityCode() {
+            return `
+    (function() {
+        const NO_OP = function() {};
+
+        const fakePushManager = {
+            subscribe: () => Promise.reject(new Error('Push subscriptions are unavailable in preview mode.')),
+            getSubscription: () => Promise.resolve(null),
+            permissionState: () => Promise.resolve('denied')
+        };
+
+        const fakeSyncManager = {
+            register: () => Promise.reject(new Error('Background sync is unavailable in preview mode.')),
+            getTags: () => Promise.resolve([])
+        };
+
+        const fakeRegistration = {
+            scope: window.location.href,
+            active: null,
+            waiting: null,
+            installing: null,
+            pushManager: fakePushManager,
+            sync: fakeSyncManager,
+            update: () => Promise.resolve(),
+            unregister: () => Promise.resolve(true),
+            showNotification: () => Promise.reject(new Error('Notifications are unavailable in preview mode.')),
+            getNotifications: () => Promise.resolve([]),
+            addEventListener: NO_OP,
+            removeEventListener: NO_OP
+        };
+
+        const fakeServiceWorkerContainer = {
+            controller: null,
+            ready: Promise.resolve(fakeRegistration),
+            register: () => Promise.resolve(fakeRegistration),
+            getRegistration: () => Promise.resolve(null),
+            getRegistrations: () => Promise.resolve([]),
+            startMessages: NO_OP,
+            addEventListener: NO_OP,
+            removeEventListener: NO_OP,
+            dispatchEvent: () => false
+        };
+
+        try {
+            Object.defineProperty(window.navigator, 'serviceWorker', {
+                configurable: true,
+                enumerable: true,
+                writable: false,
+                value: fakeServiceWorkerContainer
+            });
+        } catch (error) {
+            window.navigator.serviceWorker = fakeServiceWorkerContainer;
+        }
+
+        try {
+            if (window.Notification && typeof window.Notification.requestPermission === 'function') {
+                const OriginalNotification = window.Notification;
+                const wrappedRequestPermission = function(callback) {
+                    const result = Promise.resolve('denied');
+                    if (typeof callback === 'function') {
+                        result.then(callback);
+                    }
+                    return result;
+                };
+
+                Object.defineProperty(OriginalNotification, 'requestPermission', {
+                    configurable: true,
+                    writable: true,
+                    value: wrappedRequestPermission
+                });
+            }
+        } catch (error) {
+            // Ignore Notification patch failures in restrictive runtimes.
+        }
+
+        window.addEventListener('beforeinstallprompt', event => {
+            event.preventDefault();
+        });
+    })();`;
+        },
+
+        /**
          * Generates JavaScript code for a shared base64-to-Uint8Array helper (used in injected scripts)
          * Eliminates duplicate byte-conversion loops in fetch, XHR, and other overrides
          * @returns {string} JavaScript code for the base64ToUint8Array function
@@ -7661,6 +7748,7 @@ ${arg.stack}` : ''}`;
             const resolvePathCode = fsUtils.generateResolvePathCode();
             const findFileCode = fsUtils.generateFindFileCode();
             const getCurrentFilePathCode = fsUtils.generateGetCurrentFilePathCode();
+            const pwaCompatibilityCode = fsUtils.generatePWACompatibilityCode();
             const fetchOverrideCode = fsUtils.generateFetchOverrideCode();
             const xhrOverrideCode = fsUtils.generateXHROverrideCode();
             const imageOverrideCode = fsUtils.generateImageOverrideCode();
@@ -7676,6 +7764,7 @@ ${arg.stack}` : ''}`;
     ${resolvePathCode}
     ${findFileCode}
     ${getCurrentFilePathCode}
+    ${pwaCompatibilityCode}
     ${fetchOverrideCode}
     ${xhrOverrideCode}
     ${imageOverrideCode}
