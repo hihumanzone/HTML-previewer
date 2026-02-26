@@ -3998,7 +3998,12 @@ This content is loaded from a markdown file.
             this.state.openPanels.add(fileId);
         }
         
-        this.bindFilePanelEvents(document.querySelector(`.editor-panel[data-file-id="${fileId}"]`));
+        const createdPanel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+        if (!autoOpenPanel && createdPanel) {
+            createdPanel.style.display = 'none';
+        }
+
+        this.bindFilePanelEvents(createdPanel);
         
         this.refreshPanelAndFileTreeUI();
     },
@@ -4795,6 +4800,11 @@ This content is loaded from a markdown file.
     },
 
     refreshPanelAndFileTreeUI() {
+        document.querySelectorAll('.editor-panel[data-file-id]').forEach((panel) => {
+            const { fileId } = panel.dataset;
+            panel.style.display = this.state.openPanels.has(fileId) ? '' : 'none';
+        });
+
         this.updateRemoveButtonsVisibility();
         this.updateMainHtmlSelector();
         this.renderFileTree();
