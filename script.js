@@ -723,9 +723,10 @@ const CodePreviewer = {
                 'js': 'javascript', 'jsx': 'javascript', 'ts': 'javascript', 'tsx': 'javascript',
                 'mjs': 'javascript-module', 'esm': 'javascript-module',
                 'json': 'json',
+                'webmanifest': 'json',
                 'xml': 'xml',
                 'md': 'markdown', 'markdown': 'markdown',
-                'txt': 'text',
+                'txt': 'text', 'gitignore': 'text',
                 'svg': 'svg',
                 'jpg': 'image', 'jpeg': 'image', 'png': 'image', 'gif': 'image', 
                 'webp': 'image', 'bmp': 'image', 'ico': 'image', 'tiff': 'image',
@@ -767,7 +768,8 @@ const CodePreviewer = {
                 'eot': 'application/vnd.ms-fontobject',
                 'pdf': 'application/pdf',
                 'txt': 'text/plain', 'html': 'text/html', 'css': 'text/css', 'js': 'text/javascript',
-                'json': 'application/json', 'xml': 'application/xml'
+                'json': 'application/json', 'webmanifest': 'application/manifest+json', 'xml': 'application/xml',
+                'gitignore': 'text/plain'
             },
             
             BINARY_EXTENSIONS: new Set([
@@ -787,7 +789,7 @@ const CodePreviewer = {
                 'css': 'css',
                 'javascript': 'javascript',
                 'javascript-module': 'javascript',
-                'json': 'javascript',
+                'json': { name: 'javascript', json: true },
                 'xml': 'xml',
                 'markdown': 'markdown',
                 'text': 'text',
@@ -810,8 +812,25 @@ const CodePreviewer = {
         JS_MIME_TYPES: new Set(['text/javascript', 'application/javascript', 'application/x-javascript', 'text/ecmascript', 'application/ecmascript']),
         MODULE_FILENAME_SUFFIXES: ['.mjs', '.esm.js', '.module.js'],
 
+        getBaseName(filename) {
+            if (typeof filename !== 'string') return '';
+
+            const normalizedPath = filename.trim().replace(/\\/g, '/');
+            if (!normalizedPath) return '';
+
+            const pathSegments = normalizedPath.split('/');
+            return (pathSegments.pop() || '').toLowerCase();
+        },
+
         getExtension(filename) {
-            return filename ? filename.split('.').pop().toLowerCase() : '';
+            const baseName = this.getBaseName(filename);
+            if (!baseName || baseName === '.' || baseName === '..') return '';
+
+            const lastDotIndex = baseName.lastIndexOf('.');
+            if (lastDotIndex === -1) return '';
+            if (lastDotIndex === 0) return baseName.slice(1).toLowerCase();
+
+            return baseName.slice(lastDotIndex + 1).toLowerCase();
         },
 
         normalizeMimeType(mimeType) {
@@ -5278,20 +5297,12 @@ This content is loaded from a markdown file.
 
         const content = editor.getValue();
         let fileName = 'Code';
-        let language = 'text';
+        const language = this.getCodeMirrorMode(fileType);
 
         const fileNameInput = panel.querySelector('.file-name-input');
         
         if (fileNameInput) {
             fileName = fileNameInput.value || 'Untitled';
-        }
-        
-        if (fileType === 'html') {
-            language = 'htmlmixed';
-        } else if (fileType === 'css') {
-            language = 'css';
-        } else if (fileType === 'javascript' || fileType === 'javascript-module') {
-            language = 'javascript';
         }
 
         this.openCodeModal(content, fileName, language, panel);
