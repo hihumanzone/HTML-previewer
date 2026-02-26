@@ -2711,7 +2711,7 @@ This content is loaded from a markdown file.
         });
 
         rewritten = rewritten.replace(/(import\s*\(\s*)(["'])([^"']+)(\2\s*\))/g, (match, before, quote, specifier, after) => {
-            return `${before}${quote}${replaceSpecifier(specifier)}${quote}${after}`;
+            return `${before}${quote}${replaceSpecifier(specifier)}${after}`;
         });
 
         return rewritten;
