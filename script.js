@@ -2643,6 +2643,61 @@ This content is loaded from a markdown file.
         return this.fileTypeUtils.isJavaScriptModule(content, filename, mimeType);
     },
 
+    isExternalImportSpecifier(specifier) {
+        return /^(?:[a-z][a-z\d+.-]*:|\/\/|data:|blob:|#)/i.test(specifier || '');
+    },
+
+    shouldRewriteImportSpecifier(specifier) {
+        if (typeof specifier !== 'string' || !specifier.trim()) return false;
+        if (this.isExternalImportSpecifier(specifier)) return false;
+        return specifier.startsWith('.') || specifier.startsWith('/');
+    },
+
+    normalizeModuleSpecifier(specifier, currentFilePath) {
+        if (!this.shouldRewriteImportSpecifier(specifier)) return specifier;
+        const cleanSpecifier = specifier.split('#')[0].split('?')[0];
+        const resolvedPath = cleanSpecifier.startsWith('/')
+            ? cleanSpecifier.slice(1)
+            : this.fileSystemUtils.resolvePath(currentFilePath, cleanSpecifier);
+        return '/' + resolvedPath;
+    },
+
+    rewriteModuleSpecifiers(content, currentFilePath = 'index.html') {
+        if (typeof content !== 'string' || !content) return content;
+        const replaceSpecifier = (specifier) => this.normalizeModuleSpecifier(specifier, currentFilePath);
+
+        let rewritten = content.replace(/((?:import|export)\s+[\s\S]*?\s+from\s*)(["'])([^"']+)(\2)/g, (match, before, quote, specifier) => {
+            return `${before}${quote}${replaceSpecifier(specifier)}${quote}`;
+        });
+
+        rewritten = rewritten.replace(/(import\s*\(\s*)(["'])([^"']+)(\2\s*\))/g, (match, before, quote, specifier, after) => {
+            return `${before}${quote}${replaceSpecifier(specifier)}${quote}${after}`;
+        });
+
+        return rewritten;
+    },
+
+    buildModuleImportMapScript(fileSystem) {
+        if (!(fileSystem instanceof Map) || fileSystem.size === 0) return '';
+
+        const imports = {};
+        for (const [path, file] of fileSystem.entries()) {
+            if (!file || file.isBinary || (file.type !== 'javascript' && file.type !== 'javascript-module')) {
+                continue;
+            }
+
+            const rewrittenContent = this.rewriteModuleSpecifiers(file.content || '', path);
+            const moduleBlob = new Blob([rewrittenContent], { type: 'text/javascript' });
+            const moduleUrl = URL.createObjectURL(moduleBlob);
+            this.state.previewAssetUrls.add(moduleUrl);
+            imports['/' + path] = moduleUrl;
+        }
+
+        if (Object.keys(imports).length === 0) return '';
+
+        return `<script type="importmap">${JSON.stringify({ imports })}</script>`;
+    },
+
     autoDetectFileType(filename, content, mimeType) {
         return this.fileTypeUtils.detectFileType(filename, content, mimeType);
     },
@@ -5708,17 +5763,18 @@ This content is loaded from a markdown file.
 
         container.querySelectorAll('script').forEach((scriptEl) => {
             const src = scriptEl.getAttribute('src');
+            const scriptType = (scriptEl.getAttribute('type') || '').trim().toLowerCase();
             if (src) {
                 const trimmedSrc = src.trim();
                 const isExternal = /^(https?:)?\/\//i.test(trimmedSrc) || /^data:/i.test(trimmedSrc) || /^blob:/i.test(trimmedSrc);
-                if (!isExternal) {
+                if (!isExternal && scriptType !== 'module') {
                     scriptEl.remove();
                 }
                 return;
             }
 
             const scriptContent = scriptEl.textContent || '';
-            if (this.isModuleFile(scriptContent)) {
+            if (scriptType === 'module' || this.isModuleFile(scriptContent)) {
                 moduleFiles.push({
                     content: scriptContent,
                     filename: currentFilePath.replace(/\.(html?)$/, '-inline-module.mjs')
@@ -5910,69 +5966,38 @@ This content is loaded from a markdown file.
     },
 
     injectConsoleScript(htmlContent, fileSystem = null, mainHtmlPath = 'index.html') {
+        const moduleImportMapScript = this.buildModuleImportMapScript(fileSystem);
         const captureScript = this.consoleBridge.getCaptureScript(fileSystem, mainHtmlPath);
-        
+        const headInjection = [moduleImportMapScript, captureScript].filter(Boolean).join('\n');
+
         if (htmlContent.includes('</head>')) {
-            return htmlContent.replace('</head>', captureScript + '\n</head>');
+            return htmlContent.replace('</head>', headInjection + '\n</head>');
         } else if (htmlContent.includes('<head>')) {
-            return htmlContent.replace('<head>', '<head>\n' + captureScript);
+            return htmlContent.replace('<head>', '<head>\n' + headInjection);
         } else {
-            return htmlContent.replace(/<html[^>]*>/i, '$&\n<head>\n' + captureScript + '\n</head>');
+            return htmlContent.replace(/<html[^>]*>/i, '$&\n<head>\n' + headInjection + '\n</head>');
         }
     },
 
     processModuleFiles(moduleFiles, currentFilePath = 'index.html') {
         if (moduleFiles.length === 0) return '';
 
-        let combinedModuleContent = '';
-        let globalFunctions = [];
-        
-        moduleFiles.forEach((file, index) => {
-            let processedContent = file.content;
-            
-            const filePathContext = `window.__currentExecutionContext = "${file.filename}";\n`;
-            
-            processedContent = processedContent.replace(/import\s*\{[^}]+\}\s*from\s*['"][^'"]+['"];?\s*\n?/g, '');
-            processedContent = processedContent.replace(/import\s+\*\s+as\s+\w+\s+from\s*['"][^'"]+['"];?\s*\n?/g, '');
-            processedContent = processedContent.replace(/import\s+\w+\s+from\s*['"][^'"]+['"];?\s*\n?/g, '');
-            
-            processedContent = processedContent.replace(/export\s+function\s+(\w+)/g, (match, funcName) => {
-                globalFunctions.push(funcName);
-                return `function ${funcName}`;
-            });
-            processedContent = processedContent.replace(/export\s+const\s+(\w+)\s*=/g, 'const $1 =');
-            processedContent = processedContent.replace(/export\s+let\s+(\w+)\s*=/g, 'let $1 =');
-            processedContent = processedContent.replace(/export\s+var\s+(\w+)\s*=/g, 'var $1 =');
-            processedContent = processedContent.replace(/export\s+\{[^}]+\};?\s*\n?/g, '');
-            processedContent = processedContent.replace(/export\s+default\s+/g, '');
-            
-            const functionMatches = processedContent.match(/function\s+(\w+)\s*\(/g);
-            if (functionMatches) {
-                functionMatches.forEach(match => {
-                    const funcName = match.match(/function\s+(\w+)\s*\(/)[1];
-                    if (!globalFunctions.includes(funcName)) {
-                        globalFunctions.push(funcName);
-                    }
-                });
-            }
-            
-            combinedModuleContent += '\n' + filePathContext + processedContent + '\n';
-        });
-        
-        if (globalFunctions.length > 0) {
-            combinedModuleContent += '\n';
-            globalFunctions.forEach(funcName => {
-                combinedModuleContent += 'if (typeof ' + funcName + ' !== \'undefined\') { window.' + funcName + ' = ' + funcName + '; }\n';
-            });
-        }
-        
-        if (combinedModuleContent.trim() !== '') {
-            // Escape closing script tags to prevent them from breaking the parent script tag
-            const escapedContent = combinedModuleContent.replace(/<\/script>/gi, '<\\/script>');
-            return '<script type="module">\n' + escapedContent + '\n</script>\n';
-        }
-        
-        return '';
+        const moduleEntries = moduleFiles
+            .map((file) => {
+                const filename = file.filename || `${currentFilePath.replace(/\.(html?)$/i, '')}-module.mjs`;
+                return {
+                    content: this.rewriteModuleSpecifiers(file.content, filename),
+                    filename
+                };
+            })
+            .filter((file) => typeof file.content === 'string' && file.content.trim() !== '');
+
+        if (moduleEntries.length === 0) return '';
+
+        return moduleEntries.map((file) => {
+            const escapedContent = file.content.replace(/<\/script>/gi, '<\\/script>');
+            return `<script type="module">\n${escapedContent}\n</script>`;
+        }).join('\n') + '\n';
     },
 
     processJavaScriptFiles(jsFiles, currentFilePath = 'index.html') {
@@ -6049,6 +6074,7 @@ This content is loaded from a markdown file.
         const mainHtmlPath = mainHtmlFile ? (this.getFileNameFromPanel(mainHtmlFile.id) || 'index.html') : 'index.html';
         const htmlWithAssets = this.replaceAssetReferences(processedHtml, fileSystem, mainHtmlPath);
         
+        const moduleImportMapScript = this.buildModuleImportMapScript(fileSystem);
         const moduleScript = this.processModuleFiles(moduleFiles, mainHtmlPath);
         const jsScript = this.processJavaScriptFiles(jsFiles, mainHtmlPath);
 
@@ -6058,6 +6084,7 @@ This content is loaded from a markdown file.
             '    <meta charset="UTF-8">\n' +
             '    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
             '    <title>Preview</title>\n' +
+            '    ' + moduleImportMapScript + '\n' +
             '    ' + this.consoleBridge.getCaptureScript(fileSystem, mainHtmlPath) + '\n' +
             '    ' + workerScript + '\n' +
             '    <style>' + css + '</style>\n' +
@@ -7233,18 +7260,22 @@ This content is loaded from a markdown file.
                 if (isExternalScript) {
                     return match;
                 }
-                
+
+                const scriptHasModuleType = /\btype\s*=\s*["']module["']/i.test(`${before} ${after}`);
+                const resolvedPath = CodePreviewer.fileSystemUtils.resolvePath(currentFilePath, filename);
                 const file = CodePreviewer.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
                 if (file && (file.type === 'javascript' || file.type === 'javascript-module')) {
-                    const scriptType = file.type === 'javascript-module' ? ' type="module"' : '';
-                    // Escape closing script tags to prevent them from breaking the parent script tag
-                    const escapedContent = file.content.replace(/<\/script>/gi, '<\\/script>');
-                    return `<script${scriptType}>${escapedContent}</script>`;
+                    const isModule = scriptHasModuleType || file.type === 'javascript-module' || CodePreviewer.isModuleFile(file.content, resolvedPath);
+                    if (isModule) {
+                        const moduleSrc = '/' + resolvedPath;
+                        return match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${moduleSrc}"`);
+                    }
+
+                    const escapedContent = file.content.replace(/<\/script>/gi, '<\/script>');
+                    return `<script>${escapedContent}</script>`;
                 }
 
-                const scriptAttributes = /\btype\s*=\s*["']module["']/i.test(`${before} ${after}`)
-                    ? ' type="module"'
-                    : '';
+                const scriptAttributes = scriptHasModuleType ? ' type="module"' : '';
                 return CodePreviewer.assetReplacers.createMissingAssetConsoleScript('Script', filename, currentFilePath, {
                     scriptAttributes,
                 });
