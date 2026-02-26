@@ -811,9 +811,24 @@ const CodePreviewer = {
         BINARY_MIME_PREFIXES: ['image/', 'audio/', 'video/', 'application/', 'font/'],
         JS_MIME_TYPES: new Set(['text/javascript', 'application/javascript', 'application/x-javascript', 'text/ecmascript', 'application/ecmascript']),
         MODULE_FILENAME_SUFFIXES: ['.mjs', '.esm.js', '.module.js'],
+        SPECIAL_FILENAMES: {
+            '.gitignore': 'text',
+            'manifest.webmanifest': 'json'
+        },
+
+        getBaseName(filename) {
+            if (!filename || typeof filename !== 'string') return '';
+            const normalized = filename.replace(/\\+/g, '/').trim();
+            const segments = normalized.split('/');
+            return (segments.pop() || '').toLowerCase();
+        },
 
         getExtension(filename) {
-            return filename ? filename.split('.').pop().toLowerCase() : '';
+            const baseName = this.getBaseName(filename);
+            if (!baseName || !baseName.includes('.') || baseName.startsWith('.') && baseName.indexOf('.', 1) === -1) {
+                return '';
+            }
+            return baseName.split('.').pop().toLowerCase();
         },
 
         normalizeMimeType(mimeType) {
@@ -822,7 +837,11 @@ const CodePreviewer = {
         },
 
         getTypeFromExtension(filename) {
-            const extension = this.getExtension(filename);
+            const baseName = this.getBaseName(filename);
+            const specialType = this.SPECIAL_FILENAMES[baseName];
+            if (specialType) return specialType;
+
+            const extension = this.getExtension(baseName);
             return CodePreviewer.constants.FILE_TYPES.EXTENSIONS[extension] || 'binary';
         },
 
