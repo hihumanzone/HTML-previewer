@@ -8,6 +8,7 @@ A streamlined, local-first frontend playground to build, organize, and preview f
 - **Live Preview:** Real-time sandboxed preview with a dockable layout, external tab support, and a built-in console.
 - **Import & Export:** Easily import existing project files/folders or ZIP archives, and export your entire workspace as a ZIP.
 - **Advanced Editor:** Powered by CodeMirror with syntax highlighting (Dracula theme by default), auto-formatting, search, and customizable settings.
+- **Modern JavaScript Modules:** ES Module syntax (`type="module"`, `import`, `export`) is supported across multiple project files in preview mode.
 - **Local-First:** Runs 100% client-side. No backend, database, or build steps required.
 
 ## Usage

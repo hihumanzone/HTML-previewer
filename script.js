@@ -5924,55 +5924,134 @@ This content is loaded from a markdown file.
     processModuleFiles(moduleFiles, currentFilePath = 'index.html') {
         if (moduleFiles.length === 0) return '';
 
-        let combinedModuleContent = '';
-        let globalFunctions = [];
-        
-        moduleFiles.forEach((file, index) => {
-            let processedContent = file.content;
-            
-            const filePathContext = `window.__currentExecutionContext = "${file.filename}";\n`;
-            
-            processedContent = processedContent.replace(/import\s*\{[^}]+\}\s*from\s*['"][^'"]+['"];?\s*\n?/g, '');
-            processedContent = processedContent.replace(/import\s+\*\s+as\s+\w+\s+from\s*['"][^'"]+['"];?\s*\n?/g, '');
-            processedContent = processedContent.replace(/import\s+\w+\s+from\s*['"][^'"]+['"];?\s*\n?/g, '');
-            
-            processedContent = processedContent.replace(/export\s+function\s+(\w+)/g, (match, funcName) => {
-                globalFunctions.push(funcName);
-                return `function ${funcName}`;
+        const normalizedFiles = moduleFiles.map((file, index) => ({
+            id: `__module_${index}`,
+            filename: file.filename || `module-${index}.mjs`,
+            content: file.content || ''
+        }));
+
+        const fileByPath = new Map();
+        normalizedFiles.forEach((file) => fileByPath.set(file.filename.toLowerCase(), file));
+
+        const isExternalSpecifier = (specifier) => /^(?:[a-z]+:)?\/\//i.test(specifier) || /^(?:data:|blob:|#)/i.test(specifier);
+        const resolveLocalModule = (fromFile, specifier) => {
+            const resolvedPath = this.fileSystemUtils.resolvePath(fromFile.filename, specifier);
+            const exact = fileByPath.get(resolvedPath.toLowerCase());
+            if (exact) return exact;
+            if (!resolvedPath.endsWith('.js') && !resolvedPath.endsWith('.mjs')) {
+                return fileByPath.get((resolvedPath + '.js').toLowerCase()) || fileByPath.get((resolvedPath + '.mjs').toLowerCase()) || null;
+            }
+            return null;
+        };
+
+        const convertImportClause = (clause, sourceId) => {
+            const trimmed = clause.trim();
+            if (!trimmed) return `await __previewImport(${JSON.stringify(sourceId)});`;
+            if (trimmed.startsWith('{')) return `const ${trimmed} = await __previewImport(${JSON.stringify(sourceId)});`;
+            if (trimmed.startsWith('*')) {
+                const nsMatch = trimmed.match(/^\*\s+as\s+(\w+)$/);
+                return nsMatch ? `const ${nsMatch[1]} = await __previewImport(${JSON.stringify(sourceId)});` : `await __previewImport(${JSON.stringify(sourceId)});`;
+            }
+
+            const defaultAndNamed = trimmed.match(/^(\w+)\s*,\s*(\{[^}]+\}|\*\s+as\s+\w+)$/);
+            if (defaultAndNamed) {
+                const defPart = `const { default: ${defaultAndNamed[1]} } = await __previewImport(${JSON.stringify(sourceId)});`;
+                if (defaultAndNamed[2].startsWith('{')) {
+                    return `${defPart}\nconst ${defaultAndNamed[2]} = await __previewImport(${JSON.stringify(sourceId)});`;
+                }
+                const nsName = defaultAndNamed[2].replace(/^\*\s+as\s+/, '').trim();
+                return `${defPart}\nconst ${nsName} = await __previewImport(${JSON.stringify(sourceId)});`;
+            }
+
+            if (/^\w+$/.test(trimmed)) {
+                return `const { default: ${trimmed} } = await __previewImport(${JSON.stringify(sourceId)});`;
+            }
+
+            return `await __previewImport(${JSON.stringify(sourceId)});`;
+        };
+
+        const transpileModule = (file) => {
+            let code = file.content;
+            const exportNames = [];
+            const appendLines = [];
+
+            code = code.replace(/(^|\n)\s*import\s+([\s\S]*?)\s+from\s+['"]([^'"]+)['"]\s*;?/g, (match, prefix, clause, specifier) => {
+                if (isExternalSpecifier(specifier)) return match;
+                const target = resolveLocalModule(file, specifier);
+                if (!target) return match;
+                return `${prefix}${convertImportClause(clause, target.id)}`;
             });
-            processedContent = processedContent.replace(/export\s+const\s+(\w+)\s*=/g, 'const $1 =');
-            processedContent = processedContent.replace(/export\s+let\s+(\w+)\s*=/g, 'let $1 =');
-            processedContent = processedContent.replace(/export\s+var\s+(\w+)\s*=/g, 'var $1 =');
-            processedContent = processedContent.replace(/export\s+\{[^}]+\};?\s*\n?/g, '');
-            processedContent = processedContent.replace(/export\s+default\s+/g, '');
-            
-            const functionMatches = processedContent.match(/function\s+(\w+)\s*\(/g);
-            if (functionMatches) {
-                functionMatches.forEach(match => {
-                    const funcName = match.match(/function\s+(\w+)\s*\(/)[1];
-                    if (!globalFunctions.includes(funcName)) {
-                        globalFunctions.push(funcName);
+
+            code = code.replace(/(^|\n)\s*import\s*['"]([^'"]+)['"]\s*;?/g, (match, prefix, specifier) => {
+                if (isExternalSpecifier(specifier)) return match;
+                const target = resolveLocalModule(file, specifier);
+                if (!target) return match;
+                return `${prefix}await __previewImport(${JSON.stringify(target.id)});`;
+            });
+
+            code = code.replace(/(^|\n)\s*export\s+default\s+function\s*(\w*)\s*\(/g, (match, prefix, functionName) => {
+                if (functionName) {
+                    appendLines.push(`__exports.default = ${functionName};`);
+                    return `${prefix}function ${functionName}(`;
+                }
+                appendLines.push('__exports.default = __previewDefaultExport;');
+                return `${prefix}const __previewDefaultExport = function(`;
+            });
+
+            code = code.replace(/(^|\n)\s*export\s+default\s+class\s*(\w*)\s*/g, (match, prefix, className) => {
+                if (className) {
+                    appendLines.push(`__exports.default = ${className};`);
+                    return `${prefix}class ${className} `;
+                }
+                appendLines.push('__exports.default = __previewDefaultExportClass;');
+                return `${prefix}const __previewDefaultExportClass = class `;
+            });
+
+            code = code.replace(/(^|\n)\s*export\s+default\s+([^;\n]+);?/g, (match, prefix, expression) => `${prefix}__exports.default = ${expression};`);
+
+            code = code.replace(/(^|\n)\s*export\s+async\s+function\s+(\w+)\s*\(/g, (match, prefix, name) => {
+                exportNames.push(name);
+                return `${prefix}async function ${name}(`;
+            });
+            code = code.replace(/(^|\n)\s*export\s+function\s+(\w+)\s*\(/g, (match, prefix, name) => {
+                exportNames.push(name);
+                return `${prefix}function ${name}(`;
+            });
+            code = code.replace(/(^|\n)\s*export\s+(const|let|var)\s+(\w+)\s*=/g, (match, prefix, kind, name) => {
+                exportNames.push(name);
+                return `${prefix}${kind} ${name} =`;
+            });
+            code = code.replace(/(^|\n)\s*export\s+class\s+(\w+)\s*/g, (match, prefix, name) => {
+                exportNames.push(name);
+                return `${prefix}class ${name} `;
+            });
+
+            code = code.replace(/(^|\n)\s*export\s*\{([^}]+)\}\s*;?/g, (match, prefix, names) => {
+                names.split(',').map(part => part.trim()).filter(Boolean).forEach((entry) => {
+                    const aliasMatch = entry.match(/^(\w+)\s+as\s+(\w+)$/);
+                    if (aliasMatch) {
+                        appendLines.push(`__exports.${aliasMatch[2]} = ${aliasMatch[1]};`);
+                    } else {
+                        appendLines.push(`__exports.${entry} = ${entry};`);
                     }
                 });
-            }
-            
-            combinedModuleContent += '\n' + filePathContext + processedContent + '\n';
-        });
-        
-        if (globalFunctions.length > 0) {
-            combinedModuleContent += '\n';
-            globalFunctions.forEach(funcName => {
-                combinedModuleContent += 'if (typeof ' + funcName + ' !== \'undefined\') { window.' + funcName + ' = ' + funcName + '; }\n';
+                return prefix;
             });
-        }
-        
-        if (combinedModuleContent.trim() !== '') {
-            // Escape closing script tags to prevent them from breaking the parent script tag
-            const escapedContent = combinedModuleContent.replace(/<\/script>/gi, '<\\/script>');
-            return '<script type="module">\n' + escapedContent + '\n</script>\n';
-        }
-        
-        return '';
+
+            exportNames.forEach((name) => appendLines.push(`__exports.${name} = ${name};`));
+
+            const wrappedCode = `window.__currentExecutionContext = ${JSON.stringify(file.filename)};\nconst __exports = {};\n${code}\n${appendLines.join('\n')}\nreturn __exports;`;
+            return wrappedCode;
+        };
+
+        const moduleFactories = normalizedFiles.map((file) => {
+            const transpiled = transpileModule(file).replace(/<\/script>/gi, '<\\/script>');
+            return `${JSON.stringify(file.id)}: async (__previewImport) => {\n${transpiled}\n}`;
+        }).join(',\n');
+
+        const bootstrap = `\nconst __previewModuleFactories = {\n${moduleFactories}\n};\nconst __previewModuleCache = new Map();\nconst __previewImport = async (moduleId) => {\n  if (__previewModuleCache.has(moduleId)) return __previewModuleCache.get(moduleId);\n  const factory = __previewModuleFactories[moduleId];\n  if (!factory) throw new Error('Module not found: ' + moduleId);\n  const exportsPromise = factory(__previewImport);\n  __previewModuleCache.set(moduleId, exportsPromise);\n  return exportsPromise;\n};\nawait Promise.all(Object.keys(__previewModuleFactories).map(__previewImport));\n`;
+
+        return '<script type="module">\n' + bootstrap + '\n</script>\n';
     },
 
     processJavaScriptFiles(jsFiles, currentFilePath = 'index.html') {
