@@ -7037,6 +7037,22 @@ This content is loaded from a markdown file.
             return /^(?:https?:|\/\/|data:|blob:)/i.test(path || '');
         },
 
+        processOutsideScriptBlocks(htmlContent, processor) {
+            const scriptBlocks = [];
+            const placeholderPrefix = '__PREVIEW_SCRIPT_BLOCK_';
+            const protectedHtml = htmlContent.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, (match) => {
+                const placeholder = `${placeholderPrefix}${scriptBlocks.length}__`;
+                scriptBlocks.push(match);
+                return placeholder;
+            });
+
+            const processedHtml = processor(protectedHtml);
+            return processedHtml.replace(new RegExp(`${placeholderPrefix}(\\d+)__`, 'g'), (match, index) => {
+                const block = scriptBlocks[Number(index)];
+                return typeof block === 'string' ? block : match;
+            });
+        },
+
         createMissingAssetConsoleScript(assetLabel, requestedPath, currentFilePath, options = {}) {
             const safeRequestedPath = JSON.stringify(requestedPath || '');
             const safeSourcePath = JSON.stringify(currentFilePath || 'index.html');
@@ -7144,78 +7160,102 @@ This content is loaded from a markdown file.
          * @returns {string} Processed HTML content
          */
         replaceAllConfigBased(htmlContent, fileSystem, currentFilePath) {
-            for (const config of Object.values(this.REPLACEMENT_CONFIGS)) {
-                htmlContent = this.applyReplacement(htmlContent, fileSystem, currentFilePath, config);
-            }
-            return htmlContent;
+            return this.processOutsideScriptBlocks(htmlContent, (safeHtmlContent) => {
+                let updatedHtml = safeHtmlContent;
+                for (const config of Object.values(this.REPLACEMENT_CONFIGS)) {
+                    updatedHtml = this.applyReplacement(updatedHtml, fileSystem, currentFilePath, config);
+                }
+                return updatedHtml;
+            });
         },
 
         replaceDownloadLinks(htmlContent, fileSystem, currentFilePath, processedHtmlFiles) {
             if (!processedHtmlFiles) processedHtmlFiles = new Map();
-            return htmlContent.replace(/<a([^>]*?)href\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
-                if (match.includes('download') || !filename.includes('://')) {
-                    const file = CodePreviewer.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
-                    if (file) {
-                        if (file.type === 'html' && !match.includes('download')) {
-                            const resolvedPath = currentFilePath
-                                ? CodePreviewer.fileSystemUtils.resolvePath(currentFilePath, filename)
-                                : filename;
-                            const cachedUrl = processedHtmlFiles.get(resolvedPath);
-                            if (cachedUrl) {
-                                return match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${cachedUrl}"`);
+            return this.processOutsideScriptBlocks(htmlContent, (safeHtmlContent) => {
+                return safeHtmlContent.replace(/<a([^>]*?)href\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
+                    if (match.includes('download') || !filename.includes('://')) {
+                        const file = CodePreviewer.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
+                        if (file) {
+                            if (file.type === 'html' && !match.includes('download')) {
+                                const resolvedPath = currentFilePath
+                                    ? CodePreviewer.fileSystemUtils.resolvePath(currentFilePath, filename)
+                                    : filename;
+                                const cachedUrl = processedHtmlFiles.get(resolvedPath);
+                                if (cachedUrl) {
+                                    return match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${cachedUrl}"`);
+                                }
+                                if (!processedHtmlFiles.has(resolvedPath)) {
+                                    processedHtmlFiles.set(resolvedPath, null);
+                                    let processedContent = CodePreviewer.replaceAssetReferences(file.content, fileSystem, resolvedPath, processedHtmlFiles);
+                                    processedContent = CodePreviewer.injectConsoleScript(processedContent, fileSystem, resolvedPath);
+                                    const blob = new Blob([processedContent], { type: 'text/html' });
+                                    const blobUrl = URL.createObjectURL(blob);
+                                    CodePreviewer.state.previewAssetUrls.add(blobUrl);
+                                    processedHtmlFiles.set(resolvedPath, blobUrl);
+                                    return match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${blobUrl}"`);
+                                }
                             }
-                            if (!processedHtmlFiles.has(resolvedPath)) {
-                                processedHtmlFiles.set(resolvedPath, null);
-                                let processedContent = CodePreviewer.replaceAssetReferences(file.content, fileSystem, resolvedPath, processedHtmlFiles);
-                                processedContent = CodePreviewer.injectConsoleScript(processedContent, fileSystem, resolvedPath);
-                                const blob = new Blob([processedContent], { type: 'text/html' });
-                                const blobUrl = URL.createObjectURL(blob);
-                                CodePreviewer.state.previewAssetUrls.add(blobUrl);
-                                processedHtmlFiles.set(resolvedPath, blobUrl);
-                                return match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${blobUrl}"`);
-                            }
+                            const href = CodePreviewer.getPreviewAssetUrl(file);
+                            return match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${href}"`);
                         }
-                        const href = CodePreviewer.getPreviewAssetUrl(file);
-                        return match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${href}"`);
                     }
-                }
-                return match;
+                    return match;
+                });
             });
         },
 
         replaceStyleTags(htmlContent, fileSystem, currentFilePath) {
-            return htmlContent.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (match, cssContent) => {
-                const updatedCSS = CodePreviewer.replaceCSSAssetReferences(cssContent, fileSystem, currentFilePath);
-                return match.replace(cssContent, updatedCSS);
+            return this.processOutsideScriptBlocks(htmlContent, (safeHtmlContent) => {
+                return safeHtmlContent.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (match, cssContent) => {
+                    const updatedCSS = CodePreviewer.replaceCSSAssetReferences(cssContent, fileSystem, currentFilePath);
+                    return match.replace(cssContent, updatedCSS);
+                });
             });
         },
 
         replaceScriptTags(htmlContent, fileSystem, currentFilePath, workerFileSet) {
-            return htmlContent.replace(/<script([^>]*?)src\s*=\s*["']([^"']+\.(?:js|mjs))["']([^>]*?)><\/script>/gi, (match, before, filename, after) => {
+            const parser = new DOMParser();
+            const parsedDoc = parser.parseFromString(`<div id="__preview-script-replacer">${htmlContent}</div>`, 'text/html');
+            const container = parsedDoc.getElementById('__preview-script-replacer');
+            if (!container) return htmlContent;
+
+            container.querySelectorAll('script[src]').forEach((scriptEl) => {
+                const src = scriptEl.getAttribute('src') || '';
+                const filename = src.trim();
+                if (!filename || !/\.(?:js|mjs)(?:[?#].*)?$/i.test(filename)) {
+                    return;
+                }
+
                 if (workerFileSet.has(filename)) {
-                    return '';
+                    scriptEl.remove();
+                    return;
                 }
 
                 const isExternalScript = CodePreviewer.assetReplacers.isExternalAssetPath(filename);
                 if (isExternalScript) {
-                    return match;
-                }
-                
-                const file = CodePreviewer.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
-                if (file && (file.type === 'javascript' || file.type === 'javascript-module')) {
-                    const scriptType = file.type === 'javascript-module' ? ' type="module"' : '';
-                    // Escape closing script tags to prevent them from breaking the parent script tag
-                    const escapedContent = file.content.replace(/<\/script>/gi, '<\\/script>');
-                    return `<script${scriptType}>${escapedContent}</script>`;
+                    return;
                 }
 
-                const scriptAttributes = /\btype\s*=\s*["']module["']/i.test(`${before} ${after}`)
-                    ? ' type="module"'
-                    : '';
-                return CodePreviewer.assetReplacers.createMissingAssetConsoleScript('Script', filename, currentFilePath, {
-                    scriptAttributes,
+                const file = CodePreviewer.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
+                if (file && (file.type === 'javascript' || file.type === 'javascript-module')) {
+                    const replacementScript = parsedDoc.createElement('script');
+                    if (file.type === 'javascript-module') {
+                        replacementScript.setAttribute('type', 'module');
+                    }
+                    replacementScript.textContent = file.content;
+                    scriptEl.replaceWith(replacementScript);
+                    return;
+                }
+
+                const isModuleScript = (scriptEl.getAttribute('type') || '').trim().toLowerCase() === 'module';
+                const wrapper = parsedDoc.createElement('div');
+                wrapper.innerHTML = CodePreviewer.assetReplacers.createMissingAssetConsoleScript('Script', filename, currentFilePath, {
+                    scriptAttributes: isModuleScript ? ' type="module"' : '',
                 });
+                scriptEl.replaceWith(...wrapper.childNodes);
             });
+
+            return container.innerHTML;
         }
     },
 
