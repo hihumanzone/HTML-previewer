@@ -3857,8 +3857,40 @@ This content is loaded from a markdown file.
         fileInput.click();
     },
 
-    shouldAutoOpenImportedPanel(fileName) {
-        return this.getFolderFromPath(fileName) === '';
+    shouldAutoOpenImportedPanel(fileName, pendingFilePaths = []) {
+        const folderPath = this.getFolderFromPath(fileName);
+        if (folderPath === '') {
+            return true;
+        }
+
+        const existingFilePaths = this.state.files.map((file) =>
+            this.getFileNameFromPanel(file.id) || file.fileName || ''
+        );
+        const combinedPaths = [...existingFilePaths, ...pendingFilePaths, fileName]
+            .filter(Boolean);
+
+        const rootFiles = combinedPaths.filter((path) => this.getFolderFromPath(path) === '');
+        if (rootFiles.length > 0) {
+            return false;
+        }
+
+        const topLevelFolders = new Set();
+        combinedPaths.forEach((path) => {
+            const normalizedPath = String(path || '').trim().replace(/^\/+/, '');
+            if (!normalizedPath || !normalizedPath.includes('/')) return;
+
+            const topLevelFolder = normalizedPath.split('/')[0];
+            if (topLevelFolder) {
+                topLevelFolders.add(topLevelFolder);
+            }
+        });
+
+        if (topLevelFolders.size !== 1) {
+            return false;
+        }
+
+        const [effectiveHomeFolder] = topLevelFolders;
+        return folderPath === effectiveHomeFolder;
     },
 
     async _importFiles(fileList, getFileName, successMessage, options = {}) {
@@ -3876,6 +3908,8 @@ This content is loaded from a markdown file.
         let importedCount = 0;
         let skippedCount = 0;
         let processedCount = 0;
+
+        const importedFileNames = [];
 
         for (const file of files) {
             processedCount++;
@@ -3901,8 +3935,9 @@ This content is loaded from a markdown file.
             const fileData = await this.readFileContent(file);
             const detectedType = this.autoDetectFileType(result.fileName, fileData.isBinary ? null : fileData.content, file.type);
             this.addNewFileWithContent(result.fileName, detectedType, fileData.content, fileData.isBinary, {
-                autoOpenPanel: this.shouldAutoOpenImportedPanel(result.fileName)
+                autoOpenPanel: this.shouldAutoOpenImportedPanel(result.fileName, importedFileNames)
             });
+            importedFileNames.push(result.fileName);
             importedCount++;
         }
 
@@ -6688,6 +6723,8 @@ This content is loaded from a markdown file.
             let importedCount = 0;
             let skippedCount = 0;
 
+            const importedFileNames = [];
+
             for (let i = 0; i < entries.length; i++) {
                 const entry = entries[i];
                 const processedCount = i + 1;
@@ -6723,8 +6760,9 @@ This content is loaded from a markdown file.
 
                 const fileType = this.autoDetectFileType(result.fileName, isBinary ? null : content, mimeType);
                 this.addNewFileWithContent(result.fileName, fileType, content, isBinary, {
-                    autoOpenPanel: this.shouldAutoOpenImportedPanel(result.fileName)
+                    autoOpenPanel: this.shouldAutoOpenImportedPanel(result.fileName, importedFileNames)
                 });
+                importedFileNames.push(result.fileName);
                 importedCount++;
             }
 
