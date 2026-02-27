@@ -7548,15 +7548,29 @@ This content is loaded from a markdown file.
                 return file;
             }
         }
+
+        if (this.state.activePanelId) {
+            const activeHtmlFile = this.state.files.find(f => f.id === this.state.activePanelId && f.type === 'html');
+            if (activeHtmlFile) {
+                return activeHtmlFile;
+            }
+        }
         
         const htmlFiles = this.state.files.filter(f => f.type === 'html');
         
         const indexFile = htmlFiles.find(f => {
             const fileName = this.getFileNameFromPanel(f.id) || '';
-            return fileName.toLowerCase().includes('index.html');
+            return fileName.toLowerCase() === 'index.html';
         });
         
         if (indexFile) return indexFile;
+
+        const nestedIndexFile = htmlFiles.find(f => {
+            const fileName = this.getFileNameFromPanel(f.id) || '';
+            return fileName.toLowerCase().endsWith('/index.html');
+        });
+
+        if (nestedIndexFile) return nestedIndexFile;
         
         const fullDocFile = htmlFiles.find(f => this.isFullHTMLDocument(f.editor.getValue()));
         if (fullDocFile) return fullDocFile;
