@@ -5988,7 +5988,7 @@ This content is loaded from a markdown file.
         const fileSystem = new Map();
         
         this.state.files.forEach(file => {
-            const currentFilename = this.getFileNameFromPanel(file.id);
+            const currentFilename = this.getFileNameFromPanel(file.id) || file.fileName;
             const originalFilename = file.fileName;
             
             if (currentFilename && file.editor) {
@@ -6099,7 +6099,7 @@ This content is loaded from a markdown file.
         }
         
         const fileSystem = this.createVirtualFileSystem();
-        const mainHtmlPath = this.getFileNameFromPanel(mainHtmlFile.id) || 'index.html';
+        const mainHtmlPath = this.getFileNameFromPanel(mainHtmlFile.id) || mainHtmlFile.fileName || 'index.html';
         const processedHtmlFiles = new Map();
         processedHtmlFiles.set(mainHtmlPath, null);
         let processedHtml = this.replaceAssetReferences(mainHtmlFile.editor.getValue(), fileSystem, mainHtmlPath, processedHtmlFiles);
@@ -6213,7 +6213,9 @@ This content is loaded from a markdown file.
         
         const fileSystem = this.createVirtualFileSystem();
         const mainHtmlFile = this.getMainHtmlFile();
-        const mainHtmlPath = mainHtmlFile ? (this.getFileNameFromPanel(mainHtmlFile.id) || 'index.html') : 'index.html';
+        const mainHtmlPath = mainHtmlFile
+            ? (this.getFileNameFromPanel(mainHtmlFile.id) || mainHtmlFile.fileName || 'index.html')
+            : 'index.html';
         const htmlWithAssets = this.replaceAssetReferences(processedHtml, fileSystem, mainHtmlPath);
         
         const moduleImportMapScript = this.buildModuleImportMapScript(fileSystem);
