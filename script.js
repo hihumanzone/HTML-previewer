@@ -1037,18 +1037,29 @@ const CodePreviewer = {
          */
         findFile(fileSystem, targetFilename, currentFilePath = '') {
             const requestedFilename = targetFilename;
+            const normalizedRequested = typeof requestedFilename === 'string'
+                ? requestedFilename.replace(/^\/+/, '')
+                : requestedFilename;
+            const currentRootDir = typeof currentFilePath === 'string' && currentFilePath.includes('/')
+                ? currentFilePath.split('/')[0]
+                : '';
             // Resolve relative path if we have context
             if (currentFilePath) {
                 targetFilename = this.resolvePath(currentFilePath, targetFilename);
             }
 
-            const normalizedWithoutLeadingSlash = typeof requestedFilename === 'string'
-                ? requestedFilename.replace(/^\/+/, '')
-                : requestedFilename;
-
             const candidates = [targetFilename];
-            if (normalizedWithoutLeadingSlash && normalizedWithoutLeadingSlash !== targetFilename) {
-                candidates.push(normalizedWithoutLeadingSlash);
+            if (normalizedRequested && normalizedRequested !== targetFilename) {
+                candidates.push(normalizedRequested);
+            }
+
+            // Support project-root-relative URLs when the active HTML lives in a subfolder.
+            // Example: currentFilePath "test/index.html" and src "/music/track.mp3" should map to "test/music/track.mp3".
+            if (typeof requestedFilename === 'string' && requestedFilename.startsWith('/') && currentRootDir) {
+                const rootRelativeCandidate = `${currentRootDir}/${normalizedRequested}`;
+                if (!candidates.includes(rootRelativeCandidate)) {
+                    candidates.push(rootRelativeCandidate);
+                }
             }
             
             // Try exact match first
@@ -1132,16 +1143,25 @@ const CodePreviewer = {
             return `
     function findFileInSystem(targetFilename, currentFilePath = "") {
         const requestedFilename = targetFilename;
+        const normalizedRequested = typeof requestedFilename === 'string'
+            ? requestedFilename.replace(/^\/+/, '')
+            : requestedFilename;
+        const currentRootDir = typeof currentFilePath === 'string' && currentFilePath.includes('/')
+            ? currentFilePath.split('/')[0]
+            : '';
         if (currentFilePath) {
             targetFilename = resolvePath(currentFilePath, targetFilename);
         }
-
-        const normalizedWithoutLeadingSlash = typeof requestedFilename === 'string'
-            ? requestedFilename.replace(/^\/+/, '')
-            : requestedFilename;
         const candidates = [targetFilename];
-        if (normalizedWithoutLeadingSlash && normalizedWithoutLeadingSlash !== targetFilename) {
-            candidates.push(normalizedWithoutLeadingSlash);
+        if (normalizedRequested && normalizedRequested !== targetFilename) {
+            candidates.push(normalizedRequested);
+        }
+
+        if (typeof requestedFilename === 'string' && requestedFilename.startsWith('/') && currentRootDir) {
+            const rootRelativeCandidate = currentRootDir + '/' + normalizedRequested;
+            if (!candidates.includes(rootRelativeCandidate)) {
+                candidates.push(rootRelativeCandidate);
+            }
         }
 
         for (const candidate of candidates) {
