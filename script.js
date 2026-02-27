@@ -1037,12 +1037,18 @@ const CodePreviewer = {
          * @returns {string[]} Ordered unique lookup candidates
          */
         getLookupCandidates(requestedFilename, currentFilePath = '') {
-            const normalizedRequested = typeof requestedFilename === 'string'
-                ? requestedFilename.replace(/^\/+/, '')
+            const sanitizedRequested = typeof requestedFilename === 'string'
+                ? requestedFilename.trim().replace(/\\/g, '/').split(/[?#]/)[0]
                 : requestedFilename;
+            const decodedRequested = typeof sanitizedRequested === 'string'
+                ? (() => { try { return decodeURIComponent(sanitizedRequested); } catch (error) { return sanitizedRequested; } })()
+                : sanitizedRequested;
+            const normalizedRequested = typeof decodedRequested === 'string'
+                ? decodedRequested.replace(/^\/+/, '')
+                : decodedRequested;
             const resolvedFilename = currentFilePath
-                ? this.resolvePath(currentFilePath, requestedFilename)
-                : requestedFilename;
+                ? this.resolvePath(currentFilePath, decodedRequested)
+                : decodedRequested;
             const currentRootDir = typeof currentFilePath === 'string' && currentFilePath.includes('/')
                 ? currentFilePath.split('/')[0]
                 : '';
@@ -1052,7 +1058,7 @@ const CodePreviewer = {
                 candidates.push(normalizedRequested);
             }
 
-            if (typeof requestedFilename === 'string' && requestedFilename.startsWith('/') && currentRootDir) {
+            if (typeof decodedRequested === 'string' && decodedRequested.startsWith('/') && currentRootDir) {
                 const rootRelativeCandidate = `${currentRootDir}/${normalizedRequested}`;
                 if (!candidates.includes(rootRelativeCandidate)) {
                     candidates.push(rootRelativeCandidate);
@@ -1150,12 +1156,18 @@ const CodePreviewer = {
         generateLookupCandidatesCode() {
             return `
     function getLookupCandidates(requestedFilename, currentFilePath = "") {
-        const normalizedRequested = typeof requestedFilename === 'string'
-            ? requestedFilename.replace(/^\/+/, '')
+        const sanitizedRequested = typeof requestedFilename === 'string'
+            ? requestedFilename.trim().replace(/\\/g, '/').split(/[?#]/)[0]
             : requestedFilename;
+        const decodedRequested = typeof sanitizedRequested === 'string'
+            ? (() => { try { return decodeURIComponent(sanitizedRequested); } catch (error) { return sanitizedRequested; } })()
+            : sanitizedRequested;
+        const normalizedRequested = typeof decodedRequested === 'string'
+            ? decodedRequested.replace(/^\/+/, '')
+            : decodedRequested;
         const resolvedFilename = currentFilePath
-            ? resolvePath(currentFilePath, requestedFilename)
-            : requestedFilename;
+            ? resolvePath(currentFilePath, decodedRequested)
+            : decodedRequested;
         const currentRootDir = typeof currentFilePath === 'string' && currentFilePath.includes('/')
             ? currentFilePath.split('/')[0]
             : '';
@@ -1165,7 +1177,7 @@ const CodePreviewer = {
             candidates.push(normalizedRequested);
         }
 
-        if (typeof requestedFilename === 'string' && requestedFilename.startsWith('/') && currentRootDir) {
+        if (typeof decodedRequested === 'string' && decodedRequested.startsWith('/') && currentRootDir) {
             const rootRelativeCandidate = currentRootDir + '/' + normalizedRequested;
             if (!candidates.includes(rootRelativeCandidate)) {
                 candidates.push(rootRelativeCandidate);
