@@ -1036,21 +1036,33 @@ const CodePreviewer = {
          * @returns {Object|null} The file data or null if not found
          */
         findFile(fileSystem, targetFilename, currentFilePath = '') {
+            const requestedFilename = targetFilename;
             // Resolve relative path if we have context
             if (currentFilePath) {
                 targetFilename = this.resolvePath(currentFilePath, targetFilename);
             }
+
+            const normalizedWithoutLeadingSlash = typeof requestedFilename === 'string'
+                ? requestedFilename.replace(/^\/+/, '')
+                : requestedFilename;
+
+            const candidates = [targetFilename];
+            if (normalizedWithoutLeadingSlash && normalizedWithoutLeadingSlash !== targetFilename) {
+                candidates.push(normalizedWithoutLeadingSlash);
+            }
             
             // Try exact match first
-            const exactMatch = fileSystem.get(targetFilename);
-            if (exactMatch) {
-                return exactMatch;
+            for (const candidate of candidates) {
+                const exactMatch = fileSystem.get(candidate);
+                if (exactMatch) {
+                    return exactMatch;
+                }
             }
             
             // Try case-insensitive match
-            const targetLower = targetFilename.toLowerCase();
+            const targetLowerSet = new Set(candidates.map((candidate) => String(candidate || '').toLowerCase()));
             for (const [filename, file] of fileSystem) {
-                if (filename.toLowerCase() === targetLower) {
+                if (targetLowerSet.has(filename.toLowerCase())) {
                     return file;
                 }
             }
@@ -1119,14 +1131,27 @@ const CodePreviewer = {
         generateFindFileCode() {
             return `
     function findFileInSystem(targetFilename, currentFilePath = "") {
+        const requestedFilename = targetFilename;
         if (currentFilePath) {
             targetFilename = resolvePath(currentFilePath, targetFilename);
         }
-        const exactMatch = virtualFileSystem[targetFilename];
-        if (exactMatch) return exactMatch;
-        const targetLower = targetFilename.toLowerCase();
+
+        const normalizedWithoutLeadingSlash = typeof requestedFilename === 'string'
+            ? requestedFilename.replace(/^\/+/, '')
+            : requestedFilename;
+        const candidates = [targetFilename];
+        if (normalizedWithoutLeadingSlash && normalizedWithoutLeadingSlash !== targetFilename) {
+            candidates.push(normalizedWithoutLeadingSlash);
+        }
+
+        for (const candidate of candidates) {
+            const exactMatch = virtualFileSystem[candidate];
+            if (exactMatch) return exactMatch;
+        }
+
+        const targetLowerSet = new Set(candidates.map((candidate) => String(candidate || '').toLowerCase()));
         for (const [filename, file] of Object.entries(virtualFileSystem)) {
-            if (filename.toLowerCase() === targetLower) return file;
+            if (targetLowerSet.has(filename.toLowerCase())) return file;
         }
         return null;
     }`;
