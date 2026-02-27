@@ -1029,6 +1029,40 @@ const CodePreviewer = {
         },
 
         /**
+         * Builds candidate file paths used by virtual file lookups.
+         * Includes resolved relative paths, normalized root-relative paths, and
+         * nested project-root fallbacks.
+         * @param {string} requestedFilename - Raw requested path from HTML/CSS/JS
+         * @param {string} currentFilePath - Current source file path context
+         * @returns {string[]} Ordered unique lookup candidates
+         */
+        getLookupCandidates(requestedFilename, currentFilePath = '') {
+            const normalizedRequested = typeof requestedFilename === 'string'
+                ? requestedFilename.replace(/^\/+/, '')
+                : requestedFilename;
+            const resolvedFilename = currentFilePath
+                ? this.resolvePath(currentFilePath, requestedFilename)
+                : requestedFilename;
+            const currentRootDir = typeof currentFilePath === 'string' && currentFilePath.includes('/')
+                ? currentFilePath.split('/')[0]
+                : '';
+
+            const candidates = [resolvedFilename];
+            if (normalizedRequested && normalizedRequested !== resolvedFilename) {
+                candidates.push(normalizedRequested);
+            }
+
+            if (typeof requestedFilename === 'string' && requestedFilename.startsWith('/') && currentRootDir) {
+                const rootRelativeCandidate = `${currentRootDir}/${normalizedRequested}`;
+                if (!candidates.includes(rootRelativeCandidate)) {
+                    candidates.push(rootRelativeCandidate);
+                }
+            }
+
+            return candidates;
+        },
+
+        /**
          * Finds a file in the virtual file system
          * @param {Map} fileSystem - The virtual file system map
          * @param {string} targetFilename - The filename to find
@@ -1036,48 +1070,22 @@ const CodePreviewer = {
          * @returns {Object|null} The file data or null if not found
          */
         findFile(fileSystem, targetFilename, currentFilePath = '') {
-            const requestedFilename = targetFilename;
-            const normalizedRequested = typeof requestedFilename === 'string'
-                ? requestedFilename.replace(/^\/+/, '')
-                : requestedFilename;
-            const currentRootDir = typeof currentFilePath === 'string' && currentFilePath.includes('/')
-                ? currentFilePath.split('/')[0]
-                : '';
-            // Resolve relative path if we have context
-            if (currentFilePath) {
-                targetFilename = this.resolvePath(currentFilePath, targetFilename);
-            }
+            const candidates = this.getLookupCandidates(targetFilename, currentFilePath);
 
-            const candidates = [targetFilename];
-            if (normalizedRequested && normalizedRequested !== targetFilename) {
-                candidates.push(normalizedRequested);
-            }
-
-            // Support project-root-relative URLs when the active HTML lives in a subfolder.
-            // Example: currentFilePath "test/index.html" and src "/music/track.mp3" should map to "test/music/track.mp3".
-            if (typeof requestedFilename === 'string' && requestedFilename.startsWith('/') && currentRootDir) {
-                const rootRelativeCandidate = `${currentRootDir}/${normalizedRequested}`;
-                if (!candidates.includes(rootRelativeCandidate)) {
-                    candidates.push(rootRelativeCandidate);
-                }
-            }
-            
-            // Try exact match first
             for (const candidate of candidates) {
                 const exactMatch = fileSystem.get(candidate);
                 if (exactMatch) {
                     return exactMatch;
                 }
             }
-            
-            // Try case-insensitive match
+
             const targetLowerSet = new Set(candidates.map((candidate) => String(candidate || '').toLowerCase()));
             for (const [filename, file] of fileSystem) {
                 if (targetLowerSet.has(filename.toLowerCase())) {
                     return file;
                 }
             }
-            
+
             return null;
         },
 
@@ -1136,24 +1144,24 @@ const CodePreviewer = {
         },
 
         /**
-         * Generates JavaScript code for file lookup (used in injected scripts)
-         * @returns {string} JavaScript code for the findFileInSystem function
+         * Generates JavaScript code for lookup candidate generation in preview runtime.
+         * @returns {string} JavaScript code for getLookupCandidates
          */
-        generateFindFileCode() {
+        generateLookupCandidatesCode() {
             return `
-    function findFileInSystem(targetFilename, currentFilePath = "") {
-        const requestedFilename = targetFilename;
+    function getLookupCandidates(requestedFilename, currentFilePath = "") {
         const normalizedRequested = typeof requestedFilename === 'string'
             ? requestedFilename.replace(/^\/+/, '')
+            : requestedFilename;
+        const resolvedFilename = currentFilePath
+            ? resolvePath(currentFilePath, requestedFilename)
             : requestedFilename;
         const currentRootDir = typeof currentFilePath === 'string' && currentFilePath.includes('/')
             ? currentFilePath.split('/')[0]
             : '';
-        if (currentFilePath) {
-            targetFilename = resolvePath(currentFilePath, targetFilename);
-        }
-        const candidates = [targetFilename];
-        if (normalizedRequested && normalizedRequested !== targetFilename) {
+
+        const candidates = [resolvedFilename];
+        if (normalizedRequested && normalizedRequested !== resolvedFilename) {
             candidates.push(normalizedRequested);
         }
 
@@ -1163,6 +1171,19 @@ const CodePreviewer = {
                 candidates.push(rootRelativeCandidate);
             }
         }
+
+        return candidates;
+    }`;
+        },
+
+        /**
+         * Generates JavaScript code for file lookup (used in injected scripts)
+         * @returns {string} JavaScript code for the findFileInSystem function
+         */
+        generateFindFileCode() {
+            return `
+    function findFileInSystem(targetFilename, currentFilePath = "") {
+        const candidates = getLookupCandidates(targetFilename, currentFilePath);
 
         for (const candidate of candidates) {
             const exactMatch = virtualFileSystem[candidate];
@@ -8019,6 +8040,7 @@ ${arg.stack}` : ''}`;
             const fsUtils = CodePreviewer.previewScriptGenerator;
             const base64HelperCode = fsUtils.generateBase64HelperCode();
             const resolvePathCode = fsUtils.generateResolvePathCode();
+            const lookupCandidatesCode = fsUtils.generateLookupCandidatesCode();
             const findFileCode = fsUtils.generateFindFileCode();
             const getCurrentFilePathCode = fsUtils.generateGetCurrentFilePathCode();
             const fetchOverrideCode = fsUtils.generateFetchOverrideCode();
@@ -8035,6 +8057,7 @@ ${arg.stack}` : ''}`;
     ${fileSystemScript}
     ${base64HelperCode}
     ${resolvePathCode}
+    ${lookupCandidatesCode}
     ${findFileCode}
     ${getCurrentFilePathCode}
     ${fetchOverrideCode}
