@@ -7354,7 +7354,107 @@ This content is loaded from a markdown file.
             for (const config of Object.values(this.REPLACEMENT_CONFIGS)) {
                 htmlContent = this.applyReplacement(htmlContent, fileSystem, currentFilePath, config);
             }
-            return htmlContent;
+            return this.replaceMediaAndEmbeddedElementAssets(htmlContent, fileSystem, currentFilePath);
+        },
+
+        replaceMediaAndEmbeddedElementAssets(htmlContent, fileSystem, currentFilePath) {
+            if (typeof htmlContent !== 'string' || typeof DOMParser === 'undefined') {
+                return htmlContent;
+            }
+
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(htmlContent, 'text/html');
+            if (!doc || !doc.documentElement) {
+                return htmlContent;
+            }
+
+            const replaceAttr = (element, attrName, allowedTypes, mimeFallback) => {
+                const rawValue = element.getAttribute(attrName);
+                if (!rawValue || this.isExternalAssetPath(rawValue)) return;
+
+                const file = CodePreviewer.fileSystemUtils.findFile(fileSystem, rawValue, currentFilePath);
+                if (!file || (Array.isArray(allowedTypes) && !allowedTypes.includes(file.type))) return;
+
+                element.setAttribute(attrName, CodePreviewer.getPreviewAssetUrl(file, mimeFallback));
+            };
+
+            const replaceSrcsetAttr = (element, allowedTypes, mimeFallback) => {
+                const srcset = element.getAttribute('srcset');
+                if (!srcset) return;
+
+                const updatedSrcset = srcset
+                    .split(',')
+                    .map((candidate) => {
+                        const trimmed = candidate.trim();
+                        if (!trimmed) return candidate;
+
+                        const parts = trimmed.split(/\s+/);
+                        const candidateUrl = parts[0];
+                        if (this.isExternalAssetPath(candidateUrl)) return trimmed;
+
+                        const file = CodePreviewer.fileSystemUtils.findFile(fileSystem, candidateUrl, currentFilePath);
+                        if (!file || !allowedTypes.includes(file.type)) return trimmed;
+
+                        parts[0] = CodePreviewer.getPreviewAssetUrl(file, mimeFallback);
+                        return parts.join(' ');
+                    })
+                    .join(', ');
+
+                element.setAttribute('srcset', updatedSrcset);
+            };
+
+            doc.querySelectorAll('img').forEach((el) => {
+                replaceAttr(el, 'src', ['image', 'svg'], 'image/png');
+                replaceSrcsetAttr(el, ['image', 'svg'], 'image/png');
+            });
+
+            doc.querySelectorAll('source').forEach((el) => {
+                replaceAttr(el, 'src', ['audio', 'video', 'image', 'svg'], 'application/octet-stream');
+                replaceSrcsetAttr(el, ['image', 'svg'], 'image/png');
+            });
+
+            doc.querySelectorAll('track').forEach((el) => {
+                replaceAttr(el, 'src', ['text', 'xml'], 'text/vtt');
+            });
+
+            doc.querySelectorAll('audio').forEach((el) => {
+                replaceAttr(el, 'src', ['audio'], 'audio/mpeg');
+            });
+
+            doc.querySelectorAll('video').forEach((el) => {
+                replaceAttr(el, 'src', ['video'], 'video/mp4');
+                replaceAttr(el, 'poster', ['image', 'svg'], 'image/png');
+            });
+
+            doc.querySelectorAll('iframe').forEach((el) => {
+                replaceAttr(el, 'src', ['html', 'pdf'], 'text/html');
+            });
+
+            doc.querySelectorAll('embed').forEach((el) => {
+                replaceAttr(el, 'src', null, 'application/octet-stream');
+            });
+
+            doc.querySelectorAll('object').forEach((el) => {
+                replaceAttr(el, 'data', null, 'application/octet-stream');
+            });
+
+            doc.querySelectorAll('param').forEach((el) => {
+                const paramName = (el.getAttribute('name') || '').toLowerCase();
+                if (['src', 'movie', 'url', 'data'].includes(paramName)) {
+                    replaceAttr(el, 'value', null, 'application/octet-stream');
+                }
+            });
+
+            doc.querySelectorAll('area').forEach((el) => {
+                replaceAttr(el, 'href', null, 'application/octet-stream');
+            });
+
+            doc.querySelectorAll('svg image').forEach((el) => {
+                replaceAttr(el, 'href', ['image', 'svg'], 'image/png');
+                replaceAttr(el, 'xlink:href', ['image', 'svg'], 'image/png');
+            });
+
+            return doc.documentElement.outerHTML;
         },
 
         replaceDownloadLinks(htmlContent, fileSystem, currentFilePath, processedHtmlFiles) {
