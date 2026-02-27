@@ -1037,9 +1037,24 @@ const CodePreviewer = {
          * @returns {string[]} Ordered unique lookup candidates
          */
         getLookupCandidates(requestedFilename, currentFilePath = '') {
-            const sanitizedRequested = typeof requestedFilename === 'string'
-                ? requestedFilename.trim().replace(/\\/g, '/').split(/[?#]/)[0]
-                : requestedFilename;
+            const sameOriginPathRequested = (() => {
+                if (typeof requestedFilename !== 'string') return requestedFilename;
+                const trimmed = requestedFilename.trim();
+                if (!/^(?:https?:)?\/\//i.test(trimmed)) return trimmed;
+                try {
+                    const parsed = new URL(trimmed, window.location.href);
+                    if (parsed.origin === window.location.origin) {
+                        return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+                    }
+                } catch (error) {
+                    // no-op: fallback to original string
+                }
+                return trimmed;
+            })();
+
+            const sanitizedRequested = typeof sameOriginPathRequested === 'string'
+                ? sameOriginPathRequested.replace(/\\/g, '/').split(/[?#]/)[0]
+                : sameOriginPathRequested;
             const decodedRequested = typeof sanitizedRequested === 'string'
                 ? (() => { try { return decodeURIComponent(sanitizedRequested); } catch (error) { return sanitizedRequested; } })()
                 : sanitizedRequested;
@@ -1156,9 +1171,24 @@ const CodePreviewer = {
         generateLookupCandidatesCode() {
             return `
     function getLookupCandidates(requestedFilename, currentFilePath = "") {
-        const sanitizedRequested = typeof requestedFilename === 'string'
-            ? requestedFilename.trim().replace(/\\/g, '/').split(/[?#]/)[0]
-            : requestedFilename;
+        const sameOriginPathRequested = (() => {
+            if (typeof requestedFilename !== 'string') return requestedFilename;
+            const trimmed = requestedFilename.trim();
+            if (!/^(?:https?:)?\/\//i.test(trimmed)) return trimmed;
+            try {
+                const parsed = new URL(trimmed, window.location.href);
+                if (parsed.origin === window.location.origin) {
+                    return parsed.pathname + parsed.search + parsed.hash;
+                }
+            } catch (error) {
+                // no-op: fallback to original string
+            }
+            return trimmed;
+        })();
+
+        const sanitizedRequested = typeof sameOriginPathRequested === 'string'
+            ? sameOriginPathRequested.replace(/\\/g, '/').split(/[?#]/)[0]
+            : sameOriginPathRequested;
         const decodedRequested = typeof sanitizedRequested === 'string'
             ? (() => { try { return decodeURIComponent(sanitizedRequested); } catch (error) { return sanitizedRequested; } })()
             : sanitizedRequested;
