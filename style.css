@@ -2026,6 +2026,7 @@ body.preview-docked-bottom #code-modal.is-docked-left .modal-content {
     z-index: 3;
     background: transparent;
     touch-action: none;
+    transform: translateY(50%);
 }
 
 .console-resize-divider::before {

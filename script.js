@@ -7384,7 +7384,7 @@ This content is loaded from a markdown file.
         const bodyRect = modalBody.getBoundingClientRect();
         const rawHeight = bodyRect.bottom - event.clientY;
         const minHeight = 80;
-        const maxHeight = bodyRect.height * 0.8;
+        const maxHeight = bodyRect.height * 0.6;
         const newHeight = Math.min(maxHeight, Math.max(minHeight, rawHeight));
 
         this.state.consoleHeight = newHeight;
