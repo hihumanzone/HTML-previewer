@@ -908,6 +908,10 @@ class FileSystemUtils {
      * @returns {Object|null} The file data or null if not found
      */
     findFile(fileSystem, targetFilename, currentFilePath = '') {
+        if (typeof targetFilename !== 'string' || !targetFilename) {
+            return null;
+        }
+
         // Resolve relative path if we have context
         if (currentFilePath) {
             targetFilename = this.resolvePath(currentFilePath, targetFilename);
@@ -1004,6 +1008,7 @@ class PreviewScriptGenerator {
     generateFindFileCode() {
         return `
     function findFileInSystem(targetFilename, currentFilePath = "") {
+    if (typeof targetFilename !== "string" || !targetFilename) return null;
     if (currentFilePath) {
         targetFilename = resolvePath(currentFilePath, targetFilename);
     } else if (targetFilename.startsWith("/")) {
