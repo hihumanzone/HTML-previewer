@@ -658,6 +658,7 @@ class EventManager {
                     app.updatePanelMoveButtonDirections();
                     app.updateCodeModalHeaderAndButtons();
                     app.updateAdaptiveLayoutMode();
+                    app.updateDockedModalCompactModes();
                 }, 80);
             };
 
@@ -7295,6 +7296,7 @@ This content is loaded from a markdown file.
                 this.dom.modalConsolePanel.style.height = this.state.consoleHeight + 'px';
                 this.dom.consoleResizeDivider.style.display = '';
                 this.dom.consoleResizeDivider.style.bottom = this.state.consoleHeight + 'px';
+                this.syncConsoleDividerPosition();
             } else {
                 this.dom.consoleResizeDivider.style.display = 'none';
             }
