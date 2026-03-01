@@ -3277,9 +3277,10 @@ This content is loaded from a markdown file.
     },
 
     updateDockedModalCompactModes() {
-        const previewIsNarrow = this.state.isPreviewDocked
-            && this.state.previewDockOrientation === 'right'
-            && this.getDockSizePx('right') <= 460;
+        const previewIsNarrow = this.isMobileViewport()
+            || (this.state.isPreviewDocked
+                && this.state.previewDockOrientation === 'right'
+                && this.getDockSizePx('right') <= 460);
         document.body.classList.toggle('preview-dock-compact-controls', previewIsNarrow);
 
         const codeDockedLeft = this.isCodeModalCurrentlyDocked();
@@ -7184,6 +7185,18 @@ This content is loaded from a markdown file.
         this.applyCodeModalDockLayout();
         this.updateDockedModalCompactModes();
         this.updateBackgroundScrollLock();
+        this.syncConsoleDividerPosition();
+    },
+
+    syncConsoleDividerPosition() {
+        if (!this.dom.consoleResizeDivider
+            || this.dom.modalConsolePanel.classList.contains('hidden')) return;
+
+        const actualHeight = this.dom.modalConsolePanel.getBoundingClientRect().height;
+        if (actualHeight > 0) {
+            this.state.consoleHeight = actualHeight;
+            this.dom.consoleResizeDivider.style.bottom = actualHeight + 'px';
+        }
     },
 
     togglePreviewDock(forceState = null) {
