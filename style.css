@@ -864,6 +864,7 @@ button > svg,
     width: 320px;
     min-width: 240px;
     min-height: var(--file-panel-size);
+    max-height: calc(3 * var(--file-panel-size));
     height: auto;
     resize: horizontal;
     overflow: hidden auto;
@@ -1151,6 +1152,7 @@ button > svg,
     grid-template-columns: repeat(auto-fill, var(--panel-size));
     gap: var(--space-lg);
     align-items: start;
+    align-content: start;
     justify-content: start;
     flex: 1;
     min-width: 0;
