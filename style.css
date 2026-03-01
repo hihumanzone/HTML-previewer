@@ -866,7 +866,7 @@ button > svg,
     min-width: 240px;
     min-height: var(--file-panel-size);
     height: auto;
-    max-height: calc(100vh - 180px);
+    max-height: 75vh;
     resize: horizontal;
     overflow: hidden auto;
     flex: 0 0 auto;
