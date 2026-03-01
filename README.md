@@ -26,3 +26,4 @@ cd HTML-previewer
 - [CodeMirror](https://codemirror.net/) (Code Editor)
 - [JSZip](https://stuk.github.io/jszip/) (ZIP File handling)
 - [js-beautify](https://github.com/beautify-web/js-beautify) (Code formatting)
+- [pako](https://github.com/nodeca/pako) (GZIP decompression)
