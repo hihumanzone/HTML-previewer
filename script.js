@@ -2283,8 +2283,9 @@ class AssetReplacers {
                         }
                         if (!processedHtmlFiles.has(resolvedPath)) {
                             processedHtmlFiles.set(resolvedPath, null);
-                            let processedContent = this.app.replaceAssetReferences(file.content, fileSystem, resolvedPath, processedHtmlFiles);
-                            processedContent = this.app.injectConsoleScript(processedContent, fileSystem, resolvedPath);
+                            const subPageDirectModules = new Set();
+                            let processedContent = this.app.replaceAssetReferences(file.content, fileSystem, resolvedPath, processedHtmlFiles, subPageDirectModules);
+                            processedContent = this.app.injectConsoleScript(processedContent, fileSystem, resolvedPath, subPageDirectModules);
                             const blob = new Blob([processedContent], { type: 'text/html' });
                             const blobUrl = URL.createObjectURL(blob);
                             this.app.state.previewAssetUrls.add(blobUrl);
@@ -2307,7 +2308,7 @@ class AssetReplacers {
         });
     }
 
-    replaceScriptTags(htmlContent, fileSystem, currentFilePath, workerFileSet) {
+    replaceScriptTags(htmlContent, fileSystem, currentFilePath, workerFileSet, directModuleScripts) {
         return htmlContent.replace(/<script([^>]*?)src\s*=\s*["']([^"']+\.(?:js|mjs))["']([^>]*?)><\/script>/gi, (match, before, filename, after) => {
             if (workerFileSet.has(filename)) {
                 return '';
@@ -2326,6 +2327,7 @@ class AssetReplacers {
                 if (isModule) {
                     const moduleSrc = this.app.createModuleAssetUrl(fileSystem, resolvedPath);
                     if (moduleSrc) {
+                        if (directModuleScripts) directModuleScripts.add(resolvedPath);
                         return match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${moduleSrc}"`);
                     }
                 }
@@ -3509,7 +3511,7 @@ This content is loaded from a markdown file.
         return moduleUrl;
     },
 
-    buildModuleImportMap(fileSystem) {
+    buildModuleImportMap(fileSystem, excludePaths) {
         if (!(fileSystem instanceof Map) || fileSystem.size === 0) return null;
 
         const imports = {};
@@ -3517,6 +3519,7 @@ This content is loaded from a markdown file.
             if (!file || file.isBinary || (file.type !== 'javascript' && file.type !== 'javascript-module')) {
                 continue;
             }
+            if (excludePaths && excludePaths.has(path)) continue;
 
             const moduleUrl = this.createRewrittenModuleBlobUrl(file.content, path);
             imports[this.toVirtualModuleSpecifier(path)] = moduleUrl;
@@ -3535,8 +3538,8 @@ This content is loaded from a markdown file.
         return this.createRewrittenModuleBlobUrl(file.content, modulePath);
     },
 
-    buildModuleImportMapScript(fileSystem) {
-        const imports = this.buildModuleImportMap(fileSystem);
+    buildModuleImportMapScript(fileSystem, excludePaths) {
+        const imports = this.buildModuleImportMap(fileSystem, excludePaths);
         if (!imports) return '';
         return `<script type="importmap">${JSON.stringify({ imports })}</script>`;
     },
@@ -6778,7 +6781,7 @@ This content is loaded from a markdown file.
         return htmlContent;
     },
 
-    replaceAssetReferences(htmlContent, fileSystem, currentFilePath = '', processedHtmlFiles = null) {
+    replaceAssetReferences(htmlContent, fileSystem, currentFilePath = '', processedHtmlFiles = null, directModuleScripts = null) {
         if (!processedHtmlFiles) processedHtmlFiles = new Map();
         htmlContent = this.assetReplacers.withScriptBlocksPreserved(htmlContent, (safeHtmlContent) => {
             let updatedHtml = this.assetReplacers.replaceAllConfigBased(safeHtmlContent, fileSystem, currentFilePath);
@@ -6801,7 +6804,7 @@ This content is loaded from a markdown file.
         }
         
         const workerFileSet = new Set(workerFileNames);
-        htmlContent = this.assetReplacers.replaceScriptTags(htmlContent, fileSystem, currentFilePath, workerFileSet);
+        htmlContent = this.assetReplacers.replaceScriptTags(htmlContent, fileSystem, currentFilePath, workerFileSet, directModuleScripts);
         
         return htmlContent;
     },
@@ -6838,13 +6841,14 @@ This content is loaded from a markdown file.
         const mainHtmlPath = this.getFileNameFromPanel(mainHtmlFile.id) || 'index.html';
         const processedHtmlFiles = new Map();
         processedHtmlFiles.set(mainHtmlPath, null);
-        let processedHtml = this.replaceAssetReferences(mainHtmlFile.editor.getValue(), fileSystem, mainHtmlPath, processedHtmlFiles);
+        const directModuleScripts = new Set();
+        let processedHtml = this.replaceAssetReferences(mainHtmlFile.editor.getValue(), fileSystem, mainHtmlPath, processedHtmlFiles, directModuleScripts);
         
-        return this.injectConsoleScript(processedHtml, fileSystem, mainHtmlPath);
+        return this.injectConsoleScript(processedHtml, fileSystem, mainHtmlPath, directModuleScripts);
     },
 
-    injectConsoleScript(htmlContent, fileSystem = null, mainHtmlPath = 'index.html') {
-        const moduleImportMapScript = this.buildModuleImportMapScript(fileSystem);
+    injectConsoleScript(htmlContent, fileSystem = null, mainHtmlPath = 'index.html', directModuleScripts = null) {
+        const moduleImportMapScript = this.buildModuleImportMapScript(fileSystem, directModuleScripts);
         const captureScript = this.consoleBridge.getCaptureScript(fileSystem, mainHtmlPath);
         const headInjection = [moduleImportMapScript, captureScript].filter(Boolean).join('\n');
 
@@ -6950,9 +6954,10 @@ This content is loaded from a markdown file.
         const fileSystem = this.createVirtualFileSystem();
         const mainHtmlFile = this.getMainHtmlFile();
         const mainHtmlPath = mainHtmlFile ? (this.getFileNameFromPanel(mainHtmlFile.id) || 'index.html') : 'index.html';
-        const htmlWithAssets = this.replaceAssetReferences(processedHtml, fileSystem, mainHtmlPath);
+        const directModuleScripts = new Set();
+        const htmlWithAssets = this.replaceAssetReferences(processedHtml, fileSystem, mainHtmlPath, null, directModuleScripts);
         
-        const moduleImportMapScript = this.buildModuleImportMapScript(fileSystem);
+        const moduleImportMapScript = this.buildModuleImportMapScript(fileSystem, directModuleScripts);
         const moduleScript = this.processModuleFiles(moduleFiles, mainHtmlPath);
         const jsScript = this.processJavaScriptFiles(jsFiles, mainHtmlPath);
 
