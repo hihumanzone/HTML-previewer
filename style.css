@@ -2017,6 +2017,52 @@ body.preview-docked-bottom #code-modal.is-docked-left .modal-content {
     transition: transform 0.3s ease, opacity 0.2s ease, visibility 0s linear 0.3s;
 }
 
+.console-resize-divider {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 14px;
+    cursor: row-resize;
+    z-index: 3;
+    background: transparent;
+    touch-action: none;
+}
+
+.console-resize-divider::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 2px;
+    transform: translateY(-50%);
+    background: linear-gradient(90deg, rgba(var(--accent-rgb), 0.85), rgba(var(--accent-rgb), 0.25));
+    box-shadow: 0 0 0 1px rgba(var(--bg-dark-rgb), 0.4);
+}
+
+.console-resize-divider::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 56px;
+    height: 8px;
+    border-radius: var(--radius-pill);
+    transform: translate(-50%, -50%);
+    background: rgba(var(--accent-rgb), 0.22);
+    border: 1px solid rgba(var(--accent-rgb), 0.5);
+}
+
+.console-resize-divider:hover::before,
+.console-resize-divider.is-dragging::before {
+    background: linear-gradient(90deg, rgba(var(--accent-hover-rgb), 0.95), rgba(var(--accent-rgb), 0.45));
+}
+
+body.is-resizing-console {
+    user-select: none;
+    cursor: row-resize;
+}
+
 
 .console-header {
     background-color: var(--header-bg);
@@ -2036,6 +2082,7 @@ body.preview-docked-bottom #code-modal.is-docked-left .modal-content {
     height: 100%;
     padding: var(--space-md);
     overflow-y: auto;
+    overflow-x: hidden;
     font-family: var(--font-mono);
     font-size: var(--text-base);
     background-color: var(--bg-color);
@@ -2080,6 +2127,11 @@ body.preview-docked-bottom #code-modal.is-docked-left .modal-content {
     font-size: var(--text-md);
 }
 
+.console-filter-btn[data-filter="log"] .filter-icon { color: var(--primary-color); }
+.console-filter-btn[data-filter="info"] .filter-icon { color: var(--accent-color); }
+.console-filter-btn[data-filter="warn"] .filter-icon { color: var(--warn-color); }
+.console-filter-btn[data-filter="error"] .filter-icon { color: var(--error-color); }
+
 .filter-count {
     background: var(--border-color);
     padding: 0.1rem 0.4rem;
@@ -2103,6 +2155,7 @@ body.preview-docked-bottom #code-modal.is-docked-left .modal-content {
     word-break: break-all;
     border-bottom: 1px solid var(--secondary-color);
     font-size: var(--text-base);
+    min-width: 0;
 }
 
 #console-output .log-message:hover {
@@ -2127,7 +2180,9 @@ body.preview-docked-bottom #code-modal.is-docked-left .modal-content {
 
 .log-content {
     flex: 1;
+    min-width: 0;
     overflow-wrap: break-word;
+    word-break: break-word;
 }
 
 .log-copy-btn {
@@ -2139,6 +2194,7 @@ body.preview-docked-bottom #code-modal.is-docked-left .modal-content {
     opacity: 0;
     transition: opacity var(--transition-speed) ease;
     flex-shrink: 0;
+    color: #fff;
 }
 
 #console-output .log-message:hover .log-copy-btn {

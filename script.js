@@ -332,10 +332,14 @@ class EventManager {
     // ─── Console ──────────────────────────────────────────────────────────────
 
     /**
-     * Binds console toggle button.
+     * Binds console toggle button and console resize divider.
      */
     bindConsoleActions() {
         this.app.dom.toggleConsoleBtn.addEventListener('click', () => this.app.toggleConsole());
+        this.app.dom.consoleResizeDivider?.addEventListener(
+            'pointerdown',
+            (e) => this.app.startConsoleResize(e)
+        );
     }
 
     // ─── Preview Dock ─────────────────────────────────────────────────────────
@@ -2387,6 +2391,8 @@ const CodePreviewer = {
         previewDockOrientation: 'right',
         previewDockSize: { right: null, bottom: null },
         dockResizeSession: null,
+        consoleResizeSession: null,
+        consoleHeight: 200,
         isCodeModalDockedLeft: false,
         isSyncingCodeModalToSource: false,
         codeModalPlaintextInputHandlerBound: false,
@@ -2630,6 +2636,7 @@ const CodePreviewer = {
             closeModalBtn: document.querySelector('.modal-header .close-btn'),
             consoleOutput: document.getElementById(CONSOLE_ID),
             modalConsolePanel: document.getElementById(MODAL_CONSOLE_PANEL_ID),
+            consoleResizeDivider: document.getElementById('console-resize-divider'),
             editorGrid: document.querySelector('.editor-grid'),
             codeModalDockBtn: document.getElementById('code-modal-dock-btn'),
             codeModalSearchBtn: document.getElementById('code-modal-search-btn'),
@@ -7269,6 +7276,17 @@ This content is loaded from a markdown file.
         this.dom.modalConsolePanel.classList.toggle('hidden', !isVisible);
         this.dom.modalConsolePanel.setAttribute('aria-hidden', String(!isVisible));
         this.dom.toggleConsoleBtn.classList.toggle('active', isVisible);
+
+        if (this.dom.consoleResizeDivider) {
+            if (isVisible) {
+                this.dom.modalConsolePanel.style.height = this.state.consoleHeight + 'px';
+                this.dom.consoleResizeDivider.style.display = '';
+                this.dom.consoleResizeDivider.style.bottom = this.state.consoleHeight + 'px';
+            } else {
+                this.dom.consoleResizeDivider.style.display = 'none';
+            }
+        }
+
         this.updatePreviewDockControlButtons();
     },
 
@@ -7311,6 +7329,67 @@ This content is loaded from a markdown file.
     toggleConsole() {
         const isVisible = this.dom.modalConsolePanel.classList.contains('hidden');
         this.setModalConsoleVisibility(isVisible);
+    },
+
+    startConsoleResize(event) {
+        if (!this.dom.consoleResizeDivider) return;
+        event.preventDefault();
+
+        const divider = this.dom.consoleResizeDivider;
+        this.state.consoleResizeSession = { pointerId: event.pointerId };
+
+        divider.setPointerCapture(event.pointerId);
+
+        const onMove = (moveEvent) => this.handleConsoleResize(moveEvent);
+        const onUp = (upEvent) => this.endConsoleResize(upEvent);
+
+        divider.addEventListener('pointermove', onMove);
+        divider.addEventListener('pointerup', onUp, { once: true });
+        divider.addEventListener('pointercancel', onUp, { once: true });
+
+        this.state.consoleResizeSession.cleanup = () => {
+            divider.removeEventListener('pointermove', onMove);
+        };
+
+        divider.classList.add('is-dragging');
+        document.body.classList.add('is-resizing-console');
+    },
+
+    endConsoleResize(event) {
+        const session = this.state.consoleResizeSession;
+        if (!session || !this.dom.consoleResizeDivider) return;
+
+        try {
+            this.dom.consoleResizeDivider.releasePointerCapture(session.pointerId);
+        } catch (_err) {
+            // Pointer may already be released.
+        }
+
+        session.cleanup?.();
+        this.state.consoleResizeSession = null;
+        this.dom.consoleResizeDivider.classList.remove('is-dragging');
+        document.body.classList.remove('is-resizing-console');
+
+        if (event) {
+            this.handleConsoleResize(event);
+        }
+    },
+
+    handleConsoleResize(event) {
+        if (!this.state.consoleResizeSession) return;
+
+        const modalBody = this.dom.modalConsolePanel.parentElement;
+        if (!modalBody) return;
+
+        const bodyRect = modalBody.getBoundingClientRect();
+        const rawHeight = bodyRect.bottom - event.clientY;
+        const minHeight = 80;
+        const maxHeight = bodyRect.height * 0.8;
+        const newHeight = Math.min(maxHeight, Math.max(minHeight, rawHeight));
+
+        this.state.consoleHeight = newHeight;
+        this.dom.modalConsolePanel.style.height = newHeight + 'px';
+        this.dom.consoleResizeDivider.style.bottom = newHeight + 'px';
     },
 
     movePanel(panel, direction) {
