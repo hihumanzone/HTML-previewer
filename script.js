@@ -1743,8 +1743,8 @@ class NotificationSystem {
 }
 
 class ConsoleBridge {
-    constructor(constants, previewScriptGenerator) {
-        this.constants = constants;
+    constructor(consoleMessageType, previewScriptGenerator) {
+        this.consoleMessageType = consoleMessageType;
         this.previewScriptGenerator = previewScriptGenerator;
         this.logCounts = { log: 0, warn: 0, error: 0, info: 0 };
         this.filters = { log: true, warn: true, error: true, info: true };
@@ -1995,7 +1995,7 @@ ${arg.stack}` : ''}`;
      * @param {MessageEvent} event
      */
     handleMessage(event) {
-        const { CONSOLE_MESSAGE_TYPE } = this.constants;
+        const CONSOLE_MESSAGE_TYPE = this.consoleMessageType;
         // Guard: event.data may be null (e.g. from browser extensions).
         if (
             event.data &&
@@ -2006,7 +2006,7 @@ ${arg.stack}` : ''}`;
         }
     }
     getCaptureScript(fileSystem = null, mainHtmlPath = 'index.html') {
-        const MESSAGE_TYPE = this.constants.CONSOLE_MESSAGE_TYPE;
+        const MESSAGE_TYPE = this.consoleMessageType;
 
         // Generate file system initialization script
         let fileSystemScript = '';
@@ -2510,7 +2510,9 @@ const CodePreviewer = {
     },
     init() {
         // Create utility instances with dependency injection.
-        // Order matters: fileSystemUtils depends on fileTypeUtils; assetReplacers depends on the CodePreviewer instance.
+        // Order matters: each class receives its dependencies via constructor, so
+        // instances must be created after their dependencies (e.g. fileSystemUtils
+        // requires fileTypeUtils; assetReplacers requires the full app instance).
         this.fileTypeUtils = new FileTypeUtils(this.constants.FILE_TYPES);
         this.fileSystemUtils = new FileSystemUtils(this.fileTypeUtils);
         this.previewScriptGenerator = new PreviewScriptGenerator();
@@ -2535,7 +2537,7 @@ const CodePreviewer = {
         this.syncSettingsUI();
 
         // Initialize the console capture bridge with constants and previewScriptGenerator for injection script generation.
-        this.consoleBridge = new ConsoleBridge(this.constants, this.previewScriptGenerator);
+        this.consoleBridge = new ConsoleBridge(this.constants.CONSOLE_MESSAGE_TYPE, this.previewScriptGenerator);
         this.consoleBridge.init(this.dom.consoleOutput, this.dom.clearConsoleBtn, this.dom.previewFrame);
 
         this.updatePreviewActionButtons();
