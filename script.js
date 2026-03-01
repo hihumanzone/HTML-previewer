@@ -911,6 +911,9 @@ class FileSystemUtils {
         // Resolve relative path if we have context
         if (currentFilePath) {
             targetFilename = this.resolvePath(currentFilePath, targetFilename);
+        } else if (targetFilename.startsWith('/')) {
+            // Strip leading slash for root-relative paths even without context
+            targetFilename = targetFilename.substring(1);
         }
 
         // Try exact match first
@@ -924,6 +927,22 @@ class FileSystemUtils {
         for (const [filename, file] of fileSystem) {
             if (filename.toLowerCase() === targetLower) {
                 return file;
+            }
+        }
+
+        // Try matching by filename only (without directory path)
+        const targetBasename = targetFilename.includes('/')
+            ? targetFilename.substring(targetFilename.lastIndexOf('/') + 1)
+            : targetFilename;
+        if (targetBasename) {
+            const targetBasenameLower = targetBasename.toLowerCase();
+            for (const [filename, file] of fileSystem) {
+                const fileBasename = filename.includes('/')
+                    ? filename.substring(filename.lastIndexOf('/') + 1)
+                    : filename;
+                if (fileBasename.toLowerCase() === targetBasenameLower) {
+                    return file;
+                }
             }
         }
 
@@ -987,12 +1006,26 @@ class PreviewScriptGenerator {
     function findFileInSystem(targetFilename, currentFilePath = "") {
     if (currentFilePath) {
         targetFilename = resolvePath(currentFilePath, targetFilename);
+    } else if (targetFilename.startsWith("/")) {
+        targetFilename = targetFilename.substring(1);
     }
     const exactMatch = virtualFileSystem[targetFilename];
     if (exactMatch) return exactMatch;
     const targetLower = targetFilename.toLowerCase();
     for (const [filename, file] of Object.entries(virtualFileSystem)) {
         if (filename.toLowerCase() === targetLower) return file;
+    }
+    const targetBasename = targetFilename.includes("/")
+        ? targetFilename.substring(targetFilename.lastIndexOf("/") + 1)
+        : targetFilename;
+    if (targetBasename) {
+        const targetBasenameLower = targetBasename.toLowerCase();
+        for (const [filename, file] of Object.entries(virtualFileSystem)) {
+            const fileBasename = filename.includes("/")
+                ? filename.substring(filename.lastIndexOf("/") + 1)
+                : filename;
+            if (fileBasename.toLowerCase() === targetBasenameLower) return file;
+        }
     }
     return null;
     }`;
