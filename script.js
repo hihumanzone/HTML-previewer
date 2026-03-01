@@ -64,6 +64,83 @@ const SVG_ICONS = {
     fileBinary: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1L14 4v8l-6 3L2 12V4l6-3z"/><path d="M8 8v7"/><path d="M2 4l6 4 6-4"/></svg>',
 };
 
+// ============================================================================
+// STANDALONE UTILITY FUNCTIONS
+// Pure functions with no dependency on CodePreviewer instance.
+// ============================================================================
+
+const escapeHtml = (str) => {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+};
+
+const base64ToUint8Array = (base64) => {
+    const binaryString = atob(base64);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes;
+};
+
+const formatFileSize = (bytes) => {
+    const normalized = Number.isFinite(bytes) && bytes >= 0 ? bytes : 0;
+    if (normalized < 1024) return `${normalized} B`;
+    const units = ['KB', 'MB', 'GB'];
+    let size = normalized;
+    let unitIndex = -1;
+    while (size >= 1024 && unitIndex < units.length - 1) {
+        size /= 1024;
+        unitIndex += 1;
+    }
+    const roundedSize = size >= 10 ? Math.round(size) : Math.round(size * 10) / 10;
+    return `${roundedSize} ${units[unitIndex]}`;
+};
+
+const getLineCount = (content) => {
+    return content.length === 0 ? 1 : content.split(/\r\n|\r|\n/).length;
+};
+
+function createMockEditor(textarea, fontSize) {
+    if (!textarea) return null;
+    Object.assign(textarea.style, {
+        fontFamily: 'monospace', fontSize: `${fontSize}px`, lineHeight: '1.5',
+        resize: 'none', border: 'none', outline: 'none',
+        background: '#282a36', color: '#f8f8f2', padding: '1rem',
+        width: '100%', height: '400px'
+    });
+    return {
+        setValue: (value) => { textarea.value = value; },
+        getValue: () => textarea.value,
+        refresh: () => {},
+        setOption: () => {},
+        on: (eventName, handler) => {
+            if (eventName !== 'change' || !handler) return;
+            if (textarea.__changeListener) {
+                textarea.removeEventListener('input', textarea.__changeListener);
+            }
+            textarea.__changeListener = () => handler(null, { origin: '+input' });
+            textarea.addEventListener('input', textarea.__changeListener);
+        },
+    };
+}
+
+function findNextMatch(content, query, startIndex) {
+    if (!content || !query) return -1;
+    const lowerContent = content.toLowerCase();
+    const lowerQuery = query.toLowerCase();
+    let matchIndex = lowerContent.indexOf(lowerQuery, startIndex);
+    if (matchIndex === -1 && startIndex > 0) {
+        matchIndex = lowerContent.indexOf(lowerQuery);
+    }
+    return matchIndex;
+}
+
 
 /**
  * Handles preview rendering concerns such as debouncing and runtime fallback UI.
@@ -161,7 +238,7 @@ class PreviewRenderer {
      * @returns {string} A minimal HTML document string
      */
     buildPreviewErrorDocument(error) {
-        const errorText = this.app.escapeHtml(error instanceof Error ? error.message : String(error));
+        const errorText = escapeHtml(error instanceof Error ? error.message : String(error));
         return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Preview Error</title></head><body style="font-family:Arial,sans-serif;background:#121219;color:#f8f8ff;padding:16px;"><h2 style="margin-top:0;">Preview rendering error</h2><p>The preview could not be generated safely.</p><pre style="white-space:pre-wrap;background:#1d1f2e;padding:12px;border-radius:8px;border:1px solid #34364d;">${errorText}</pre></body></html>`;
     }
 }
@@ -599,6 +676,1634 @@ class EventManager {
     }
 }
 
+class FileTypeUtils {
+    constructor(constants) {
+        this.constants = constants;
+        this.BINARY_MIME_PREFIXES = ['image/', 'audio/', 'video/', 'application/', 'font/'];
+        this.JS_MIME_TYPES = new Set(['text/javascript', 'application/javascript', 'application/x-javascript', 'text/ecmascript', 'application/ecmascript']);
+        this.MODULE_FILENAME_SUFFIXES = ['.mjs', '.esm.js', '.module.js'];
+    }
+
+    getBaseName(filename) {
+        if (typeof filename !== 'string') return '';
+
+        const normalizedPath = filename.trim().replace(/\\/g, '/');
+        if (!normalizedPath) return '';
+
+        const pathSegments = normalizedPath.split('/');
+        return (pathSegments.pop() || '').toLowerCase();
+    }
+
+    getExtension(filename) {
+        const baseName = this.getBaseName(filename);
+        if (!baseName || baseName === '.' || baseName === '..') return '';
+
+        const lastDotIndex = baseName.lastIndexOf('.');
+        if (lastDotIndex === -1) return '';
+        if (lastDotIndex === 0) return baseName.slice(1).toLowerCase();
+
+        return baseName.slice(lastDotIndex + 1).toLowerCase();
+    }
+
+    normalizeMimeType(mimeType) {
+        if (!mimeType || typeof mimeType !== 'string') return '';
+        return mimeType.toLowerCase().split(';')[0].trim();
+    }
+
+    getTypeFromExtension(filename) {
+        const extension = this.getExtension(filename);
+        return this.constants.EXTENSIONS[extension] || 'binary';
+    }
+
+    getMimeTypeFromExtension(extension) {
+        const normalizedExtension = extension?.toLowerCase();
+        return this.constants.EXTENSION_MIME_MAP[normalizedExtension] || 'application/octet-stream';
+    }
+
+    getMimeTypeFromFileType(fileType) {
+        return this.constants.MIME_TYPES[fileType] || 'text/plain';
+    }
+
+    getTypeFromMimeType(mimeType) {
+        const normalizedMimeType = this.normalizeMimeType(mimeType);
+        if (!normalizedMimeType) return null;
+        if (this.JS_MIME_TYPES.has(normalizedMimeType)) return 'javascript';
+        if (normalizedMimeType === 'text/html') return 'html';
+        if (normalizedMimeType === 'text/css') return 'css';
+        if (normalizedMimeType === 'application/json' || normalizedMimeType.endsWith('+json')) return 'json';
+        if (normalizedMimeType === 'application/xml' || normalizedMimeType === 'text/xml') return 'xml';
+        if (normalizedMimeType === 'text/markdown') return 'markdown';
+        if (normalizedMimeType === 'image/svg+xml') return 'svg';
+        if (normalizedMimeType.startsWith('image/')) return 'image';
+        if (normalizedMimeType.startsWith('audio/')) return 'audio';
+        if (normalizedMimeType.startsWith('video/')) return 'video';
+        if (normalizedMimeType.startsWith('font/')) return 'font';
+        if (normalizedMimeType === 'application/pdf') return 'pdf';
+        if (normalizedMimeType.startsWith('text/')) return 'text';
+        return null;
+    }
+
+    hasBinaryMimePrefix(mimeType) {
+        return this.BINARY_MIME_PREFIXES.some(prefix => mimeType.startsWith(prefix));
+    }
+
+    isBinaryExtension(extension) {
+        return this.constants.BINARY_EXTENSIONS.has(extension?.toLowerCase());
+    }
+
+    isJavaScriptMimeType(mimeType) {
+        return this.JS_MIME_TYPES.has(this.normalizeMimeType(mimeType));
+    }
+
+    hasModuleFilenameHint(filename) {
+        if (!filename || typeof filename !== 'string') return false;
+        const lowerName = filename.toLowerCase();
+        return this.MODULE_FILENAME_SUFFIXES.some(suffix => lowerName.endsWith(suffix));
+    }
+
+    hasModuleMimeHint(mimeType) {
+        return typeof mimeType === 'string' && /(?:^|;)\s*module(?:\s*=\s*(?:1|true))?\s*(?:;|$)/i.test(mimeType);
+    }
+
+    isJavaScriptModule(content, filename, mimeType) {
+        if (this.hasModuleFilenameHint(filename) || this.hasModuleMimeHint(mimeType)) {
+            return true;
+        }
+
+        if (!content || typeof content !== 'string') {
+            return false;
+        }
+
+        const modulePatterns = [
+            /^\s*import\s+/m,
+            /^\s*export\s+/m,
+            /import\s*\(/,
+            /export\s*\{/,
+            /export\s+default\s+/,
+            /export\s+\*/
+        ];
+
+        return modulePatterns.some(pattern => pattern.test(content));
+    }
+
+    detectJavaScriptType(content, filename, mimeType) {
+        return this.isJavaScriptModule(content, filename, mimeType) ? 'javascript-module' : 'javascript';
+    }
+
+    isBinaryFile(filename, mimeType) {
+        if (!filename) return false;
+
+        const extension = this.getExtension(filename);
+        if (this.isBinaryExtension(extension)) {
+            return true;
+        }
+
+        const normalizedMimeType = this.normalizeMimeType(mimeType);
+        if (!normalizedMimeType) return false;
+
+        if (normalizedMimeType === 'image/svg+xml' || normalizedMimeType === 'application/json' || normalizedMimeType.endsWith('+json')) {
+            return false;
+        }
+
+        return this.hasBinaryMimePrefix(normalizedMimeType);
+    }
+
+    isEditableType(fileType) {
+        return this.constants.EDITABLE_TYPES.includes(fileType);
+    }
+
+    isPreviewableType(fileType) {
+        return this.constants.PREVIEWABLE_TYPES.includes(fileType);
+    }
+
+    getCodeMirrorMode(fileType) {
+        return this.constants.CODEMIRROR_MODES[fileType] || 'text';
+    }
+
+    detectTypeFromContent(content, filename, mimeType = '') {
+        const extensionType = this.getTypeFromExtension(filename);
+        if (!content) {
+            if (extensionType === 'javascript' || extensionType === 'javascript-module') {
+                return this.detectJavaScriptType(content, filename, mimeType);
+            }
+            return extensionType;
+        }
+
+        if (/<\s*html/i.test(content)) return 'html';
+        if (this.isJavaScriptModule(content, filename, mimeType)) return 'javascript-module';
+        if (/^\s*[\.\#\@]|\s*\w+\s*\{/m.test(content)) return 'css';
+        if (extensionType === 'javascript' || extensionType === 'javascript-module') {
+            return this.detectJavaScriptType(content, filename, mimeType);
+        }
+
+        return extensionType;
+    }
+
+    detectFileType(filename, content, mimeType) {
+        if (!filename) return 'text';
+
+        const extensionType = this.getTypeFromExtension(filename);
+        const mimeTypeType = this.getTypeFromMimeType(mimeType);
+
+        if (this.isBinaryExtension(this.getExtension(filename))) {
+            return extensionType === 'binary' && mimeTypeType ? mimeTypeType : extensionType;
+        }
+
+        if (mimeTypeType && mimeTypeType !== 'javascript') {
+            return mimeTypeType;
+        }
+
+        if (mimeTypeType === 'javascript') {
+            return this.detectJavaScriptType(content, filename, mimeType);
+        }
+
+        return this.detectTypeFromContent(content, filename, mimeType);
+    }
+}
+
+class FileSystemUtils {
+    constructor(fileTypeUtils) {
+        this.fileTypeUtils = fileTypeUtils;
+    }
+
+    /**
+     * Resolves a relative path against a base path
+     * @param {string} basePath - The base file path
+     * @param {string} relativePath - The relative path to resolve
+     * @returns {string} The resolved absolute path
+     */
+    resolvePath(basePath, relativePath) {
+        // Absolute paths start fresh
+        if (relativePath.startsWith('/')) {
+            return relativePath.substring(1);
+        }
+
+        // Get directory portion of base path
+        const baseDir = basePath.includes('/')
+            ? basePath.substring(0, basePath.lastIndexOf('/'))
+            : '';
+
+        const baseParts = baseDir ? baseDir.split('/') : [];
+        const relativeParts = relativePath.split('/');
+        const resultParts = [...baseParts];
+
+        for (const part of relativeParts) {
+            if (part === '..') {
+                if (resultParts.length > 0) {
+                    resultParts.pop();
+                }
+            } else if (part !== '.' && part !== '') {
+                resultParts.push(part);
+            }
+        }
+
+        return resultParts.join('/');
+    }
+
+    /**
+     * Finds a file in the virtual file system
+     * @param {Map} fileSystem - The virtual file system map
+     * @param {string} targetFilename - The filename to find
+     * @param {string} currentFilePath - The current file context for relative paths
+     * @returns {Object|null} The file data or null if not found
+     */
+    findFile(fileSystem, targetFilename, currentFilePath = '') {
+        // Resolve relative path if we have context
+        if (currentFilePath) {
+            targetFilename = this.resolvePath(currentFilePath, targetFilename);
+        }
+
+        // Try exact match first
+        const exactMatch = fileSystem.get(targetFilename);
+        if (exactMatch) {
+            return exactMatch;
+        }
+
+        // Try case-insensitive match
+        const targetLower = targetFilename.toLowerCase();
+        for (const [filename, file] of fileSystem) {
+            if (filename.toLowerCase() === targetLower) {
+                return file;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Gets a data URL for a file (handles both binary and text files)
+     * @param {Object} fileData - The file data object
+     * @param {string} defaultMimeType - Default MIME type for non-binary files
+     * @returns {string} The data URL or content
+     */
+    getFileDataUrl(fileData, defaultMimeType = 'text/plain') {
+        if (fileData.isBinary) {
+            return fileData.content;
+        }
+
+        // Handle SVG specially
+        if (fileData.type === 'svg') {
+            return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(fileData.content)}`;
+        }
+
+        // For other text files, create a proper data URL
+        const mimeType = this.fileTypeUtils.getMimeTypeFromFileType(fileData.type) || defaultMimeType;
+        return `data:${mimeType};charset=utf-8,${encodeURIComponent(fileData.content)}`;
+    }
+}
+
+class PreviewScriptGenerator {
+    /**
+     * Generates JavaScript code for path resolution (used in injected scripts)
+     * @returns {string} JavaScript code for the resolvePath function
+     */
+    generateResolvePathCode() {
+        return `
+    function resolvePath(basePath, relativePath) {
+    if (relativePath.startsWith("/")) {
+        return relativePath.substring(1);
+    }
+    const baseDir = basePath.includes("/") ? basePath.substring(0, basePath.lastIndexOf("/")) : "";
+    const baseParts = baseDir ? baseDir.split("/") : [];
+    const relativeParts = relativePath.split("/");
+    const resultParts = [...baseParts];
+    for (const part of relativeParts) {
+        if (part === "..") {
+            if (resultParts.length > 0) resultParts.pop();
+        } else if (part !== "." && part !== "") {
+            resultParts.push(part);
+        }
+    }
+    return resultParts.join("/");
+    }`;
+    }
+
+    /**
+     * Generates JavaScript code for file lookup (used in injected scripts)
+     * @returns {string} JavaScript code for the findFileInSystem function
+     */
+    generateFindFileCode() {
+        return `
+    function findFileInSystem(targetFilename, currentFilePath = "") {
+    if (currentFilePath) {
+        targetFilename = resolvePath(currentFilePath, targetFilename);
+    }
+    const exactMatch = virtualFileSystem[targetFilename];
+    if (exactMatch) return exactMatch;
+    const targetLower = targetFilename.toLowerCase();
+    for (const [filename, file] of Object.entries(virtualFileSystem)) {
+        if (filename.toLowerCase() === targetLower) return file;
+    }
+    return null;
+    }`;
+    }
+
+    /**
+     * Generates JavaScript code for getting current file path (used in injected scripts)
+     * @returns {string} JavaScript code for the getCurrentFilePath function
+     */
+    generateGetCurrentFilePathCode() {
+        return `
+    function getCurrentFilePath() {
+    try {
+        if (window.__currentExecutionContext) return window.__currentExecutionContext;
+        return mainHtmlPath;
+    } catch (e) {
+        return mainHtmlPath;
+    }
+    }`;
+    }
+
+    /**
+     * Generates JavaScript code for a shared base64-to-Uint8Array helper (used in injected scripts)
+     * Eliminates duplicate byte-conversion loops in fetch, XHR, and other overrides
+     * @returns {string} JavaScript code for the base64ToUint8Array function
+     */
+    generateBase64HelperCode() {
+        return `
+    function base64ToUint8Array(base64) {
+    const binaryString = atob(base64);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes;
+    }`;
+    }
+
+    /**
+     * Generates JavaScript code for the fetch override (used in injected scripts)
+     * Intercepts fetch requests to serve files from the virtual file system
+     * @returns {string} JavaScript code for the fetch override
+     */
+    generateFetchOverrideCode() {
+        return `
+    const originalFetch = window.fetch;
+    window.fetch = function(input, init) {
+    let url = input;
+    if (typeof input === "object" && input.url) {
+        url = input.url;
+    }
+
+    const currentFilePath = getCurrentFilePath();
+    let targetPath = url.replace(/^\\.\\//,"");
+    const fileData = findFileInSystem(targetPath, currentFilePath);
+
+    if (fileData) {
+        const response = {
+            ok: true,
+            status: 200,
+            statusText: "OK",
+            headers: new Headers({
+                "Content-Type": fileData.type === "json" ? "application/json" :
+                               fileData.type === "html" ? "text/html" :
+                               fileData.type === "css" ? "text/css" :
+                               fileData.type === "javascript" ? "text/javascript" :
+                               fileData.type === "xml" ? "application/xml" :
+                               "text/plain"
+            }),
+            url: url,
+            text: () => Promise.resolve(fileData.content),
+            json: () => {
+                try {
+                    return Promise.resolve(JSON.parse(fileData.content));
+                } catch (e) {
+                    return Promise.reject(new Error("Invalid JSON"));
+                }
+            },
+            blob: () => {
+                if (fileData.isBinary && fileData.content.startsWith("data:")) {
+                    const [header, base64] = fileData.content.split(",");
+                    const mimeType = header.match(/data:([^;]+)/)[1];
+                    return Promise.resolve(new Blob([base64ToUint8Array(base64)], { type: mimeType }));
+                } else {
+                    return Promise.resolve(new Blob([fileData.content], { type: "text/plain" }));
+                }
+            },
+            arrayBuffer: () => {
+                if (fileData.isBinary && fileData.content.startsWith("data:")) {
+                    const [header, base64] = fileData.content.split(",");
+                    return Promise.resolve(base64ToUint8Array(base64).buffer);
+                } else {
+                    const encoder = new TextEncoder();
+                    return Promise.resolve(encoder.encode(fileData.content).buffer);
+                }
+            }
+        };
+
+        return Promise.resolve(response);
+    }
+
+    return originalFetch.apply(this, arguments);
+    };`;
+    }
+
+    /**
+     * Generates JavaScript code for the XMLHttpRequest override (used in injected scripts)
+     * Intercepts XHR requests to serve files from the virtual file system
+     * @returns {string} JavaScript code for the XMLHttpRequest override
+     */
+    generateXHROverrideCode() {
+        return `
+    const OriginalXMLHttpRequest = window.XMLHttpRequest;
+    window.XMLHttpRequest = function() {
+    const xhr = new OriginalXMLHttpRequest();
+    const originalOpen = xhr.open;
+    const originalSend = xhr.send;
+
+    let isVirtualRequest = false;
+    let virtualFileData = null;
+
+    xhr.open = function(method, url, async, user, password) {
+        try {
+            if (method.toUpperCase() === "GET") {
+                const currentFilePath = getCurrentFilePath();
+                let targetPath = url.replace(/^\\.\\//,"");
+                const fileData = findFileInSystem(targetPath, currentFilePath);
+
+                if (fileData) {
+                    isVirtualRequest = true;
+                    virtualFileData = fileData;
+                    xhr.setRequestHeader = function() {};
+                    xhr.overrideMimeType = function() {};
+                    return;
+                }
+            }
+
+            isVirtualRequest = false;
+            virtualFileData = null;
+            return originalOpen.call(this, method, url, async, user, password);
+        } catch (e) {
+            isVirtualRequest = false;
+            virtualFileData = null;
+            return originalOpen.call(this, method, url, async, user, password);
+        }
+    };
+
+    xhr.send = function(data) {
+        if (isVirtualRequest && virtualFileData) {
+            try {
+                setTimeout(() => {
+                    try {
+                        Object.defineProperty(xhr, "readyState", { value: 4, configurable: true });
+                        Object.defineProperty(xhr, "status", { value: 200, configurable: true });
+                        Object.defineProperty(xhr, "statusText", { value: "OK", configurable: true });
+
+                        if (virtualFileData.isBinary && virtualFileData.content.startsWith("data:")) {
+                            if (xhr.responseType === "arraybuffer") {
+                                const [header, base64] = virtualFileData.content.split(",");
+                                Object.defineProperty(xhr, "response", { value: base64ToUint8Array(base64).buffer, configurable: true });
+                            } else if (xhr.responseType === "blob") {
+                                const [header, base64] = virtualFileData.content.split(",");
+                                const mimeType = header.match(/data:([^;]+)/)[1];
+                                Object.defineProperty(xhr, "response", { value: new Blob([base64ToUint8Array(base64)], { type: mimeType }), configurable: true });
+                            } else {
+                                Object.defineProperty(xhr, "response", { value: virtualFileData.content, configurable: true });
+                                Object.defineProperty(xhr, "responseText", { value: virtualFileData.content, configurable: true });
+                            }
+                        } else {
+                            Object.defineProperty(xhr, "responseText", { value: virtualFileData.content, configurable: true });
+                            Object.defineProperty(xhr, "response", { value: virtualFileData.content, configurable: true });
+                        }
+
+                        xhr.getResponseHeader = function(name) {
+                            const lowerName = name.toLowerCase();
+                            if (lowerName === "content-type") {
+                                const typeMap = {
+                                    "image": "image/png",
+                                    "audio": "audio/mpeg",
+                                    "video": "video/mp4",
+                                    "json": "application/json",
+                                    "css": "text/css",
+                                    "javascript": "text/javascript",
+                                    "html": "text/html"
+                                };
+                                return typeMap[virtualFileData.type] || "text/plain";
+                            }
+                            return null;
+                        };
+
+                        xhr.getAllResponseHeaders = function() {
+                            const contentType = xhr.getResponseHeader("content-type");
+                            return "content-type: " + contentType + "\\r\\n";
+                        };
+
+                        xhr.dispatchEvent(new Event("readystatechange"));
+                        xhr.dispatchEvent(new ProgressEvent("load"));
+                        xhr.dispatchEvent(new ProgressEvent("loadend"));
+                    } catch (e) {
+                        xhr.dispatchEvent(new ProgressEvent("error"));
+                        xhr.dispatchEvent(new ProgressEvent("loadend"));
+                    }
+                }, 1);
+            } catch (e) {
+                xhr.dispatchEvent(new ProgressEvent("error"));
+                xhr.dispatchEvent(new ProgressEvent("loadend"));
+            }
+            return;
+        }
+
+        return originalSend.call(this, data);
+    };
+
+    return xhr;
+    };`;
+    }
+
+    /**
+     * Generates JavaScript code for the Image constructor override (used in injected scripts)
+     * Intercepts Image src assignments to serve images from the virtual file system
+     * @returns {string} JavaScript code for the Image constructor override
+     */
+    /**
+     * Generates JavaScript code for a media constructor override (used in injected scripts).
+     * Intercepts src assignments to serve files from the virtual file system.
+     * Used to generate both Image and Audio overrides.
+     * @param {Object} options - Configuration for the override
+     * @param {string} options.name - Constructor name (e.g., 'Image', 'Audio')
+     * @param {string} options.typeCheck - JS expression for matching file types
+     * @param {string} options.resolveExpr - JS expression to resolve the src value
+     * @param {boolean} options.hasInitialSrc - Whether the constructor accepts an initial src argument
+     * @returns {string} JavaScript code for the constructor override
+     */
+    generateMediaOverrideCode({ name, typeCheck, resolveExpr, hasInitialSrc }) {
+        const paramList = hasInitialSrc ? 'src' : '';
+        const initSrc = hasInitialSrc ? `
+    if (src !== undefined) {
+        el.src = src;
+    }` : '';
+        return `
+    const Original${name} = window.${name};
+    window.${name} = function(${paramList}) {
+    const el = new Original${name}();
+
+    let _originalSrc = "";
+    let _resolvedSrc = "";
+
+    Object.defineProperty(el, "src", {
+        get: function() {
+            return _resolvedSrc || _originalSrc;
+        },
+        set: function(value) {
+            _originalSrc = value;
+
+            const currentFilePath = getCurrentFilePath();
+            let targetPath = value.replace(/^\\.\\//,"");
+            const fileData = findFileInSystem(targetPath, currentFilePath);
+
+            if (fileData && (${typeCheck})) {
+                const resolved = ${resolveExpr};
+                _resolvedSrc = resolved;
+                el.setAttribute("src", resolved);
+            } else {
+                _resolvedSrc = value;
+                el.setAttribute("src", value);
+            }
+        },
+        enumerable: true,
+        configurable: true
+    });
+    ${initSrc}
+    return el;
+    };`;
+    }
+
+    generateImageOverrideCode() {
+        return this.generateMediaOverrideCode({
+            name: 'Image',
+            typeCheck: 'fileData.type === "image" || fileData.type === "svg"',
+            resolveExpr: 'fileData.isBinary ? fileData.content : "data:image/svg+xml;charset=utf-8," + encodeURIComponent(fileData.content)',
+            hasInitialSrc: false
+        });
+    }
+
+    generateAudioOverrideCode() {
+        return this.generateMediaOverrideCode({
+            name: 'Audio',
+            typeCheck: 'fileData.type === "audio"',
+            resolveExpr: 'fileData.content',
+            hasInitialSrc: true
+        });
+    }
+
+    /**
+     * Generates JavaScript code for intercepting dynamic CSS url() property assignments
+     * Resolves virtual file paths in style properties like backgroundImage
+     * @returns {string} JavaScript code for the CSS URL override
+     */
+    generateCSSURLOverrideCode() {
+        return `
+    (function() {
+    function resolveUrlsInValue(value) {
+        if (typeof value !== 'string' || !value.includes('url(')) return value;
+        return value.replace(/url\\(["']?([^"')]+)["']?\\)/g, function(match, url) {
+            if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('//')) {
+                return match;
+            }
+            const currentFilePath = getCurrentFilePath();
+            const targetPath = url.replace(/^\\.\\//,"");
+            const fileData = findFileInSystem(targetPath, currentFilePath);
+            if (fileData && (fileData.type === "image" || fileData.type === "svg")) {
+                const dataUrl = fileData.isBinary ? fileData.content :
+                    "data:image/svg+xml;charset=utf-8," + encodeURIComponent(fileData.content);
+                return 'url("' + dataUrl + '")';
+            }
+            return match;
+        });
+    }
+    const urlProps = new Set(['backgroundImage', 'background', 'listStyleImage', 'borderImage', 'borderImageSource', 'cursor', 'content',
+        'background-image', 'list-style-image', 'border-image', 'border-image-source']);
+    const origSetProperty = CSSStyleDeclaration.prototype.setProperty;
+    CSSStyleDeclaration.prototype.setProperty = function(prop, value, priority) {
+        if (urlProps.has(prop)) value = resolveUrlsInValue(value);
+        return origSetProperty.call(this, prop, value, priority);
+    };
+    const styleDesc = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'style');
+    if (styleDesc && styleDesc.get) {
+        const origStyleGet = styleDesc.get;
+        const proxyCache = new WeakMap();
+        Object.defineProperty(HTMLElement.prototype, 'style', {
+            get: function() {
+                const realStyle = origStyleGet.call(this);
+                if (proxyCache.has(realStyle)) return proxyCache.get(realStyle);
+                const proxy = new Proxy(realStyle, {
+                    set: function(target, prop, value) {
+                        if (typeof prop === 'string' && urlProps.has(prop)) {
+                            value = resolveUrlsInValue(value);
+                        }
+                        target[prop] = value;
+                        return true;
+                    },
+                    get: function(target, prop) {
+                        const val = target[prop];
+                        if (typeof val === 'function') return val.bind(target);
+                        return val;
+                    }
+                });
+                proxyCache.set(realStyle, proxy);
+                return proxy;
+            },
+            set: styleDesc.set,
+            enumerable: styleDesc.enumerable,
+            configurable: true
+        });
+    }
+    })();`;
+    }
+
+    /**
+     * Generates JavaScript code for intercepting .src on existing DOM image/audio elements
+     * Ensures elements created via HTML (not via new Image()/new Audio()) also resolve virtual paths
+     * @returns {string} JavaScript code for the element src override
+     */
+    generateElementSrcOverrideCode() {
+        return `
+    (function() {
+    function overrideSrcProperty(proto, typeCheck) {
+        const descriptor = Object.getOwnPropertyDescriptor(proto, 'src');
+        if (!descriptor || !descriptor.set) return;
+        const origSet = descriptor.set;
+        const origGet = descriptor.get;
+        Object.defineProperty(proto, 'src', {
+            set: function(value) {
+                if (typeof value === 'string' && value && !value.startsWith('data:') && !value.startsWith('http://') && !value.startsWith('https://') && !value.startsWith('blob:') && !value.startsWith('//')) {
+                    const currentFilePath = getCurrentFilePath();
+                    const targetPath = value.replace(/^\\.\\//,"");
+                    const fileData = findFileInSystem(targetPath, currentFilePath);
+                    if (fileData && typeCheck(fileData)) {
+                        const resolved = fileData.isBinary ? fileData.content :
+                            (fileData.type === "svg" ? "data:image/svg+xml;charset=utf-8," + encodeURIComponent(fileData.content) : fileData.content);
+                        origSet.call(this, resolved);
+                        return;
+                    }
+                }
+                origSet.call(this, value);
+            },
+            get: origGet ? function() { return origGet.call(this); } : undefined,
+            enumerable: descriptor.enumerable,
+            configurable: true
+        });
+    }
+    overrideSrcProperty(HTMLImageElement.prototype, function(f) { return f.type === "image" || f.type === "svg"; });
+    overrideSrcProperty(HTMLAudioElement.prototype, function(f) { return f.type === "audio"; });
+    overrideSrcProperty(HTMLVideoElement.prototype, function(f) { return f.type === "video"; });
+    overrideSrcProperty(HTMLSourceElement.prototype, function(f) { return f.type === "audio" || f.type === "video" || f.type === "image"; });
+    })();`;
+    }
+
+    /**
+     * Generates JavaScript code for console capture and error handling (used in injected scripts)
+     * Overrides console methods to post messages to the parent window and captures errors
+     * @param {string} messageType - The message type identifier for postMessage communication
+     * @returns {string} JavaScript code for console capture
+     */
+
+    /**
+     * Generates JavaScript code that safely handles Service Worker registration in preview contexts.
+     * @returns {string} JavaScript code for service worker override
+     */
+    generateServiceWorkerOverrideCode() {
+        return `
+    try {
+    const serviceWorkerContainer = navigator && navigator.serviceWorker;
+    const isPreviewLikeProtocol = /^(about:|data:|blob:)/i.test(window.location.protocol || '') || window.location.href === 'about:srcdoc';
+    if (serviceWorkerContainer && typeof serviceWorkerContainer.register === 'function' && isPreviewLikeProtocol) {
+        const unsupportedError = () => {
+            const error = new Error('Service Worker registration is not supported in preview mode (about:srcdoc/data/blob contexts).');
+            error.name = 'PreviewServiceWorkerUnsupportedError';
+            return error;
+        };
+        Object.defineProperty(serviceWorkerContainer, 'register', {
+            configurable: true,
+            writable: true,
+            value: function registerServiceWorkerInPreview() {
+                const err = unsupportedError();
+                if (window && window.console && typeof window.console.warn === 'function') {
+                    window.console.warn('[Preview] ' + err.message);
+                }
+                return Promise.reject(err);
+            }
+        });
+    }
+    } catch (serviceWorkerOverrideError) {
+    // no-op: preview safety override should never break page execution
+    }`;
+    }
+
+    generateConsoleOverrideCode(messageType) {
+        return `
+    const normalizeSourcePath = (source) => {
+    if (!source || typeof source !== 'string') return '';
+    try {
+        const parsed = new URL(source, window.location.href);
+        if (parsed.protocol === 'blob:' || parsed.protocol === 'data:' || parsed.href === 'about:srcdoc') {
+            return source;
+        }
+        const path = parsed.pathname || '';
+        return path.startsWith('/') ? path.slice(1) : path;
+    } catch (error) {
+        return source.startsWith('/') ? source.slice(1) : source;
+    }
+    };
+    const classifySourceOrigin = (source) => {
+    if (!source) return 'unknown';
+    if (typeof source !== 'string') return 'unknown';
+
+    const normalizedPath = normalizeSourcePath(source);
+    if (normalizedPath && Object.prototype.hasOwnProperty.call(virtualFileSystem, normalizedPath)) {
+        return 'virtual-file';
+    }
+
+    if (source.startsWith('http://') || source.startsWith('https://') || source.startsWith('//')) {
+        return 'external-url';
+    }
+
+    if (/^(blob:|data:|about:srcdoc)/i.test(source)) {
+        return 'virtual-file';
+    }
+
+    return 'unknown';
+    };
+    const serializeArg = (arg) => {
+    if (arg instanceof Error) {
+        return {
+            message: arg.message,
+            stack: arg.stack,
+            name: arg.name
+        };
+    }
+    try {
+        return JSON.parse(JSON.stringify(arg));
+    } catch (e) {
+        return 'Unserializable Object';
+    }
+    };
+    const postLog = (level, args) => {
+    const formattedArgs = Array.isArray(args) ? args.map(serializeArg) : [serializeArg(args)];
+    window.parent.postMessage({ type: '${messageType}', level, message: formattedArgs }, '*');
+    };
+    const postStructuredError = (payload) => {
+    window.parent.postMessage({
+        type: '${messageType}',
+        level: 'error',
+        message: [{
+            kind: 'runtime-error',
+            message: payload.message || 'Unknown runtime error',
+            source: payload.source || '',
+            line: Number(payload.line) || 0,
+            column: Number(payload.column) || 0,
+            stack: payload.stack || '',
+            originType: classifySourceOrigin(payload.source)
+        }]
+    }, '*');
+    };
+    const originalConsole = { ...window.console };
+    ['log', 'info', 'warn', 'error'].forEach(level => {
+    window.console[level] = (...args) => {
+        postLog(level, Array.from(args));
+        originalConsole[level](...args);
+    };
+    });
+    window.onerror = (message, source, lineno, colno, error) => {
+    if (message === 'Script error.' && !source) return true;
+    postStructuredError({
+        message: message,
+        source: source,
+        line: lineno,
+        column: colno,
+        stack: error && error.stack ? error.stack : ''
+    });
+    return true;
+    };
+    window.addEventListener('unhandledrejection', e => {
+    const reason = e && Object.prototype.hasOwnProperty.call(e, 'reason') ? e.reason : 'Unknown rejection reason';
+    postStructuredError({
+        message: 'Unhandled promise rejection',
+        source: (e && e.reason && e.reason.sourceURL) || '',
+        line: (e && e.reason && e.reason.line) || 0,
+        column: (e && e.reason && e.reason.column) || 0,
+        stack: reason && reason.stack ? reason.stack : ''
+    });
+    postLog('error', ['Unhandled promise rejection:', reason]);
+    });`;
+    }
+}
+
+class HtmlGenerators {
+    toolbarButton(icon, text, className, ariaLabel, title) {
+        return `<button class="toolbar-btn ${className}" aria-label="${ariaLabel}" title="${title}">
+            <span class="btn-icon">${icon}</span> ${text}
+        </button>`;
+    }
+
+    fileTypeOption(value, label, selected = false) {
+        return `<option value="${value}" ${selected ? 'selected' : ''}>${label}</option>`;
+    }
+
+    filePreview(type, content, fileName = '') {
+        const previews = {
+            image: `<div class="file-preview image-preview">
+                <img src="${content}" alt="Preview">
+            </div>`,
+            audio: `<div class="file-preview audio-preview">
+                <audio controls>
+                    <source src="${content}">
+                    Your browser does not support the audio element.
+                </audio>
+            </div>`,
+            video: `<div class="file-preview video-preview">
+                <video controls>
+                    <source src="${content}">
+                    Your browser does not support the video element.
+                </video>
+            </div>`,
+            pdf: `<div class="file-preview pdf-preview">
+                <object data="${content}" type="application/pdf">
+                    <p>PDF failed to load. <a href="${content}" target="_blank">Open in new tab</a></p>
+                </object>
+            </div>`,
+            default: `<div class="file-preview binary-preview">
+                <p>${SVG_ICONS.fileBinary} Binary file: Cannot display content</p>
+                <p>File can be referenced in HTML code</p>
+            </div>`
+        };
+        return previews[type] || previews.default;
+    }
+
+    mediaPreviewContent(type, content, fileName) {
+        const safeFileName = escapeHtml(fileName);
+        const safeContent = escapeHtml(content);
+        const containers = {
+            image: `<div class="media-preview-container">
+                <img src="${safeContent}" alt="${safeFileName}">
+            </div>`,
+            audio: `<div class="media-preview-container">
+                <h3>${safeFileName}</h3>
+                <audio controls>
+                    <source src="${safeContent}">
+                    Your browser does not support the audio element.
+                </audio>
+            </div>`,
+            video: `<div class="media-preview-container">
+                <h3>${safeFileName}</h3>
+                <video controls>
+                    <source src="${safeContent}">
+                    Your browser does not support the video element.
+                </video>
+            </div>`,
+            pdf: `<div class="media-preview-container">
+                <h3>${safeFileName}</h3>
+                <object data="${safeContent}" type="application/pdf">
+                    <p>PDF failed to load. <a href="${safeContent}" target="_blank">Open in new tab</a></p>
+                </object>
+            </div>`,
+            svg: (content, fileName, isBinary) => {
+                const svgDataUrl = isBinary ? content : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(content)}`;
+                const safeSvgUrl = escapeHtml(svgDataUrl);
+                return `<div class="media-preview-container">
+                    <h3>${safeFileName}</h3>
+                    <img src="${safeSvgUrl}" alt="${safeFileName}">
+                </div>`;
+            },
+            default: `<div class="media-preview-container">
+                <h3>${safeFileName}</h3>
+                <p>Preview not available for this file type.</p>
+            </div>`
+        };
+        return typeof containers[type] === 'function' ? containers[type](content, fileName) : (containers[type] || containers.default);
+    }
+}
+
+class NotificationSystem {
+    constructor() {
+        this.container = null;
+        this.progressId = 0;
+    }
+
+
+    /**
+     * Returns (and lazily creates) the notification container element.
+     * The container is appended once to document.body and reused for all notifications.
+     * @returns {HTMLElement}
+     */
+    getContainer() {
+        if (!this.container) {
+            this.container = document.createElement('div');
+            this.container.className = 'notification-container';
+            this.container.setAttribute('role', 'status');
+            this.container.setAttribute('aria-live', 'polite');
+            this.container.setAttribute('aria-atomic', 'false');
+            document.body.appendChild(this.container);
+        }
+        return this.container;
+    }
+
+    show(message, type = 'info') {
+        const container = this.getContainer();
+
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.innerHTML = `
+            <div class="notification-header">
+                <span class="notification-message">${escapeHtml(message)}</span>
+                <button class="notification-close-btn" aria-label="Close notification" title="Close">${SVG_ICONS.close}</button>
+            </div>
+        `;
+
+        container.appendChild(notification);
+
+        // Define dismiss before attaching the close-button listener so the
+        // reference is unambiguously resolved (avoids temporal dead zone).
+        const dismiss = () => {
+            if (notification.classList.contains('notification-hiding')) return;
+            notification.classList.add('notification-hiding');
+            notification.addEventListener('animationend', () => {
+                notification.remove();
+            }, { once: true });
+        };
+
+        const closeBtn = notification.querySelector('.notification-close-btn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', dismiss);
+        }
+
+        setTimeout(dismiss, 3000);
+    }
+
+    showProgress(message, { type = 'info', total = 100 } = {}) {
+        const container = this.getContainer();
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type} notification-progress`;
+        notification.dataset.progressId = String(++this.progressId);
+
+        notification.innerHTML = `
+            <div class="notification-header">
+                <span class="notification-message">${escapeHtml(message)}</span>
+                <button class="notification-close-btn" aria-label="Close notification" title="Close">${SVG_ICONS.close}</button>
+            </div>
+            <div class="notification-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="${Math.max(total, 1)}" aria-valuenow="0">
+                <div class="notification-progress-fill"></div>
+            </div>
+        `;
+
+        container.appendChild(notification);
+
+        const messageEl = notification.querySelector('.notification-message');
+        const progressBar = notification.querySelector('.notification-progress-track');
+        const progressFill = notification.querySelector('.notification-progress-fill');
+        const closeBtn = notification.querySelector('.notification-close-btn');
+        let maxValue = Math.max(total, 1);
+        let currentValue = 0;
+
+        const dismiss = () => {
+            if (notification.classList.contains('notification-hiding')) return;
+            notification.classList.add('notification-hiding');
+            notification.addEventListener('animationend', () => notification.remove(), { once: true });
+        };
+
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => dismiss());
+        }
+
+        const update = ({ current, total: nextTotal, message: nextMessage, type: nextType } = {}) => {
+            if (typeof nextTotal === 'number' && nextTotal >= 1) {
+                maxValue = nextTotal;
+                progressBar.setAttribute('aria-valuemax', String(maxValue));
+            }
+            if (typeof current === 'number') {
+                currentValue = Math.max(0, Math.min(current, maxValue));
+                const percentage = (currentValue / maxValue) * 100;
+                progressFill.style.width = `${percentage}%`;
+                progressBar.setAttribute('aria-valuenow', String(currentValue));
+            }
+            if (typeof nextMessage === 'string' && messageEl) {
+                messageEl.textContent = nextMessage;
+            }
+            if (typeof nextType === 'string') {
+                notification.classList.remove('notification-info', 'notification-success', 'notification-warn', 'notification-error');
+                notification.classList.add(`notification-${nextType}`);
+            }
+        };
+
+        update({ current: 0, message });
+
+        return {
+            update,
+            complete: (doneMessage = 'Completed') => {
+                update({ current: maxValue, message: doneMessage, type: 'success' });
+                setTimeout(dismiss, 1200);
+            },
+            fail: (errorMessage = 'Failed') => {
+                update({ message: errorMessage, type: 'error' });
+                setTimeout(dismiss, 3000);
+            },
+            dismiss
+        };
+    }
+}
+
+class ConsoleBridge {
+    constructor(constants, previewScriptGenerator) {
+        this.constants = constants;
+        this.previewScriptGenerator = previewScriptGenerator;
+        this.logCounts = { log: 0, warn: 0, error: 0, info: 0 };
+        this.filters = { log: true, warn: true, error: true, info: true };
+        this.OBJECT_COLLAPSE_THRESHOLD = 100;
+        this.COPY_FEEDBACK_DURATION = 1000;
+    }
+
+
+    /**
+     * Wires the console capture bridge to its DOM output element and the preview iframe.
+     * Must be called once after the DOM is fully cached.
+     * @param {HTMLElement} outputEl - The container element for rendered log messages
+     * @param {HTMLElement} clearBtn - The "Clear console" button
+     * @param {HTMLIFrameElement} previewFrame - The preview iframe (used to filter incoming messages)
+     */
+    init(outputEl, clearBtn, previewFrame) {
+        this.outputEl = outputEl;
+        this.previewFrame = previewFrame;
+        clearBtn.addEventListener('click', () => this.clear());
+        window.addEventListener('message', (e) => this.handleMessage(e));
+        this.initFilterButtons();
+    }
+
+    initFilterButtons() {
+        const consoleHeader = this.outputEl.parentElement.querySelector('.console-header');
+        if (!consoleHeader) return;
+
+        // Create filter container
+        const filterContainer = document.createElement('div');
+        filterContainer.className = 'console-filters';
+        filterContainer.innerHTML = `
+            <button class="console-filter-btn active" data-filter="log" title="Show logs">
+                <span class="filter-icon">${SVG_ICONS.pencil}</span>
+                <span class="filter-count" data-count="log">0</span>
+            </button>
+            <button class="console-filter-btn active" data-filter="info" title="Show info">
+                <span class="filter-icon">${SVG_ICONS.info}</span>
+                <span class="filter-count" data-count="info">0</span>
+            </button>
+            <button class="console-filter-btn active" data-filter="warn" title="Show warnings">
+                <span class="filter-icon">${SVG_ICONS.warning}</span>
+                <span class="filter-count" data-count="warn">0</span>
+            </button>
+            <button class="console-filter-btn active" data-filter="error" title="Show errors">
+                <span class="filter-icon">${SVG_ICONS.xCircle}</span>
+                <span class="filter-count" data-count="error">0</span>
+            </button>
+        `;
+
+        // Insert before clear button
+        const clearButton = consoleHeader.querySelector('.clear-btn');
+        if (clearButton) {
+            consoleHeader.insertBefore(filterContainer, clearButton);
+        } else {
+            consoleHeader.appendChild(filterContainer);
+        }
+
+        // Add filter click handlers
+        filterContainer.querySelectorAll('.console-filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const filterType = btn.dataset.filter;
+                this.filters[filterType] = !this.filters[filterType];
+                btn.classList.toggle('active', this.filters[filterType]);
+                this.applyFilters();
+            });
+        });
+    }
+
+    applyFilters() {
+        const messages = this.outputEl.querySelectorAll('.log-message');
+        messages.forEach(msg => {
+            const types = ['log', 'info', 'warn', 'error'];
+            for (const type of types) {
+                if (msg.classList.contains(`log-type-${type}`)) {
+                    msg.style.display = this.filters[type] ? '' : 'none';
+                    break;
+                }
+            }
+        });
+    }
+
+    updateFilterCounts() {
+        Object.keys(this.logCounts).forEach(type => {
+            const countEl = document.querySelector(`.filter-count[data-count="${type}"]`);
+            if (countEl) {
+                countEl.textContent = this.logCounts[type];
+                countEl.classList.toggle('has-count', this.logCounts[type] > 0);
+            }
+        });
+    }
+
+    /**
+     * Clears all logged messages from the output element and resets all log counters.
+     */
+    clear() {
+        this.outputEl.innerHTML = '';
+        this.logCounts = { log: 0, warn: 0, error: 0, info: 0 };
+        this.updateFilterCounts();
+    }
+
+    formatValue(arg) {
+        if (arg === null) return '<span class="console-null">null</span>';
+        if (arg === undefined) return '<span class="console-undefined">undefined</span>';
+        if (typeof arg === 'boolean') return `<span class="console-boolean">${arg}</span>`;
+        if (typeof arg === 'number') return `<span class="console-number">${arg}</span>`;
+        if (typeof arg === 'string') return escapeHtml(arg);
+        if (typeof arg === 'object' && arg !== null) {
+            try {
+                const json = JSON.stringify(arg, null, 2);
+                const isLarge = json.length > this.OBJECT_COLLAPSE_THRESHOLD || json.includes('\n');
+                if (isLarge) {
+                    return `<details class="console-object"><summary>${Array.isArray(arg) ? `Array(${arg.length})` : 'Object'}</summary><pre>${escapeHtml(json)}</pre></details>`;
+                }
+                return `<span class="console-object-inline">${escapeHtml(json)}</span>`;
+            } catch (e) {
+                return '<span class="console-error">[Unserializable Object]</span>';
+            }
+        }
+        return String(arg);
+    }
+
+    getIcon(level) {
+        const icons = {
+            log: SVG_ICONS.pencil,
+            info: SVG_ICONS.info,
+            warn: SVG_ICONS.warning,
+            error: SVG_ICONS.xCircle
+        };
+        return icons[level] || SVG_ICONS.pencil;
+    }
+
+    getTimestamp() {
+        const now = new Date();
+        return now.toLocaleTimeString('en-US', {
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            fractionalSecondDigits: 3
+        });
+    }
+
+    formatRuntimeErrorEntry(entry) {
+        const source = entry.source || '(unknown source)';
+        const line = Number(entry.line) || 0;
+        const column = Number(entry.column) || 0;
+        const location = line || column ? `${source}:${line}:${column}` : source;
+        const origin = entry.originType || 'unknown';
+        const stack = entry.stack
+            ? `<details class="console-object"><summary>Stack trace</summary><pre>${escapeHtml(entry.stack)}</pre></details>`
+            : '';
+
+        return `<span class="console-runtime-error"><strong>${escapeHtml(String(entry.message || 'Runtime error'))}</strong> <span class="console-object-inline">(${escapeHtml(origin)})</span><br><span class="console-object-inline">${escapeHtml(location)}</span>${stack}</span>`;
+    }
+
+    normalizeMessage(message) {
+        if (Array.isArray(message)) return message;
+        if (message === undefined) return [];
+        return [message];
+    }
+
+    isStructuredRuntimeErrorEntry(arg) {
+        return !!(
+            arg &&
+            typeof arg === 'object' &&
+            !Array.isArray(arg) &&
+            arg.kind === 'runtime-error' &&
+            Object.prototype.hasOwnProperty.call(arg, 'message') &&
+            Object.prototype.hasOwnProperty.call(arg, 'source') &&
+            Object.prototype.hasOwnProperty.call(arg, 'originType')
+        );
+    }
+
+    formatMessageEntries(messageEntries) {
+        return messageEntries.map(arg => {
+            if (this.isStructuredRuntimeErrorEntry(arg)) {
+                return this.formatRuntimeErrorEntry(arg);
+            }
+            return this.formatValue(arg);
+        }).join(' ');
+    }
+
+    log(logData) {
+        const level = logData.level || 'log';
+        this.logCounts[level] = (this.logCounts[level] || 0) + 1;
+        this.updateFilterCounts();
+
+        const el = document.createElement('div');
+        el.className = `log-message log-type-${level}`;
+
+        // Apply current filter
+        if (!this.filters[level]) {
+            el.style.display = 'none';
+        }
+
+        const messageEntries = this.normalizeMessage(logData.message);
+        const messageContent = this.formatMessageEntries(messageEntries);
+
+        el.innerHTML = `
+            <span class="log-icon" aria-hidden="true">${this.getIcon(level)}</span>
+            <span class="log-timestamp">${this.getTimestamp()}</span>
+            <span class="log-content">${messageContent}</span>
+            <button class="log-copy-btn" title="Copy message" aria-label="Copy message to clipboard">${SVG_ICONS.clipboard}</button>
+        `;
+
+        // Add copy functionality with accessibility support
+        const copyBtn = el.querySelector('.log-copy-btn');
+        copyBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const text = messageEntries.map(arg => {
+                if (this.isStructuredRuntimeErrorEntry(arg)) {
+                    const source = arg.source || '(unknown source)';
+                    const line = Number(arg.line) || 0;
+                    const column = Number(arg.column) || 0;
+                    const location = line || column ? `${source}:${line}:${column}` : source;
+                    return `[RuntimeError/${arg.originType}] ${arg.message} @ ${location}${arg.stack ? `
+${arg.stack}` : ''}`;
+                }
+                if (typeof arg === 'object') {
+                    try { return JSON.stringify(arg, null, 2); } catch (e) { return String(arg); }
+                }
+                return String(arg);
+            }).join(' ');
+            navigator.clipboard.writeText(text).then(() => {
+                copyBtn.innerHTML = SVG_ICONS.checkCircle;
+                copyBtn.setAttribute('aria-label', 'Copied to clipboard');
+                setTimeout(() => {
+                    copyBtn.innerHTML = SVG_ICONS.clipboard;
+                    copyBtn.setAttribute('aria-label', 'Copy message to clipboard');
+                }, this.COPY_FEEDBACK_DURATION);
+            }).catch(() => {
+                copyBtn.innerHTML = SVG_ICONS.xCircle;
+                copyBtn.setAttribute('aria-label', 'Failed to copy');
+                setTimeout(() => {
+                    copyBtn.innerHTML = SVG_ICONS.clipboard;
+                    copyBtn.setAttribute('aria-label', 'Copy message to clipboard');
+                }, this.COPY_FEEDBACK_DURATION);
+            });
+        });
+
+        this.outputEl.appendChild(el);
+        this.outputEl.scrollTop = this.outputEl.scrollHeight;
+    }
+
+    /**
+     * Handles postMessage events from the preview iframe.
+     * Filters to only process console capture messages from the active preview frame.
+     * @param {MessageEvent} event
+     */
+    handleMessage(event) {
+        const { CONSOLE_MESSAGE_TYPE } = this.constants;
+        // Guard: event.data may be null (e.g. from browser extensions).
+        if (
+            event.data &&
+            event.source === this.previewFrame?.contentWindow &&
+            event.data.type === CONSOLE_MESSAGE_TYPE
+        ) {
+            this.log(event.data);
+        }
+    }
+    getCaptureScript(fileSystem = null, mainHtmlPath = 'index.html') {
+        const MESSAGE_TYPE = this.constants.CONSOLE_MESSAGE_TYPE;
+
+        // Generate file system initialization script
+        let fileSystemScript = '';
+        if (fileSystem && fileSystem instanceof Map) {
+            const fileObj = {};
+            fileSystem.forEach((fileData, filename) => {
+                fileObj[filename] = {
+                    content: fileData.content,
+                    type: fileData.type,
+                    isBinary: fileData.isBinary || false
+                };
+            });
+            const jsonString = JSON.stringify(fileObj);
+            const bytes = new TextEncoder().encode(jsonString);
+            const binaryChars = new Array(bytes.length);
+            for (let i = 0; i < bytes.length; i++) binaryChars[i] = String.fromCharCode(bytes[i]);
+            const base64Data = btoa(binaryChars.join(''));
+            fileSystemScript = `
+                const virtualFileSystemData = "${base64Data}";
+                const virtualFileSystem = JSON.parse(new TextDecoder().decode(base64ToUint8Array(virtualFileSystemData)));
+                const mainHtmlPath = "${mainHtmlPath}";
+            `;
+        } else {
+            fileSystemScript = `
+                const virtualFileSystem = {};
+                const mainHtmlPath = "index.html";
+            `;
+        }
+
+        // Use the centralized code generators from previewScriptGenerator
+        const fsUtils = this.previewScriptGenerator;
+        const base64HelperCode = fsUtils.generateBase64HelperCode();
+        const resolvePathCode = fsUtils.generateResolvePathCode();
+        const findFileCode = fsUtils.generateFindFileCode();
+        const getCurrentFilePathCode = fsUtils.generateGetCurrentFilePathCode();
+        const fetchOverrideCode = fsUtils.generateFetchOverrideCode();
+        const xhrOverrideCode = fsUtils.generateXHROverrideCode();
+        const imageOverrideCode = fsUtils.generateImageOverrideCode();
+        const audioOverrideCode = fsUtils.generateAudioOverrideCode();
+        const cssURLOverrideCode = fsUtils.generateCSSURLOverrideCode();
+        const elementSrcOverrideCode = fsUtils.generateElementSrcOverrideCode();
+        const serviceWorkerOverrideCode = fsUtils.generateServiceWorkerOverrideCode();
+        const consoleOverrideCode = fsUtils.generateConsoleOverrideCode(MESSAGE_TYPE);
+
+        return `<script>
+(function() {
+    ${fileSystemScript}
+    ${base64HelperCode}
+    ${resolvePathCode}
+    ${findFileCode}
+    ${getCurrentFilePathCode}
+    ${fetchOverrideCode}
+    ${xhrOverrideCode}
+    ${imageOverrideCode}
+    ${audioOverrideCode}
+    ${cssURLOverrideCode}
+    ${elementSrcOverrideCode}
+    ${serviceWorkerOverrideCode}
+    ${consoleOverrideCode}
+})();
+</script>`;
+    }
+}
+
+class AssetReplacers {
+    constructor(app) {
+        this.app = app;
+    }
+
+    isExternalAssetPath(path) {
+        return /^(?:https?:|\/\/|data:|blob:)/i.test(path || '');
+    }
+
+    withScriptBlocksPreserved(htmlContent, transform) {
+        if (typeof htmlContent !== 'string' || typeof transform !== 'function') {
+            return htmlContent;
+        }
+
+        const preservedBlocks = [];
+        const placeholderPrefixBase = '\uE000PREVIEWER_SCRIPT_BLOCK_';
+        let placeholderPrefix = placeholderPrefixBase;
+        while (htmlContent.includes(placeholderPrefix)) {
+            placeholderPrefix += '_';
+        }
+
+        const htmlWithoutScripts = htmlContent.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, (match) => {
+            const placeholder = `${placeholderPrefix}${preservedBlocks.length}__`;
+            preservedBlocks.push(match);
+            return placeholder;
+        });
+
+        if (preservedBlocks.length === 0) {
+            return transform(htmlContent);
+        }
+
+        const transformedHtml = transform(htmlWithoutScripts);
+        if (typeof transformedHtml !== 'string') {
+            return htmlContent;
+        }
+
+        const placeholderPattern = new RegExp(`${placeholderPrefix}(\\d+)__`, 'g');
+        return transformedHtml.replace(placeholderPattern, (match, index) => {
+            const scriptBlock = preservedBlocks[Number(index)];
+            return typeof scriptBlock === 'string' ? scriptBlock : match;
+        });
+    }
+
+    createMissingAssetConsoleScript(assetLabel, requestedPath, currentFilePath, options = {}) {
+        const safeRequestedPath = JSON.stringify(requestedPath || '');
+        const safeSourcePath = JSON.stringify(currentFilePath || 'index.html');
+        const deferUntilDomReady = Boolean(options.deferUntilDomReady);
+        const scriptAttributes = typeof options.scriptAttributes === 'string' ? options.scriptAttributes : '';
+        const logSnippet = `console.error('[Preview] ${assetLabel} not found:', ${safeRequestedPath}, 'from', ${safeSourcePath});`;
+
+        if (!deferUntilDomReady) {
+            return `<script${scriptAttributes}>${logSnippet}</script>`;
+        }
+
+        const deferredSnippet = `(function() {
+            const logMissingAsset = () => { ${logSnippet} };
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', logMissingAsset, { once: true });
+            } else {
+                logMissingAsset();
+            }
+        })();`;
+
+        return `<script${scriptAttributes}>${deferredSnippet}</script>`;
+    }
+
+    /**
+     * Configuration for different asset replacement patterns
+     * Each entry defines: regex pattern, allowed file types, and replacement strategy
+     */
+    get REPLACEMENT_CONFIGS() {
+        return {
+            css: {
+                pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.css)["']([^>]*?)>/gi,
+                types: ['css'],
+                replace: (file) => `<style>${file.content}</style>`,
+                onMissing: (match, before, filename, after, currentFilePath) => {
+                    if (this.isExternalAssetPath(filename)) {
+                        return match;
+                    }
+                    return this.createMissingAssetConsoleScript('Stylesheet', filename, currentFilePath, {
+                        deferUntilDomReady: true,
+                    });
+                }
+            },
+            images: {
+                pattern: /<img([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
+                types: ['image', 'svg'],
+                replace: (file, match) => {
+                    const src = this.app.getPreviewAssetUrl(file, 'image/png');
+                    return match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${src}"`);
+                }
+            },
+            video: {
+                pattern: /<video([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
+                types: ['video'],
+                replace: (file, match) => match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${this.app.getPreviewAssetUrl(file, 'video/mp4')}"`)
+            },
+            source: {
+                pattern: /<source([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
+                types: ['video', 'audio'],
+                replace: (file, match) => match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${this.app.getPreviewAssetUrl(file, 'application/octet-stream')}"`)
+            },
+            audio: {
+                pattern: /<audio([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
+                types: ['audio'],
+                replace: (file, match) => match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${this.app.getPreviewAssetUrl(file, 'audio/mpeg')}"`)
+            },
+            favicon: {
+                pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.ico)["']([^>]*?)>/gi,
+                types: ['image'],
+                replace: (file, match) => match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${this.app.getPreviewAssetUrl(file, 'image/x-icon')}"`)
+            },
+            font: {
+                pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.(?:woff|woff2|ttf|otf|eot))["']([^>]*?)>/gi,
+                types: ['font'],
+                replace: (file, match, before, filename, after) => `<link${before}href="${this.app.getPreviewAssetUrl(file, 'font/woff2')}"${after}>`
+            }
+        };
+    }
+
+    /**
+     * Generic replacement handler using configuration
+     * @param {string} htmlContent - The HTML content to process
+     * @param {Map} fileSystem - The virtual file system
+     * @param {string} currentFilePath - Current file path for relative resolution
+     * @param {Object} config - Replacement configuration object
+     * @returns {string} Processed HTML content
+     */
+    applyReplacement(htmlContent, fileSystem, currentFilePath, config) {
+        return htmlContent.replace(config.pattern, (match, before, filename, after) => {
+            const file = this.app.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
+            if (file && config.types.includes(file.type)) {
+                return config.replace(file, match, before, filename, after);
+            }
+            if (typeof config.onMissing === 'function') {
+                return config.onMissing(match, before, filename, after, currentFilePath);
+            }
+            return match;
+        });
+    }
+
+    /**
+     * Applies all config-driven replacements (CSS, images, video, source, audio, favicon, font)
+     * in a single pass over the configuration map.
+     * Iteration follows insertion order of REPLACEMENT_CONFIGS, matching the original call sequence.
+     * @param {string} htmlContent - The HTML content to process
+     * @param {Map} fileSystem - The virtual file system
+     * @param {string} currentFilePath - Current file path for relative resolution
+     * @returns {string} Processed HTML content
+     */
+    replaceAllConfigBased(htmlContent, fileSystem, currentFilePath) {
+        for (const config of Object.values(this.REPLACEMENT_CONFIGS)) {
+            htmlContent = this.applyReplacement(htmlContent, fileSystem, currentFilePath, config);
+        }
+        return htmlContent;
+    }
+
+    replaceDownloadLinks(htmlContent, fileSystem, currentFilePath, processedHtmlFiles) {
+        if (!processedHtmlFiles) processedHtmlFiles = new Map();
+        return htmlContent.replace(/<a([^>]*?)href\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
+            if (match.includes('download') || !filename.includes('://')) {
+                const file = this.app.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
+                if (file) {
+                    if (file.type === 'html' && !match.includes('download')) {
+                        const resolvedPath = currentFilePath
+                            ? this.app.fileSystemUtils.resolvePath(currentFilePath, filename)
+                            : filename;
+                        const cachedUrl = processedHtmlFiles.get(resolvedPath);
+                        if (cachedUrl) {
+                            return match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${cachedUrl}"`);
+                        }
+                        if (!processedHtmlFiles.has(resolvedPath)) {
+                            processedHtmlFiles.set(resolvedPath, null);
+                            let processedContent = this.app.replaceAssetReferences(file.content, fileSystem, resolvedPath, processedHtmlFiles);
+                            processedContent = this.app.injectConsoleScript(processedContent, fileSystem, resolvedPath);
+                            const blob = new Blob([processedContent], { type: 'text/html' });
+                            const blobUrl = URL.createObjectURL(blob);
+                            this.app.state.previewAssetUrls.add(blobUrl);
+                            processedHtmlFiles.set(resolvedPath, blobUrl);
+                            return match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${blobUrl}"`);
+                        }
+                    }
+                    const href = this.app.getPreviewAssetUrl(file);
+                    return match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${href}"`);
+                }
+            }
+            return match;
+        });
+    }
+
+    replaceStyleTags(htmlContent, fileSystem, currentFilePath) {
+        return htmlContent.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (match, cssContent) => {
+            const updatedCSS = this.app.replaceCSSAssetReferences(cssContent, fileSystem, currentFilePath);
+            return match.replace(cssContent, updatedCSS);
+        });
+    }
+
+    replaceScriptTags(htmlContent, fileSystem, currentFilePath, workerFileSet) {
+        return htmlContent.replace(/<script([^>]*?)src\s*=\s*["']([^"']+\.(?:js|mjs))["']([^>]*?)><\/script>/gi, (match, before, filename, after) => {
+            if (workerFileSet.has(filename)) {
+                return '';
+            }
+
+            const isExternalScript = this.isExternalAssetPath(filename);
+            if (isExternalScript) {
+                return match;
+            }
+
+            const scriptHasModuleType = /\btype\s*=\s*["']module["']/i.test(`${before} ${after}`);
+            const resolvedPath = this.app.fileSystemUtils.resolvePath(currentFilePath, filename);
+            const file = this.app.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
+            if (file && (file.type === 'javascript' || file.type === 'javascript-module')) {
+                const isModule = scriptHasModuleType || file.type === 'javascript-module' || this.app.fileTypeUtils.isJavaScriptModule(file.content, resolvedPath);
+                if (isModule) {
+                    const moduleSrc = this.app.createModuleAssetUrl(fileSystem, resolvedPath);
+                    if (moduleSrc) {
+                        return match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${moduleSrc}"`);
+                    }
+                }
+
+                const escapedContent = file.content.replace(/<\/script>/gi, '<\\/script>');
+                return `<script>${escapedContent}</script>`;
+            }
+
+            const scriptAttributes = scriptHasModuleType ? ' type="module"' : '';
+            return this.createMissingAssetConsoleScript('Script', filename, currentFilePath, {
+                scriptAttributes,
+            });
+        });
+    }
+}
+
 const CodePreviewer = {
     // ============================================================================
     // APPLICATION STATE
@@ -803,914 +2508,36 @@ const CodePreviewer = {
             }
         }
     },
-
-    // ============================================================================
-    // FILE TYPE UTILITIES
-    // ============================================================================
-    fileTypeUtils: {
-        BINARY_MIME_PREFIXES: ['image/', 'audio/', 'video/', 'application/', 'font/'],
-        JS_MIME_TYPES: new Set(['text/javascript', 'application/javascript', 'application/x-javascript', 'text/ecmascript', 'application/ecmascript']),
-        MODULE_FILENAME_SUFFIXES: ['.mjs', '.esm.js', '.module.js'],
-
-        getBaseName(filename) {
-            if (typeof filename !== 'string') return '';
-
-            const normalizedPath = filename.trim().replace(/\\/g, '/');
-            if (!normalizedPath) return '';
-
-            const pathSegments = normalizedPath.split('/');
-            return (pathSegments.pop() || '').toLowerCase();
-        },
-
-        getExtension(filename) {
-            const baseName = this.getBaseName(filename);
-            if (!baseName || baseName === '.' || baseName === '..') return '';
-
-            const lastDotIndex = baseName.lastIndexOf('.');
-            if (lastDotIndex === -1) return '';
-            if (lastDotIndex === 0) return baseName.slice(1).toLowerCase();
-
-            return baseName.slice(lastDotIndex + 1).toLowerCase();
-        },
-
-        normalizeMimeType(mimeType) {
-            if (!mimeType || typeof mimeType !== 'string') return '';
-            return mimeType.toLowerCase().split(';')[0].trim();
-        },
-
-        getTypeFromExtension(filename) {
-            const extension = this.getExtension(filename);
-            return CodePreviewer.constants.FILE_TYPES.EXTENSIONS[extension] || 'binary';
-        },
-
-        getMimeTypeFromExtension(extension) {
-            const normalizedExtension = extension?.toLowerCase();
-            return CodePreviewer.constants.FILE_TYPES.EXTENSION_MIME_MAP[normalizedExtension] || 'application/octet-stream';
-        },
-
-        getMimeTypeFromFileType(fileType) {
-            return CodePreviewer.constants.FILE_TYPES.MIME_TYPES[fileType] || 'text/plain';
-        },
-
-        getTypeFromMimeType(mimeType) {
-            const normalizedMimeType = this.normalizeMimeType(mimeType);
-            if (!normalizedMimeType) return null;
-            if (this.JS_MIME_TYPES.has(normalizedMimeType)) return 'javascript';
-            if (normalizedMimeType === 'text/html') return 'html';
-            if (normalizedMimeType === 'text/css') return 'css';
-            if (normalizedMimeType === 'application/json' || normalizedMimeType.endsWith('+json')) return 'json';
-            if (normalizedMimeType === 'application/xml' || normalizedMimeType === 'text/xml') return 'xml';
-            if (normalizedMimeType === 'text/markdown') return 'markdown';
-            if (normalizedMimeType === 'image/svg+xml') return 'svg';
-            if (normalizedMimeType.startsWith('image/')) return 'image';
-            if (normalizedMimeType.startsWith('audio/')) return 'audio';
-            if (normalizedMimeType.startsWith('video/')) return 'video';
-            if (normalizedMimeType.startsWith('font/')) return 'font';
-            if (normalizedMimeType === 'application/pdf') return 'pdf';
-            if (normalizedMimeType.startsWith('text/')) return 'text';
-            return null;
-        },
-
-        hasBinaryMimePrefix(mimeType) {
-            return this.BINARY_MIME_PREFIXES.some(prefix => mimeType.startsWith(prefix));
-        },
-
-        isBinaryExtension(extension) {
-            return CodePreviewer.constants.FILE_TYPES.BINARY_EXTENSIONS.has(extension?.toLowerCase());
-        },
-
-        isJavaScriptMimeType(mimeType) {
-            return this.JS_MIME_TYPES.has(this.normalizeMimeType(mimeType));
-        },
-
-        hasModuleFilenameHint(filename) {
-            if (!filename || typeof filename !== 'string') return false;
-            const lowerName = filename.toLowerCase();
-            return this.MODULE_FILENAME_SUFFIXES.some(suffix => lowerName.endsWith(suffix));
-        },
-
-        hasModuleMimeHint(mimeType) {
-            return typeof mimeType === 'string' && /(?:^|;)\s*module(?:\s*=\s*(?:1|true))?\s*(?:;|$)/i.test(mimeType);
-        },
-
-        isJavaScriptModule(content, filename, mimeType) {
-            if (this.hasModuleFilenameHint(filename) || this.hasModuleMimeHint(mimeType)) {
-                return true;
-            }
-
-            if (!content || typeof content !== 'string') {
-                return false;
-            }
-
-            const modulePatterns = [
-                /^\s*import\s+/m,
-                /^\s*export\s+/m,
-                /import\s*\(/,
-                /export\s*\{/,
-                /export\s+default\s+/,
-                /export\s+\*/
-            ];
-
-            return modulePatterns.some(pattern => pattern.test(content));
-        },
-
-        detectJavaScriptType(content, filename, mimeType) {
-            return this.isJavaScriptModule(content, filename, mimeType) ? 'javascript-module' : 'javascript';
-        },
-
-        isBinaryFile(filename, mimeType) {
-            if (!filename) return false;
-
-            const extension = this.getExtension(filename);
-            if (this.isBinaryExtension(extension)) {
-                return true;
-            }
-
-            const normalizedMimeType = this.normalizeMimeType(mimeType);
-            if (!normalizedMimeType) return false;
-
-            if (normalizedMimeType === 'image/svg+xml' || normalizedMimeType === 'application/json' || normalizedMimeType.endsWith('+json')) {
-                return false;
-            }
-
-            return this.hasBinaryMimePrefix(normalizedMimeType);
-        },
-
-        isEditableType(fileType) {
-            return CodePreviewer.constants.FILE_TYPES.EDITABLE_TYPES.includes(fileType);
-        },
-
-        isPreviewableType(fileType) {
-            return CodePreviewer.constants.FILE_TYPES.PREVIEWABLE_TYPES.includes(fileType);
-        },
-
-        getCodeMirrorMode(fileType) {
-            return CodePreviewer.constants.FILE_TYPES.CODEMIRROR_MODES[fileType] || 'text';
-        },
-
-        detectTypeFromContent(content, filename, mimeType = '') {
-            const extensionType = this.getTypeFromExtension(filename);
-            if (!content) {
-                if (extensionType === 'javascript' || extensionType === 'javascript-module') {
-                    return this.detectJavaScriptType(content, filename, mimeType);
-                }
-                return extensionType;
-            }
-
-            if (/<\s*html/i.test(content)) return 'html';
-            if (this.isJavaScriptModule(content, filename, mimeType)) return 'javascript-module';
-            if (/^\s*[\.\#\@]|\s*\w+\s*\{/m.test(content)) return 'css';
-            if (extensionType === 'javascript' || extensionType === 'javascript-module') {
-                return this.detectJavaScriptType(content, filename, mimeType);
-            }
-
-            return extensionType;
-        },
-
-        detectFileType(filename, content, mimeType) {
-            if (!filename) return 'text';
-
-            const extensionType = this.getTypeFromExtension(filename);
-            const mimeTypeType = this.getTypeFromMimeType(mimeType);
-
-            if (this.isBinaryExtension(this.getExtension(filename))) {
-                return extensionType === 'binary' && mimeTypeType ? mimeTypeType : extensionType;
-            }
-
-            if (mimeTypeType && mimeTypeType !== 'javascript') {
-                return mimeTypeType;
-            }
-
-            if (mimeTypeType === 'javascript') {
-                return this.detectJavaScriptType(content, filename, mimeType);
-            }
-
-            return this.detectTypeFromContent(content, filename, mimeType);
-        }
-    },
-
-    // ============================================================================
-    // FILE SYSTEM UTILITIES
-    // Handles virtual file system operations, path resolution, and file lookup
-    // ============================================================================
-    fileSystemUtils: {
-        /**
-         * Resolves a relative path against a base path
-         * @param {string} basePath - The base file path
-         * @param {string} relativePath - The relative path to resolve
-         * @returns {string} The resolved absolute path
-         */
-        resolvePath(basePath, relativePath) {
-            // Absolute paths start fresh
-            if (relativePath.startsWith('/')) {
-                return relativePath.substring(1);
-            }
-            
-            // Get directory portion of base path
-            const baseDir = basePath.includes('/') 
-                ? basePath.substring(0, basePath.lastIndexOf('/')) 
-                : '';
-            
-            const baseParts = baseDir ? baseDir.split('/') : [];
-            const relativeParts = relativePath.split('/');
-            const resultParts = [...baseParts];
-            
-            for (const part of relativeParts) {
-                if (part === '..') {
-                    if (resultParts.length > 0) {
-                        resultParts.pop();
-                    }
-                } else if (part !== '.' && part !== '') {
-                    resultParts.push(part);
-                }
-            }
-            
-            return resultParts.join('/');
-        },
-
-        /**
-         * Finds a file in the virtual file system
-         * @param {Map} fileSystem - The virtual file system map
-         * @param {string} targetFilename - The filename to find
-         * @param {string} currentFilePath - The current file context for relative paths
-         * @returns {Object|null} The file data or null if not found
-         */
-        findFile(fileSystem, targetFilename, currentFilePath = '') {
-            // Resolve relative path if we have context
-            if (currentFilePath) {
-                targetFilename = this.resolvePath(currentFilePath, targetFilename);
-            }
-            
-            // Try exact match first
-            const exactMatch = fileSystem.get(targetFilename);
-            if (exactMatch) {
-                return exactMatch;
-            }
-            
-            // Try case-insensitive match
-            const targetLower = targetFilename.toLowerCase();
-            for (const [filename, file] of fileSystem) {
-                if (filename.toLowerCase() === targetLower) {
-                    return file;
-                }
-            }
-            
-            return null;
-        },
-
-        /**
-         * Gets a data URL for a file (handles both binary and text files)
-         * @param {Object} fileData - The file data object
-         * @param {string} defaultMimeType - Default MIME type for non-binary files
-         * @returns {string} The data URL or content
-         */
-        getFileDataUrl(fileData, defaultMimeType = 'text/plain') {
-            if (fileData.isBinary) {
-                return fileData.content;
-            }
-            
-            // Handle SVG specially
-            if (fileData.type === 'svg') {
-                return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(fileData.content)}`;
-            }
-            
-            // For other text files, create a proper data URL
-            const mimeType = CodePreviewer.fileTypeUtils.getMimeTypeFromFileType(fileData.type) || defaultMimeType;
-            return `data:${mimeType};charset=utf-8,${encodeURIComponent(fileData.content)}`;
-        },
-    },
-
-    // ============================================================================
-    // PREVIEW SCRIPT GENERATOR
-    // Generates JavaScript code strings that are injected into the preview iframe.
-    // Kept separate from fileSystemUtils (runtime file-system operations) because
-    // these methods produce source-code text, not data.
-    // ============================================================================
-    previewScriptGenerator: {
-        /**
-         * Generates JavaScript code for path resolution (used in injected scripts)
-         * @returns {string} JavaScript code for the resolvePath function
-         */
-        generateResolvePathCode() {
-            return `
-    function resolvePath(basePath, relativePath) {
-        if (relativePath.startsWith("/")) {
-            return relativePath.substring(1);
-        }
-        const baseDir = basePath.includes("/") ? basePath.substring(0, basePath.lastIndexOf("/")) : "";
-        const baseParts = baseDir ? baseDir.split("/") : [];
-        const relativeParts = relativePath.split("/");
-        const resultParts = [...baseParts];
-        for (const part of relativeParts) {
-            if (part === "..") {
-                if (resultParts.length > 0) resultParts.pop();
-            } else if (part !== "." && part !== "") {
-                resultParts.push(part);
-            }
-        }
-        return resultParts.join("/");
-    }`;
-        },
-
-        /**
-         * Generates JavaScript code for file lookup (used in injected scripts)
-         * @returns {string} JavaScript code for the findFileInSystem function
-         */
-        generateFindFileCode() {
-            return `
-    function findFileInSystem(targetFilename, currentFilePath = "") {
-        if (currentFilePath) {
-            targetFilename = resolvePath(currentFilePath, targetFilename);
-        }
-        const exactMatch = virtualFileSystem[targetFilename];
-        if (exactMatch) return exactMatch;
-        const targetLower = targetFilename.toLowerCase();
-        for (const [filename, file] of Object.entries(virtualFileSystem)) {
-            if (filename.toLowerCase() === targetLower) return file;
-        }
-        return null;
-    }`;
-        },
-
-        /**
-         * Generates JavaScript code for getting current file path (used in injected scripts)
-         * @returns {string} JavaScript code for the getCurrentFilePath function
-         */
-        generateGetCurrentFilePathCode() {
-            return `
-    function getCurrentFilePath() {
-        try {
-            if (window.__currentExecutionContext) return window.__currentExecutionContext;
-            return mainHtmlPath;
-        } catch (e) {
-            return mainHtmlPath;
-        }
-    }`;
-        },
-
-        /**
-         * Generates JavaScript code for a shared base64-to-Uint8Array helper (used in injected scripts)
-         * Eliminates duplicate byte-conversion loops in fetch, XHR, and other overrides
-         * @returns {string} JavaScript code for the base64ToUint8Array function
-         */
-        generateBase64HelperCode() {
-            return `
-    function base64ToUint8Array(base64) {
-        const binaryString = atob(base64);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-        }
-        return bytes;
-    }`;
-        },
-
-        /**
-         * Generates JavaScript code for the fetch override (used in injected scripts)
-         * Intercepts fetch requests to serve files from the virtual file system
-         * @returns {string} JavaScript code for the fetch override
-         */
-        generateFetchOverrideCode() {
-            return `
-    const originalFetch = window.fetch;
-    window.fetch = function(input, init) {
-        let url = input;
-        if (typeof input === "object" && input.url) {
-            url = input.url;
-        }
-        
-        const currentFilePath = getCurrentFilePath();
-        let targetPath = url.replace(/^\\.\\//,"");
-        const fileData = findFileInSystem(targetPath, currentFilePath);
-        
-        if (fileData) {
-            const response = {
-                ok: true,
-                status: 200,
-                statusText: "OK",
-                headers: new Headers({
-                    "Content-Type": fileData.type === "json" ? "application/json" : 
-                                   fileData.type === "html" ? "text/html" :
-                                   fileData.type === "css" ? "text/css" :
-                                   fileData.type === "javascript" ? "text/javascript" :
-                                   fileData.type === "xml" ? "application/xml" :
-                                   "text/plain"
-                }),
-                url: url,
-                text: () => Promise.resolve(fileData.content),
-                json: () => {
-                    try {
-                        return Promise.resolve(JSON.parse(fileData.content));
-                    } catch (e) {
-                        return Promise.reject(new Error("Invalid JSON"));
-                    }
-                },
-                blob: () => {
-                    if (fileData.isBinary && fileData.content.startsWith("data:")) {
-                        const [header, base64] = fileData.content.split(",");
-                        const mimeType = header.match(/data:([^;]+)/)[1];
-                        return Promise.resolve(new Blob([base64ToUint8Array(base64)], { type: mimeType }));
-                    } else {
-                        return Promise.resolve(new Blob([fileData.content], { type: "text/plain" }));
-                    }
-                },
-                arrayBuffer: () => {
-                    if (fileData.isBinary && fileData.content.startsWith("data:")) {
-                        const [header, base64] = fileData.content.split(",");
-                        return Promise.resolve(base64ToUint8Array(base64).buffer);
-                    } else {
-                        const encoder = new TextEncoder();
-                        return Promise.resolve(encoder.encode(fileData.content).buffer);
-                    }
-                }
-            };
-            
-            return Promise.resolve(response);
-        }
-        
-        return originalFetch.apply(this, arguments);
-    };`;
-        },
-
-        /**
-         * Generates JavaScript code for the XMLHttpRequest override (used in injected scripts)
-         * Intercepts XHR requests to serve files from the virtual file system
-         * @returns {string} JavaScript code for the XMLHttpRequest override
-         */
-        generateXHROverrideCode() {
-            return `
-    const OriginalXMLHttpRequest = window.XMLHttpRequest;
-    window.XMLHttpRequest = function() {
-        const xhr = new OriginalXMLHttpRequest();
-        const originalOpen = xhr.open;
-        const originalSend = xhr.send;
-        
-        let isVirtualRequest = false;
-        let virtualFileData = null;
-        
-        xhr.open = function(method, url, async, user, password) {
-            try {
-                if (method.toUpperCase() === "GET") {
-                    const currentFilePath = getCurrentFilePath();
-                    let targetPath = url.replace(/^\\.\\//,"");
-                    const fileData = findFileInSystem(targetPath, currentFilePath);
-                    
-                    if (fileData) {
-                        isVirtualRequest = true;
-                        virtualFileData = fileData;
-                        xhr.setRequestHeader = function() {};
-                        xhr.overrideMimeType = function() {};
-                        return;
-                    }
-                }
-                
-                isVirtualRequest = false;
-                virtualFileData = null;
-                return originalOpen.call(this, method, url, async, user, password);
-            } catch (e) {
-                isVirtualRequest = false;
-                virtualFileData = null;
-                return originalOpen.call(this, method, url, async, user, password);
-            }
-        };
-        
-        xhr.send = function(data) {
-            if (isVirtualRequest && virtualFileData) {
-                try {
-                    setTimeout(() => {
-                        try {
-                            Object.defineProperty(xhr, "readyState", { value: 4, configurable: true });
-                            Object.defineProperty(xhr, "status", { value: 200, configurable: true });
-                            Object.defineProperty(xhr, "statusText", { value: "OK", configurable: true });
-                            
-                            if (virtualFileData.isBinary && virtualFileData.content.startsWith("data:")) {
-                                if (xhr.responseType === "arraybuffer") {
-                                    const [header, base64] = virtualFileData.content.split(",");
-                                    Object.defineProperty(xhr, "response", { value: base64ToUint8Array(base64).buffer, configurable: true });
-                                } else if (xhr.responseType === "blob") {
-                                    const [header, base64] = virtualFileData.content.split(",");
-                                    const mimeType = header.match(/data:([^;]+)/)[1];
-                                    Object.defineProperty(xhr, "response", { value: new Blob([base64ToUint8Array(base64)], { type: mimeType }), configurable: true });
-                                } else {
-                                    Object.defineProperty(xhr, "response", { value: virtualFileData.content, configurable: true });
-                                    Object.defineProperty(xhr, "responseText", { value: virtualFileData.content, configurable: true });
-                                }
-                            } else {
-                                Object.defineProperty(xhr, "responseText", { value: virtualFileData.content, configurable: true });
-                                Object.defineProperty(xhr, "response", { value: virtualFileData.content, configurable: true });
-                            }
-                            
-                            xhr.getResponseHeader = function(name) {
-                                const lowerName = name.toLowerCase();
-                                if (lowerName === "content-type") {
-                                    const typeMap = {
-                                        "image": "image/png",
-                                        "audio": "audio/mpeg",
-                                        "video": "video/mp4",
-                                        "json": "application/json",
-                                        "css": "text/css",
-                                        "javascript": "text/javascript",
-                                        "html": "text/html"
-                                    };
-                                    return typeMap[virtualFileData.type] || "text/plain";
-                                }
-                                return null;
-                            };
-                            
-                            xhr.getAllResponseHeaders = function() {
-                                const contentType = xhr.getResponseHeader("content-type");
-                                return "content-type: " + contentType + "\\r\\n";
-                            };
-                            
-                            xhr.dispatchEvent(new Event("readystatechange"));
-                            xhr.dispatchEvent(new ProgressEvent("load"));
-                            xhr.dispatchEvent(new ProgressEvent("loadend"));
-                        } catch (e) {
-                            xhr.dispatchEvent(new ProgressEvent("error"));
-                            xhr.dispatchEvent(new ProgressEvent("loadend"));
-                        }
-                    }, 1);
-                } catch (e) {
-                    xhr.dispatchEvent(new ProgressEvent("error"));
-                    xhr.dispatchEvent(new ProgressEvent("loadend"));
-                }
-                return;
-            }
-            
-            return originalSend.call(this, data);
-        };
-        
-        return xhr;
-    };`;
-        },
-
-        /**
-         * Generates JavaScript code for the Image constructor override (used in injected scripts)
-         * Intercepts Image src assignments to serve images from the virtual file system
-         * @returns {string} JavaScript code for the Image constructor override
-         */
-        /**
-         * Generates JavaScript code for a media constructor override (used in injected scripts).
-         * Intercepts src assignments to serve files from the virtual file system.
-         * Used to generate both Image and Audio overrides.
-         * @param {Object} options - Configuration for the override
-         * @param {string} options.name - Constructor name (e.g., 'Image', 'Audio')
-         * @param {string} options.typeCheck - JS expression for matching file types
-         * @param {string} options.resolveExpr - JS expression to resolve the src value
-         * @param {boolean} options.hasInitialSrc - Whether the constructor accepts an initial src argument
-         * @returns {string} JavaScript code for the constructor override
-         */
-        generateMediaOverrideCode({ name, typeCheck, resolveExpr, hasInitialSrc }) {
-            const paramList = hasInitialSrc ? 'src' : '';
-            const initSrc = hasInitialSrc ? `
-        if (src !== undefined) {
-            el.src = src;
-        }` : '';
-            return `
-    const Original${name} = window.${name};
-    window.${name} = function(${paramList}) {
-        const el = new Original${name}();
-        
-        let _originalSrc = "";
-        let _resolvedSrc = "";
-        
-        Object.defineProperty(el, "src", {
-            get: function() {
-                return _resolvedSrc || _originalSrc;
-            },
-            set: function(value) {
-                _originalSrc = value;
-                
-                const currentFilePath = getCurrentFilePath();
-                let targetPath = value.replace(/^\\.\\//,"");
-                const fileData = findFileInSystem(targetPath, currentFilePath);
-                
-                if (fileData && (${typeCheck})) {
-                    const resolved = ${resolveExpr};
-                    _resolvedSrc = resolved;
-                    el.setAttribute("src", resolved);
-                } else {
-                    _resolvedSrc = value;
-                    el.setAttribute("src", value);
-                }
-            },
-            enumerable: true,
-            configurable: true
-        });
-        ${initSrc}
-        return el;
-    };`;
-        },
-
-        generateImageOverrideCode() {
-            return this.generateMediaOverrideCode({
-                name: 'Image',
-                typeCheck: 'fileData.type === "image" || fileData.type === "svg"',
-                resolveExpr: 'fileData.isBinary ? fileData.content : "data:image/svg+xml;charset=utf-8," + encodeURIComponent(fileData.content)',
-                hasInitialSrc: false
-            });
-        },
-
-        generateAudioOverrideCode() {
-            return this.generateMediaOverrideCode({
-                name: 'Audio',
-                typeCheck: 'fileData.type === "audio"',
-                resolveExpr: 'fileData.content',
-                hasInitialSrc: true
-            });
-        },
-
-        /**
-         * Generates JavaScript code for intercepting dynamic CSS url() property assignments
-         * Resolves virtual file paths in style properties like backgroundImage
-         * @returns {string} JavaScript code for the CSS URL override
-         */
-        generateCSSURLOverrideCode() {
-            return `
-    (function() {
-        function resolveUrlsInValue(value) {
-            if (typeof value !== 'string' || !value.includes('url(')) return value;
-            return value.replace(/url\\(["']?([^"')]+)["']?\\)/g, function(match, url) {
-                if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('//')) {
-                    return match;
-                }
-                const currentFilePath = getCurrentFilePath();
-                const targetPath = url.replace(/^\\.\\//,"");
-                const fileData = findFileInSystem(targetPath, currentFilePath);
-                if (fileData && (fileData.type === "image" || fileData.type === "svg")) {
-                    const dataUrl = fileData.isBinary ? fileData.content :
-                        "data:image/svg+xml;charset=utf-8," + encodeURIComponent(fileData.content);
-                    return 'url("' + dataUrl + '")';
-                }
-                return match;
-            });
-        }
-        const urlProps = new Set(['backgroundImage', 'background', 'listStyleImage', 'borderImage', 'borderImageSource', 'cursor', 'content',
-            'background-image', 'list-style-image', 'border-image', 'border-image-source']);
-        const origSetProperty = CSSStyleDeclaration.prototype.setProperty;
-        CSSStyleDeclaration.prototype.setProperty = function(prop, value, priority) {
-            if (urlProps.has(prop)) value = resolveUrlsInValue(value);
-            return origSetProperty.call(this, prop, value, priority);
-        };
-        const styleDesc = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'style');
-        if (styleDesc && styleDesc.get) {
-            const origStyleGet = styleDesc.get;
-            const proxyCache = new WeakMap();
-            Object.defineProperty(HTMLElement.prototype, 'style', {
-                get: function() {
-                    const realStyle = origStyleGet.call(this);
-                    if (proxyCache.has(realStyle)) return proxyCache.get(realStyle);
-                    const proxy = new Proxy(realStyle, {
-                        set: function(target, prop, value) {
-                            if (typeof prop === 'string' && urlProps.has(prop)) {
-                                value = resolveUrlsInValue(value);
-                            }
-                            target[prop] = value;
-                            return true;
-                        },
-                        get: function(target, prop) {
-                            const val = target[prop];
-                            if (typeof val === 'function') return val.bind(target);
-                            return val;
-                        }
-                    });
-                    proxyCache.set(realStyle, proxy);
-                    return proxy;
-                },
-                set: styleDesc.set,
-                enumerable: styleDesc.enumerable,
-                configurable: true
-            });
-        }
-    })();`;
-        },
-
-        /**
-         * Generates JavaScript code for intercepting .src on existing DOM image/audio elements
-         * Ensures elements created via HTML (not via new Image()/new Audio()) also resolve virtual paths
-         * @returns {string} JavaScript code for the element src override
-         */
-        generateElementSrcOverrideCode() {
-            return `
-    (function() {
-        function overrideSrcProperty(proto, typeCheck) {
-            const descriptor = Object.getOwnPropertyDescriptor(proto, 'src');
-            if (!descriptor || !descriptor.set) return;
-            const origSet = descriptor.set;
-            const origGet = descriptor.get;
-            Object.defineProperty(proto, 'src', {
-                set: function(value) {
-                    if (typeof value === 'string' && value && !value.startsWith('data:') && !value.startsWith('http://') && !value.startsWith('https://') && !value.startsWith('blob:') && !value.startsWith('//')) {
-                        const currentFilePath = getCurrentFilePath();
-                        const targetPath = value.replace(/^\\.\\//,"");
-                        const fileData = findFileInSystem(targetPath, currentFilePath);
-                        if (fileData && typeCheck(fileData)) {
-                            const resolved = fileData.isBinary ? fileData.content :
-                                (fileData.type === "svg" ? "data:image/svg+xml;charset=utf-8," + encodeURIComponent(fileData.content) : fileData.content);
-                            origSet.call(this, resolved);
-                            return;
-                        }
-                    }
-                    origSet.call(this, value);
-                },
-                get: origGet ? function() { return origGet.call(this); } : undefined,
-                enumerable: descriptor.enumerable,
-                configurable: true
-            });
-        }
-        overrideSrcProperty(HTMLImageElement.prototype, function(f) { return f.type === "image" || f.type === "svg"; });
-        overrideSrcProperty(HTMLAudioElement.prototype, function(f) { return f.type === "audio"; });
-        overrideSrcProperty(HTMLVideoElement.prototype, function(f) { return f.type === "video"; });
-        overrideSrcProperty(HTMLSourceElement.prototype, function(f) { return f.type === "audio" || f.type === "video" || f.type === "image"; });
-    })();`;
-        },
-
-        /**
-         * Generates JavaScript code for console capture and error handling (used in injected scripts)
-         * Overrides console methods to post messages to the parent window and captures errors
-         * @param {string} messageType - The message type identifier for postMessage communication
-         * @returns {string} JavaScript code for console capture
-         */
-
-        /**
-         * Generates JavaScript code that safely handles Service Worker registration in preview contexts.
-         * @returns {string} JavaScript code for service worker override
-         */
-        generateServiceWorkerOverrideCode() {
-            return `
-    try {
-        const serviceWorkerContainer = navigator && navigator.serviceWorker;
-        const isPreviewLikeProtocol = /^(about:|data:|blob:)/i.test(window.location.protocol || '') || window.location.href === 'about:srcdoc';
-        if (serviceWorkerContainer && typeof serviceWorkerContainer.register === 'function' && isPreviewLikeProtocol) {
-            const unsupportedError = () => {
-                const error = new Error('Service Worker registration is not supported in preview mode (about:srcdoc/data/blob contexts).');
-                error.name = 'PreviewServiceWorkerUnsupportedError';
-                return error;
-            };
-            Object.defineProperty(serviceWorkerContainer, 'register', {
-                configurable: true,
-                writable: true,
-                value: function registerServiceWorkerInPreview() {
-                    const err = unsupportedError();
-                    if (window && window.console && typeof window.console.warn === 'function') {
-                        window.console.warn('[Preview] ' + err.message);
-                    }
-                    return Promise.reject(err);
-                }
-            });
-        }
-    } catch (serviceWorkerOverrideError) {
-        // no-op: preview safety override should never break page execution
-    }`;
-        },
-
-        generateConsoleOverrideCode(messageType) {
-            return `
-    const normalizeSourcePath = (source) => {
-        if (!source || typeof source !== 'string') return '';
-        try {
-            const parsed = new URL(source, window.location.href);
-            if (parsed.protocol === 'blob:' || parsed.protocol === 'data:' || parsed.href === 'about:srcdoc') {
-                return source;
-            }
-            const path = parsed.pathname || '';
-            return path.startsWith('/') ? path.slice(1) : path;
-        } catch (error) {
-            return source.startsWith('/') ? source.slice(1) : source;
-        }
-    };
-    const classifySourceOrigin = (source) => {
-        if (!source) return 'unknown';
-        if (typeof source !== 'string') return 'unknown';
-
-        const normalizedPath = normalizeSourcePath(source);
-        if (normalizedPath && Object.prototype.hasOwnProperty.call(virtualFileSystem, normalizedPath)) {
-            return 'virtual-file';
-        }
-
-        if (source.startsWith('http://') || source.startsWith('https://') || source.startsWith('//')) {
-            return 'external-url';
-        }
-
-        if (/^(blob:|data:|about:srcdoc)/i.test(source)) {
-            return 'virtual-file';
-        }
-
-        return 'unknown';
-    };
-    const serializeArg = (arg) => {
-        if (arg instanceof Error) {
-            return {
-                message: arg.message,
-                stack: arg.stack,
-                name: arg.name
-            };
-        }
-        try {
-            return JSON.parse(JSON.stringify(arg));
-        } catch (e) {
-            return 'Unserializable Object';
-        }
-    };
-    const postLog = (level, args) => {
-        const formattedArgs = Array.isArray(args) ? args.map(serializeArg) : [serializeArg(args)];
-        window.parent.postMessage({ type: '${messageType}', level, message: formattedArgs }, '*');
-    };
-    const postStructuredError = (payload) => {
-        window.parent.postMessage({
-            type: '${messageType}',
-            level: 'error',
-            message: [{
-                kind: 'runtime-error',
-                message: payload.message || 'Unknown runtime error',
-                source: payload.source || '',
-                line: Number(payload.line) || 0,
-                column: Number(payload.column) || 0,
-                stack: payload.stack || '',
-                originType: classifySourceOrigin(payload.source)
-            }]
-        }, '*');
-    };
-    const originalConsole = { ...window.console };
-    ['log', 'info', 'warn', 'error'].forEach(level => {
-        window.console[level] = (...args) => {
-            postLog(level, Array.from(args));
-            originalConsole[level](...args);
-        };
-    });
-    window.onerror = (message, source, lineno, colno, error) => {
-        if (message === 'Script error.' && !source) return true;
-        postStructuredError({
-            message: message,
-            source: source,
-            line: lineno,
-            column: colno,
-            stack: error && error.stack ? error.stack : ''
-        });
-        return true;
-    };
-    window.addEventListener('unhandledrejection', e => {
-        const reason = e && Object.prototype.hasOwnProperty.call(e, 'reason') ? e.reason : 'Unknown rejection reason';
-        postStructuredError({
-            message: 'Unhandled promise rejection',
-            source: (e && e.reason && e.reason.sourceURL) || '',
-            line: (e && e.reason && e.reason.line) || 0,
-            column: (e && e.reason && e.reason.column) || 0,
-            stack: reason && reason.stack ? reason.stack : ''
-        });
-        postLog('error', ['Unhandled promise rejection:', reason]);
-    });`;
-        }
-    },
-
-    // ============================================================================
-    // APPLICATION INITIALIZATION AND LIFECYCLE
-    // ============================================================================
-    
-    /**
-     * Bootstraps the Code Previewer application.
-     *
-     * Initialization order is intentional:
-     *  1. Helper class instances (EventManager needs DOM refs; StorageHandler needs constants).
-     *  2. DOM cache — required by every subsequent step.
-     *  3. Settings loaded before editors are created so they receive the correct theme/font/etc.
-     *  4. Editors initialized before event binding so change-listeners have valid targets.
-     *  5. Events bound before file panels so file-tree click handlers are ready.
-     *  6. consoleBridge initialized last because it needs the final previewFrame reference.
-     */
     init() {
-        // 1. Instantiate helpers — storageHandler needed by loadSettings(),
-        //    previewRenderer and eventManager needed before bindAll().
-        this.previewRenderer = new PreviewRenderer(this);
-        this.eventManager    = new EventManager(this);
-        this.storageHandler  = new StorageHandler(this);
+        // Create utility instances with dependency injection.
+        // Order matters: fileSystemUtils depends on fileTypeUtils; assetReplacers depends on the CodePreviewer instance.
+        this.fileTypeUtils = new FileTypeUtils(this.constants.FILE_TYPES);
+        this.fileSystemUtils = new FileSystemUtils(this.fileTypeUtils);
+        this.previewScriptGenerator = new PreviewScriptGenerator();
+        this.htmlGenerators = new HtmlGenerators();
+        this.notificationSystem = new NotificationSystem();
+        this.assetReplacers = new AssetReplacers(this);
 
-        // 2. Cache all DOM references once.
+        // Existing helper instances
+        this.previewRenderer = new PreviewRenderer(this);
+        this.eventManager = new EventManager(this);
+        this.storageHandler = new StorageHandler(this);
+
         this.cacheDOMElements();
         this.initSettingsCustomDropdowns();
-
-        // 3. Load persisted settings before creating editors.
         this.loadSettings();
-
-        // 4. Initialize CodeMirror editors.
         this.initEditors();
-
-        // 5. Bind all UI events via the EventManager.
         this.eventManager.bindAll();
         this.bindFileTreeEvents();
-
-        // 6. Hydrate existing file panels and ensure default demo files exist.
         this.initExistingFilePanels();
         this.ensureDefaultContentFile();
-
-        // 7. Apply loaded settings to every editor instance and sync the settings UI.
         this.applyEditorSettingsToAllEditors();
         this.syncSettingsUI();
 
-        // 8. Initialize the console capture bridge with the preview iframe reference.
+        // Initialize the console capture bridge with constants and previewScriptGenerator for injection script generation.
+        this.consoleBridge = new ConsoleBridge(this.constants, this.previewScriptGenerator);
         this.consoleBridge.init(this.dom.consoleOutput, this.dom.clearConsoleBtn, this.dom.previewFrame);
 
-        // 9. Final layout pass.
         this.updatePreviewActionButtons();
         this.updatePreviewViewportHeight();
         this.updateAdaptiveLayoutMode();
@@ -1790,37 +2617,6 @@ const CodePreviewer = {
     },
 
     /**
-     * Escapes special HTML characters in any value.
-     * Handles null/undefined gracefully — returns an empty string.
-     * @param {unknown} str
-     * @returns {string}
-     */
-    escapeHtml(str) {
-        if (str === null || str === undefined) return '';
-        return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
-    },
-
-    /**
-     * Decodes a base64 string into a Uint8Array.
-     * Callers are responsible for ensuring valid base64 input; atob will throw on invalid data.
-     * @param {string} base64 - The base64-encoded string
-     * @returns {Uint8Array} The decoded byte array
-     */
-    base64ToUint8Array(base64) {
-        const binaryString = atob(base64);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-        }
-        return bytes;
-    },
-
-    /**
      * Gets the current content of a file, preferring the editor value when available.
      * @param {Object} file - The file object with optional editor and content properties
      * @returns {string} The file content
@@ -1839,7 +2635,7 @@ const CodePreviewer = {
             const mimeTypeMatch = header.match(/^data:([^;]+)/i);
             const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : 'application/octet-stream';
             const blob = header.includes(';base64')
-                ? new Blob([this.base64ToUint8Array(dataPart)], { type: mimeType })
+                ? new Blob([base64ToUint8Array(dataPart)], { type: mimeType })
                 : new Blob([decodeURIComponent(dataPart)], { type: mimeType });
             return URL.createObjectURL(blob);
         } catch (error) {
@@ -2002,37 +2798,10 @@ const CodePreviewer = {
         this.applyEditorSettingsToAllEditors();
         this.setDefaultContent();
     },
-
     initFallbackEditors() {
-        const createMockEditor = (textarea) => {
-            if (!textarea) return null;
-            
-            Object.assign(textarea.style, {
-                fontFamily: 'monospace', fontSize: `${this.state.settings.fontSize}px`, lineHeight: '1.5',
-                resize: 'none', border: 'none', outline: 'none',
-                background: '#282a36', color: '#f8f8f2', padding: '1rem',
-                width: '100%', height: '400px'
-            });
-            
-            return {
-                setValue: (value) => textarea.value = value,
-                getValue: () => textarea.value,
-                refresh: () => {},
-                setOption: () => {},
-                on: (eventName, handler) => {
-                    if (eventName !== 'change' || !handler) return;
-                    if (textarea.__changeListener) {
-                        textarea.removeEventListener('input', textarea.__changeListener);
-                    }
-                    textarea.__changeListener = () => handler(null, { origin: '+input' });
-                    textarea.addEventListener('input', textarea.__changeListener);
-                },
-            };
-        };
-
-        this.state.editors.html = createMockEditor(this.dom.htmlEditor);
-        this.state.editors.css = createMockEditor(this.dom.cssEditor);
-        this.state.editors.js = createMockEditor(this.dom.jsEditor);
+        this.state.editors.html = createMockEditor(this.dom.htmlEditor, this.state.settings.fontSize);
+        this.state.editors.css = createMockEditor(this.dom.cssEditor, this.state.settings.fontSize);
+        this.state.editors.js = createMockEditor(this.dom.jsEditor, this.state.settings.fontSize);
 
         this.setDefaultContent();
     },
@@ -2252,9 +3021,9 @@ This content is loaded from a markdown file.
             const listId = `${select.id}-custom-listbox`;
 
             dropdown.innerHTML = `
-                <button type="button" class="settings-select-dropdown-trigger" aria-haspopup="listbox" aria-controls="${this.escapeHtml(listId)}" aria-expanded="false"></button>
-                <ul id="${this.escapeHtml(listId)}" class="settings-select-dropdown-list" role="listbox" tabindex="-1" hidden>
-                    ${Array.from(select.options).map((option) => `<li role="option" aria-selected="false"><button type="button" class="settings-select-dropdown-option" data-value="${this.escapeHtml(option.value)}">${this.escapeHtml(option.textContent || '')}</button></li>`).join('')}
+                <button type="button" class="settings-select-dropdown-trigger" aria-haspopup="listbox" aria-controls="${escapeHtml(listId)}" aria-expanded="false"></button>
+                <ul id="${escapeHtml(listId)}" class="settings-select-dropdown-list" role="listbox" tabindex="-1" hidden>
+                    ${Array.from(select.options).map((option) => `<li role="option" aria-selected="false"><button type="button" class="settings-select-dropdown-option" data-value="${escapeHtml(option.value)}">${escapeHtml(option.textContent || '')}</button></li>`).join('')}
                 </ul>
             `;
 
@@ -2587,31 +3356,10 @@ This content is loaded from a markdown file.
         this.refreshCodeModalEditor();
     },
 
-    formatFileSize(bytes) {
-        const normalized = Number.isFinite(bytes) && bytes >= 0 ? bytes : 0;
-        if (normalized < 1024) return `${normalized} B`;
-
-        const units = ['KB', 'MB', 'GB'];
-        let size = normalized;
-        let unitIndex = -1;
-
-        while (size >= 1024 && unitIndex < units.length - 1) {
-            size /= 1024;
-            unitIndex += 1;
-        }
-
-        const roundedSize = size >= 10 ? Math.round(size) : Math.round(size * 10) / 10;
-        return `${roundedSize} ${units[unitIndex]}`;
-    },
-
     getCurrentCodeModalFileName(fallbackName = '') {
         return fallbackName
             || this.state.currentCodeModalSource?.querySelector('.file-name-input')?.value
             || 'Code';
-    },
-
-    getLineCount(content) {
-        return content.length === 0 ? 1 : content.split(/\r\n|\r|\n/).length;
     },
 
     getCodeModalFileMeta(fileName = null) {
@@ -2621,10 +3369,10 @@ This content is loaded from a markdown file.
 
         const displayFileName = this.getCurrentCodeModalFileName(fileName || '');
         const content = fileInfo.editor?.getValue?.() ?? fileInfo.content ?? '';
-        const metaParts = [this.formatFileSize(new Blob([content]).size)];
+        const metaParts = [formatFileSize(new Blob([content]).size)];
 
         if (this.isTextFileType(fileInfo)) {
-            const lineCount = this.getLineCount(content);
+            const lineCount = getLineCount(content);
             metaParts.push(`${lineCount} line${lineCount === 1 ? '' : 's'}`);
         }
 
@@ -2670,10 +3418,6 @@ This content is loaded from a markdown file.
                 button.title = isMobile ? 'Move down' : 'Move right';
             }
         });
-    },
-
-    isModuleFile(content, filename, mimeType = '') {
-        return this.fileTypeUtils.isJavaScriptModule(content, filename, mimeType);
     },
 
     isExternalImportSpecifier(specifier) {
@@ -2755,10 +3499,6 @@ This content is loaded from a markdown file.
         const imports = this.buildModuleImportMap(fileSystem);
         if (!imports) return '';
         return `<script type="importmap">${JSON.stringify({ imports })}</script>`;
-    },
-
-    autoDetectFileType(filename, content, mimeType) {
-        return this.fileTypeUtils.detectFileType(filename, content, mimeType);
     },
 
     detectFileTypeForFilename(filename, content = null, mimeType = '', currentType = '') {
@@ -3115,7 +3855,7 @@ This content is loaded from a markdown file.
                         type="search"
                         class="file-tree-search-input"
                         placeholder="Search files..."
-                        value="${this.escapeHtml(this.state.sidebarSearchQuery)}"
+                        value="${escapeHtml(this.state.sidebarSearchQuery)}"
                         aria-label="Search files in sidebar"
                     >
                     <span class="file-tree-search-hint" aria-hidden="true">⌘/Ctrl + K</span>
@@ -3163,12 +3903,12 @@ This content is loaded from a markdown file.
             html += `
                 <div class="tree-folder ${isExpanded ? 'expanded' : ''} ${isFolderSelected ? 'folder-selected-in-sidebar' : ''}" data-folder-path="${folderPath}">
                     <div class="tree-folder-header">
-                        <input type="checkbox" class="tree-folder-checkbox" aria-label="Select folder ${this.escapeHtml(folderPath)}" ${isFolderSelected ? 'checked' : ''}>
+                        <input type="checkbox" class="tree-folder-checkbox" aria-label="Select folder ${escapeHtml(folderPath)}" ${isFolderSelected ? 'checked' : ''}>
                         <span class="folder-icon">${isExpanded ? SVG_ICONS.folderOpen : SVG_ICONS.folder}</span>
-                        <span class="folder-name">${this.escapeHtml(folderName)}</span>
+                        <span class="folder-name">${escapeHtml(folderName)}</span>
                         <div class="folder-actions">
                             ${hasOpenFolderPanels
-                                ? `<button class="close-folder-panels-btn" title="${this.escapeHtml(closeFolderPanelsLabel)}" aria-label="${this.escapeHtml(closeFolderPanelsLabel)}">${closeFolderPanelsIcon}</button>`
+                                ? `<button class="close-folder-panels-btn" title="${escapeHtml(closeFolderPanelsLabel)}" aria-label="${escapeHtml(closeFolderPanelsLabel)}">${closeFolderPanelsIcon}</button>`
                                 : ''}
                             <button class="add-file-to-folder-btn" title="Add file to folder">+</button>
                             <button class="add-subfolder-btn" title="Add subfolder">${SVG_ICONS.folderPlus}</button>
@@ -3198,9 +3938,9 @@ This content is loaded from a markdown file.
             const selectedClass = isSelected ? 'file-selected-in-sidebar' : '';
             html += `
                 <div class="tree-file ${openClass} ${modifiedClass} ${selectedClass}" data-file-id="${file.id}">
-                    <input type="checkbox" class="tree-file-checkbox" aria-label="Select file ${this.escapeHtml(file.displayName)}" ${isSelected ? 'checked' : ''}>
+                    <input type="checkbox" class="tree-file-checkbox" aria-label="Select file ${escapeHtml(file.displayName)}" ${isSelected ? 'checked' : ''}>
                     <span class="file-icon">${fileIcon}</span>
-                    <span class="file-name">${this.escapeHtml(file.displayName)}</span>
+                    <span class="file-name">${escapeHtml(file.displayName)}</span>
                     <div class="file-actions">
                         <button class="open-file-btn" title="${isOpen ? 'Focus file' : 'Open file'}" aria-label="${isOpen ? 'Focus file' : 'Open file'}">${isOpen ? SVG_ICONS.eye : SVG_ICONS.pencil}</button>
                         <button class="move-file-btn" title="Move file" aria-label="Move file">${SVG_ICONS.move}</button>
@@ -4028,7 +4768,7 @@ This content is loaded from a markdown file.
         
         let newEditor;
         
-        if (this.isEditableFileType(fileType)) {
+        if (this.fileTypeUtils.isEditableType(fileType)) {
             const newTextarea = document.getElementById(fileId);
             newEditor = this.createEditorForTextarea(newTextarea, fileType, isBinary);
             
@@ -4113,7 +4853,7 @@ This content is loaded from a markdown file.
 
     renderFileTypeOptionLabel(choice) {
         const icon = choice.icon || SVG_ICONS.document;
-        const label = this.escapeHtml(choice.label);
+        const label = escapeHtml(choice.label);
         return `<span class="file-type-option-icon" aria-hidden="true">${icon}</span><span>${label}</span>`;
     },
 
@@ -4127,7 +4867,7 @@ This content is loaded from a markdown file.
         return this.getFileTypeChoices().map(type => {
             const selectedClass = selectedType === type.value ? ' is-selected' : '';
             const selectedState = selectedType === type.value ? 'true' : 'false';
-            return `<li role="option" aria-selected="${selectedState}"><button type="button" class="file-type-dropdown-option${selectedClass}" data-value="${this.escapeHtml(type.value)}">${this.renderFileTypeOptionLabel(type)}</button></li>`;
+            return `<li role="option" aria-selected="${selectedState}"><button type="button" class="file-type-dropdown-option${selectedClass}" data-value="${escapeHtml(type.value)}">${this.renderFileTypeOptionLabel(type)}</button></li>`;
         }).join('');
     },
 
@@ -4151,7 +4891,7 @@ This content is loaded from a markdown file.
     createFilePanel(fileId, fileName, fileType, content, isBinary) {
         const fileTypeOptions = this.generateFileTypeOptions(fileType);
         const fileTypeDropdownOptions = this.generateFileTypeDropdownOptions(fileType);
-        const escapedFileName = this.escapeHtml(fileName);
+        const escapedFileName = escapeHtml(fileName);
         
         const panelHTML = `
             <div class="editor-panel" data-file-type="${fileType}" data-file-id="${fileId}">
@@ -4162,7 +4902,7 @@ This content is loaded from a markdown file.
                 </div>
                     <input type="text" class="file-name-input" value="${escapedFileName}" aria-label="File name">
                     <div class="file-type-dropdown" data-file-type-dropdown>
-                        <button type="button" class="file-type-dropdown-trigger" aria-haspopup="listbox" aria-expanded="false">${this.escapeHtml(this.getFileTypeChoiceLabel(fileType))}</button>
+                        <button type="button" class="file-type-dropdown-trigger" aria-haspopup="listbox" aria-expanded="false">${escapeHtml(this.getFileTypeChoiceLabel(fileType))}</button>
                         <ul class="file-type-dropdown-list" role="listbox" tabindex="-1" hidden>
                             ${fileTypeDropdownOptions}
                         </ul>
@@ -4185,7 +4925,7 @@ This content is loaded from a markdown file.
 
     createEditorForTextarea(textarea, fileType, isBinary = false) {
         if (typeof window.CodeMirror !== 'undefined' && textarea) {
-            const mode = this.getCodeMirrorMode(fileType);
+            const mode = this.fileTypeUtils.getCodeMirrorMode(fileType);
             
             // Create CodeMirror editor with all settings
             // indentUnit matches tabSize for consistent indentation width
@@ -4205,34 +4945,14 @@ This content is loaded from a markdown file.
             this.applySettingsToEditor(editor);
             return editor;
         } else if (textarea) {
-            Object.assign(textarea.style, {
-                fontFamily: 'monospace', fontSize: `${this.state.settings.fontSize}px`, lineHeight: '1.5',
-                resize: 'none', border: 'none', outline: 'none',
-                background: '#282a36', color: '#f8f8f2', padding: '1rem',
-                width: '100%', height: '400px'
-            });
-            
-            return {
-                setValue: (value) => textarea.value = value,
-                getValue: () => textarea.value,
-                refresh: () => {},
-                setOption: () => {},
-                on: (eventName, handler) => {
-                    if (eventName !== 'change' || !handler) return;
-                    if (textarea.__changeListener) {
-                        textarea.removeEventListener('input', textarea.__changeListener);
-                    }
-                    textarea.__changeListener = () => handler(null, { origin: '+input' });
-                    textarea.addEventListener('input', textarea.__changeListener);
-                },
-            };
+            return createMockEditor(textarea, this.state.settings.fontSize);
         }
         
         return null;
     },
 
     generateToolbarHTML(fileType) {
-        const isEditable = this.isEditableFileType(fileType);
+        const isEditable = this.fileTypeUtils.isEditableType(fileType);
         const supportsFormatting = this.supportsFormattingForType(fileType);
         const hasExpandPreview = this.hasExpandPreview(fileType);
         
@@ -4277,19 +4997,15 @@ This content is loaded from a markdown file.
     },
 
     getFileTypeLabel(fileType) {
-        return `${fileType.charAt(0).toUpperCase() + fileType.slice(1)} ${this.isEditableFileType(fileType) ? 'Editor' : 'Viewer'}`;
+        return `${fileType.charAt(0).toUpperCase() + fileType.slice(1)} ${this.fileTypeUtils.isEditableType(fileType) ? 'Editor' : 'Viewer'}`;
     },
 
     generateFileContentDisplay(fileId, fileType, content, isBinary) {
-        if (this.isEditableFileType(fileType)) {
+        if (this.fileTypeUtils.isEditableType(fileType)) {
             return `<textarea id="${fileId}"></textarea>`;
         }
 
         return this.htmlGenerators.filePreview(fileType, this.getFilePanelPreviewContent(fileId, fileType, content, isBinary));
-    },
-
-    isEditableFileType(fileType) {
-        return this.fileTypeUtils.isEditableType(fileType);
     },
 
 
@@ -4307,11 +5023,6 @@ This content is loaded from a markdown file.
 
     supportsFormattingForType(fileType) {
         return ['html', 'css', 'javascript', 'javascript-module', 'json', 'xml', 'svg'].includes(fileType);
-    },
-
-
-    getCodeMirrorMode(fileType) {
-        return this.fileTypeUtils.getCodeMirrorMode(fileType);
     },
 
     updateToolbarForFileType(panel, newType) {
@@ -4375,8 +5086,8 @@ This content is loaded from a markdown file.
             const oldType = fileInfo.type;
             fileInfo.type = newType;
 
-            const oldIsEditable = this.isEditableFileType(oldType);
-            const newIsEditable = this.isEditableFileType(newType);
+            const oldIsEditable = this.fileTypeUtils.isEditableType(oldType);
+            const newIsEditable = this.fileTypeUtils.isEditableType(newType);
             const resolvedContent = contentOverride !== null
                 ? contentOverride
                 : (fileInfo.editor ? fileInfo.editor.getValue() : '');
@@ -4390,7 +5101,7 @@ This content is loaded from a markdown file.
                     this.createEditorForFileType(fileInfo, fileId, newType, resolvedContent);
                 }
             } else if (newIsEditable && typeof window.CodeMirror !== 'undefined' && fileInfo.editor.setOption) {
-                const mode = this.getCodeMirrorMode(newType);
+                const mode = this.fileTypeUtils.getCodeMirrorMode(newType);
                 fileInfo.editor.setOption('mode', mode);
                 fileInfo.editor.setOption('autoCloseTags', newType === 'html');
             }
@@ -4502,7 +5213,7 @@ This content is loaded from a markdown file.
     },
 
     createEditorForFileType(fileInfo, fileId, fileType, content) {
-        if (this.isEditableFileType(fileType)) {
+        if (this.fileTypeUtils.isEditableType(fileType)) {
             const newTextarea = document.getElementById(fileId);
             fileInfo.editor = this.createEditorForTextarea(newTextarea, fileType);
             
@@ -4723,7 +5434,7 @@ This content is loaded from a markdown file.
 
         const currentFileType = this.getCurrentFileType(panel, fileInfo);
         const savedFileType = this.getSavedFileType(savedState, fileInfo);
-        const savedIsEditable = this.isEditableFileType(savedFileType);
+        const savedIsEditable = this.fileTypeUtils.isEditableType(savedFileType);
 
         if (currentFileType !== savedFileType) {
             this.applyFileTypeChange(panel, fileId, savedFileType, savedState.content);
@@ -4760,7 +5471,7 @@ This content is loaded from a markdown file.
 
             const fileInfo = this.state.files.find(f => f.id === fileId);
             const fileType = fileInfo ? fileInfo.type : panel?.dataset.fileType;
-            if (!fileType || !this.isEditableFileType(fileType)) return;
+            if (!fileType || !this.fileTypeUtils.isEditableType(fileType)) return;
             if (this.state.formattingEditors.has(fileId)) return;
 
             const origin = changeObj && changeObj.origin ? changeObj.origin : '';
@@ -5140,7 +5851,7 @@ This content is loaded from a markdown file.
         const fileId = panel.dataset.fileId;
         const fileType = panel.dataset.fileType;
         const editor = this.getEditorFromPanel(panel);
-        if (!fileId || !editor || !this.isEditableFileType(fileType) || !this.supportsFormattingForType(fileType)) return false;
+        if (!fileId || !editor || !this.fileTypeUtils.isEditableType(fileType) || !this.supportsFormattingForType(fileType)) return false;
 
         return this.formatEditorContent(fileId, editor, fileType, {
             isAutomatic,
@@ -5151,7 +5862,7 @@ This content is loaded from a markdown file.
 
     scheduleAutoFormat(fileId, editor, fileType) {
         if (!this.state.settings.autoFormatOnType) return;
-        if (!fileId || !editor || !this.isEditableFileType(fileType) || !this.supportsFormattingForType(fileType)) return;
+        if (!fileId || !editor || !this.fileTypeUtils.isEditableType(fileType) || !this.supportsFormattingForType(fileType)) return;
 
         const existingTimer = this.state.autoFormatTimers.get(fileId);
         if (existingTimer) clearTimeout(existingTimer);
@@ -5356,7 +6067,6 @@ This content is loaded from a markdown file.
 
         return false;
     },
-
     searchInPanel(panel, query, findNext = false) {
         const editor = this.getEditorFromPanel(panel);
         const { searchInput } = this.getPanelSearchElements(panel);
@@ -5371,14 +6081,8 @@ This content is loaded from a markdown file.
         const content = editor.getValue ? editor.getValue() : '';
         if (!content) return;
 
-        const lowerContent = content.toLowerCase();
-        const lowerQuery = trimmedQuery.toLowerCase();
         const startIndex = this.getSearchStartIndex(editor, findNext);
-
-        let matchIndex = lowerContent.indexOf(lowerQuery, startIndex);
-        if (matchIndex === -1 && startIndex > 0) {
-            matchIndex = lowerContent.indexOf(lowerQuery);
-        }
+        const matchIndex = findNextMatch(content, trimmedQuery, startIndex);
 
         if (matchIndex === -1) {
             if (searchInput) {
@@ -5456,7 +6160,7 @@ This content is loaded from a markdown file.
             const commaIndex = content.indexOf(',');
             if (isBinary && content.startsWith('data:') && commaIndex !== -1) {
                 const base64Data = content.slice(commaIndex + 1);
-                blob = new Blob([this.base64ToUint8Array(base64Data)], { type: mimeType });
+                blob = new Blob([base64ToUint8Array(base64Data)], { type: mimeType });
             } else {
                 blob = new Blob([content], { type: mimeType });
             }
@@ -5484,7 +6188,7 @@ This content is loaded from a markdown file.
         const fileId = panel.dataset.fileId;
         const fileType = panel.dataset.fileType;
         
-        if (!this.isEditableFileType(fileType)) {
+        if (!this.fileTypeUtils.isEditableType(fileType)) {
             this.showMediaPreview(panel);
             return;
         }
@@ -5494,7 +6198,7 @@ This content is loaded from a markdown file.
 
         const content = editor.getValue();
         let fileName = 'Code';
-        const language = this.getCodeMirrorMode(fileType);
+        const language = this.fileTypeUtils.getCodeMirrorMode(fileType);
 
         const fileNameInput = panel.querySelector('.file-name-input');
         
@@ -5663,7 +6367,6 @@ This content is loaded from a markdown file.
     },
 
 
-
     refreshCodeModalEditor() {
         if (!(window.CodeMirror && this.state.codeModalEditor)) return;
         setTimeout(() => this.state.codeModalEditor.refresh(), 0);
@@ -5715,7 +6418,6 @@ This content is loaded from a markdown file.
             this.closeCodeModalSearch();
         }
     },
-
     searchInCodeModal(findNext = false) {
         if (!this.dom.codeModalSearchInput) return;
 
@@ -5728,19 +6430,13 @@ This content is loaded from a markdown file.
             return;
         }
 
-        const queryLower = query.toLowerCase();
-        const contentLower = content.toLowerCase();
         const searchState = this.state.codeModalSearchState;
-
         let startIndex = 0;
         if (findNext && searchState.query === query) {
             startIndex = Math.max(searchState.cursorIndex + 1, 0);
         }
 
-        let matchIndex = contentLower.indexOf(queryLower, startIndex);
-        if (matchIndex === -1 && findNext) {
-            matchIndex = contentLower.indexOf(queryLower, 0);
-        }
+        const matchIndex = findNextMatch(content, query, startIndex);
 
         if (matchIndex === -1) {
             this.dom.codeModalSearchInput.classList.add('no-match');
@@ -5916,7 +6612,7 @@ This content is loaded from a markdown file.
             }
 
             const scriptContent = scriptEl.textContent || '';
-            if (scriptType === 'module' || this.isModuleFile(scriptContent)) {
+            if (scriptType === 'module' || this.fileTypeUtils.isJavaScriptModule(scriptContent)) {
                 moduleFiles.push({
                     content: scriptContent,
                     filename: currentFilePath.replace(/\.(html?)$/, '-inline-module.mjs')
@@ -5956,7 +6652,7 @@ This content is loaded from a markdown file.
                 css += '\n' + content;
             } else if (file.type === 'javascript') {
                 const filename = this.getFileNameFromPanel(file.id) || 'script.js';
-                if (this.isModuleFile(content, filename)) {
+                if (this.fileTypeUtils.isJavaScriptModule(content, filename)) {
                     moduleFiles.push({
                         content: content,
                         filename: filename
@@ -6979,459 +7675,6 @@ This content is loaded from a markdown file.
         }
     },
 
-    // ============================================================================
-    // HTML GENERATION UTILITIES
-    // ============================================================================
-    htmlGenerators: {
-        toolbarButton(icon, text, className, ariaLabel, title) {
-            return `<button class="toolbar-btn ${className}" aria-label="${ariaLabel}" title="${title}">
-                <span class="btn-icon">${icon}</span> ${text}
-            </button>`;
-        },
-
-        fileTypeOption(value, label, selected = false) {
-            return `<option value="${value}" ${selected ? 'selected' : ''}>${label}</option>`;
-        },
-
-        filePreview(type, content, fileName = '') {
-            const previews = {
-                image: `<div class="file-preview image-preview">
-                    <img src="${content}" alt="Preview">
-                </div>`,
-                audio: `<div class="file-preview audio-preview">
-                    <audio controls>
-                        <source src="${content}">
-                        Your browser does not support the audio element.
-                    </audio>
-                </div>`,
-                video: `<div class="file-preview video-preview">
-                    <video controls>
-                        <source src="${content}">
-                        Your browser does not support the video element.
-                    </video>
-                </div>`,
-                pdf: `<div class="file-preview pdf-preview">
-                    <object data="${content}" type="application/pdf">
-                        <p>PDF failed to load. <a href="${content}" target="_blank">Open in new tab</a></p>
-                    </object>
-                </div>`,
-                default: `<div class="file-preview binary-preview">
-                    <p>${SVG_ICONS.fileBinary} Binary file: Cannot display content</p>
-                    <p>File can be referenced in HTML code</p>
-                </div>`
-            };
-            return previews[type] || previews.default;
-        },
-
-        mediaPreviewContent(type, content, fileName) {
-            const safeFileName = CodePreviewer.escapeHtml(fileName);
-            const safeContent = CodePreviewer.escapeHtml(content);
-            const containers = {
-                image: `<div class="media-preview-container">
-                    <img src="${safeContent}" alt="${safeFileName}">
-                </div>`,
-                audio: `<div class="media-preview-container">
-                    <h3>${safeFileName}</h3>
-                    <audio controls>
-                        <source src="${safeContent}">
-                        Your browser does not support the audio element.
-                    </audio>
-                </div>`,
-                video: `<div class="media-preview-container">
-                    <h3>${safeFileName}</h3>
-                    <video controls>
-                        <source src="${safeContent}">
-                        Your browser does not support the video element.
-                    </video>
-                </div>`,
-                pdf: `<div class="media-preview-container">
-                    <h3>${safeFileName}</h3>
-                    <object data="${safeContent}" type="application/pdf">
-                        <p>PDF failed to load. <a href="${safeContent}" target="_blank">Open in new tab</a></p>
-                    </object>
-                </div>`,
-                svg: (content, fileName, isBinary) => {
-                    const svgDataUrl = isBinary ? content : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(content)}`;
-                    const safeSvgUrl = CodePreviewer.escapeHtml(svgDataUrl);
-                    return `<div class="media-preview-container">
-                        <h3>${safeFileName}</h3>
-                        <img src="${safeSvgUrl}" alt="${safeFileName}">
-                    </div>`;
-                },
-                default: `<div class="media-preview-container">
-                    <h3>${safeFileName}</h3>
-                    <p>Preview not available for this file type.</p>
-                </div>`
-            };
-            return typeof containers[type] === 'function' ? containers[type](content, fileName) : (containers[type] || containers.default);
-        }
-    },
-
-    // ============================================================================
-    // NOTIFICATION SYSTEM
-    // Renders toast notifications with optional progress bars.
-    // Public surface: show(message, type) and showProgress(message, options).
-    // All other methods are internal helpers.
-    // ============================================================================
-    notificationSystem: {
-        /** @type {HTMLElement|null} Lazily created container element */
-        container: null,
-        /** @type {number} Auto-incrementing ID for progress notification elements */
-        progressId: 0,
-
-        /**
-         * Returns (and lazily creates) the notification container element.
-         * The container is appended once to document.body and reused for all notifications.
-         * @returns {HTMLElement}
-         */
-        getContainer() {
-            if (!this.container) {
-                this.container = document.createElement('div');
-                this.container.className = 'notification-container';
-                this.container.setAttribute('role', 'status');
-                this.container.setAttribute('aria-live', 'polite');
-                this.container.setAttribute('aria-atomic', 'false');
-                document.body.appendChild(this.container);
-            }
-            return this.container;
-        },
-
-        show(message, type = 'info') {
-            const container = this.getContainer();
-
-            const notification = document.createElement('div');
-            notification.className = `notification notification-${type}`;
-            notification.innerHTML = `
-                <div class="notification-header">
-                    <span class="notification-message">${CodePreviewer.escapeHtml(message)}</span>
-                    <button class="notification-close-btn" aria-label="Close notification" title="Close">${SVG_ICONS.close}</button>
-                </div>
-            `;
-
-            container.appendChild(notification);
-
-            // Define dismiss before attaching the close-button listener so the
-            // reference is unambiguously resolved (avoids temporal dead zone).
-            const dismiss = () => {
-                if (notification.classList.contains('notification-hiding')) return;
-                notification.classList.add('notification-hiding');
-                notification.addEventListener('animationend', () => {
-                    notification.remove();
-                }, { once: true });
-            };
-
-            const closeBtn = notification.querySelector('.notification-close-btn');
-            if (closeBtn) {
-                closeBtn.addEventListener('click', dismiss);
-            }
-
-            setTimeout(dismiss, 3000);
-        },
-
-        showProgress(message, { type = 'info', total = 100 } = {}) {
-            const container = this.getContainer();
-            const notification = document.createElement('div');
-            notification.className = `notification notification-${type} notification-progress`;
-            notification.dataset.progressId = String(++this.progressId);
-
-            notification.innerHTML = `
-                <div class="notification-header">
-                    <span class="notification-message">${CodePreviewer.escapeHtml(message)}</span>
-                    <button class="notification-close-btn" aria-label="Close notification" title="Close">${SVG_ICONS.close}</button>
-                </div>
-                <div class="notification-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="${Math.max(total, 1)}" aria-valuenow="0">
-                    <div class="notification-progress-fill"></div>
-                </div>
-            `;
-
-            container.appendChild(notification);
-
-            const messageEl = notification.querySelector('.notification-message');
-            const progressBar = notification.querySelector('.notification-progress-track');
-            const progressFill = notification.querySelector('.notification-progress-fill');
-            const closeBtn = notification.querySelector('.notification-close-btn');
-            let maxValue = Math.max(total, 1);
-            let currentValue = 0;
-
-            const dismiss = () => {
-                if (notification.classList.contains('notification-hiding')) return;
-                notification.classList.add('notification-hiding');
-                notification.addEventListener('animationend', () => notification.remove(), { once: true });
-            };
-
-            if (closeBtn) {
-                closeBtn.addEventListener('click', () => dismiss());
-            }
-
-            const update = ({ current, total: nextTotal, message: nextMessage, type: nextType } = {}) => {
-                if (typeof nextTotal === 'number' && nextTotal >= 1) {
-                    maxValue = nextTotal;
-                    progressBar.setAttribute('aria-valuemax', String(maxValue));
-                }
-                if (typeof current === 'number') {
-                    currentValue = Math.max(0, Math.min(current, maxValue));
-                    const percentage = (currentValue / maxValue) * 100;
-                    progressFill.style.width = `${percentage}%`;
-                    progressBar.setAttribute('aria-valuenow', String(currentValue));
-                }
-                if (typeof nextMessage === 'string' && messageEl) {
-                    messageEl.textContent = nextMessage;
-                }
-                if (typeof nextType === 'string') {
-                    notification.classList.remove('notification-info', 'notification-success', 'notification-warn', 'notification-error');
-                    notification.classList.add(`notification-${nextType}`);
-                }
-            };
-
-            update({ current: 0, message });
-
-            return {
-                update,
-                complete: (doneMessage = 'Completed') => {
-                    update({ current: maxValue, message: doneMessage, type: 'success' });
-                    setTimeout(dismiss, 1200);
-                },
-                fail: (errorMessage = 'Failed') => {
-                    update({ message: errorMessage, type: 'error' });
-                    setTimeout(dismiss, 3000);
-                },
-                dismiss
-            };
-        }
-    },
-
-    // ============================================================================
-    // ASSET REPLACEMENT UTILITIES
-    // Consolidated utilities for replacing file references in HTML/CSS with
-    // virtual file system content
-    // ============================================================================
-    assetReplacers: {
-        isExternalAssetPath(path) {
-            return /^(?:https?:|\/\/|data:|blob:)/i.test(path || '');
-        },
-
-        withScriptBlocksPreserved(htmlContent, transform) {
-            if (typeof htmlContent !== 'string' || typeof transform !== 'function') {
-                return htmlContent;
-            }
-
-            const preservedBlocks = [];
-            const placeholderPrefixBase = '\uE000PREVIEWER_SCRIPT_BLOCK_';
-            let placeholderPrefix = placeholderPrefixBase;
-            while (htmlContent.includes(placeholderPrefix)) {
-                placeholderPrefix += '_';
-            }
-
-            const htmlWithoutScripts = htmlContent.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, (match) => {
-                const placeholder = `${placeholderPrefix}${preservedBlocks.length}__`;
-                preservedBlocks.push(match);
-                return placeholder;
-            });
-
-            if (preservedBlocks.length === 0) {
-                return transform(htmlContent);
-            }
-
-            const transformedHtml = transform(htmlWithoutScripts);
-            if (typeof transformedHtml !== 'string') {
-                return htmlContent;
-            }
-
-            const placeholderPattern = new RegExp(`${placeholderPrefix}(\\d+)__`, 'g');
-            return transformedHtml.replace(placeholderPattern, (match, index) => {
-                const scriptBlock = preservedBlocks[Number(index)];
-                return typeof scriptBlock === 'string' ? scriptBlock : match;
-            });
-        },
-
-        createMissingAssetConsoleScript(assetLabel, requestedPath, currentFilePath, options = {}) {
-            const safeRequestedPath = JSON.stringify(requestedPath || '');
-            const safeSourcePath = JSON.stringify(currentFilePath || 'index.html');
-            const deferUntilDomReady = Boolean(options.deferUntilDomReady);
-            const scriptAttributes = typeof options.scriptAttributes === 'string' ? options.scriptAttributes : '';
-            const logSnippet = `console.error('[Preview] ${assetLabel} not found:', ${safeRequestedPath}, 'from', ${safeSourcePath});`;
-
-            if (!deferUntilDomReady) {
-                return `<script${scriptAttributes}>${logSnippet}</script>`;
-            }
-
-            const deferredSnippet = `(function() {
-                const logMissingAsset = () => { ${logSnippet} };
-                if (document.readyState === 'loading') {
-                    document.addEventListener('DOMContentLoaded', logMissingAsset, { once: true });
-                } else {
-                    logMissingAsset();
-                }
-            })();`;
-
-            return `<script${scriptAttributes}>${deferredSnippet}</script>`;
-        },
-
-        /**
-         * Configuration for different asset replacement patterns
-         * Each entry defines: regex pattern, allowed file types, and replacement strategy
-         */
-        REPLACEMENT_CONFIGS: {
-            css: {
-                pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.css)["']([^>]*?)>/gi,
-                types: ['css'],
-                replace: (file) => `<style>${file.content}</style>`,
-                onMissing: (match, before, filename, after, currentFilePath) => {
-                    if (CodePreviewer.assetReplacers.isExternalAssetPath(filename)) {
-                        return match;
-                    }
-                    return CodePreviewer.assetReplacers.createMissingAssetConsoleScript('Stylesheet', filename, currentFilePath, {
-                        deferUntilDomReady: true,
-                    });
-                }
-            },
-            images: {
-                pattern: /<img([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
-                types: ['image', 'svg'],
-                replace: (file, match) => {
-                    const src = CodePreviewer.getPreviewAssetUrl(file, 'image/png');
-                    return match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${src}"`);
-                }
-            },
-            video: {
-                pattern: /<video([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
-                types: ['video'],
-                replace: (file, match) => match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${CodePreviewer.getPreviewAssetUrl(file, 'video/mp4')}"`)
-            },
-            source: {
-                pattern: /<source([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
-                types: ['video', 'audio'],
-                replace: (file, match) => match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${CodePreviewer.getPreviewAssetUrl(file, 'application/octet-stream')}"`)
-            },
-            audio: {
-                pattern: /<audio([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
-                types: ['audio'],
-                replace: (file, match) => match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${CodePreviewer.getPreviewAssetUrl(file, 'audio/mpeg')}"`)
-            },
-            favicon: {
-                pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.ico)["']([^>]*?)>/gi,
-                types: ['image'],
-                replace: (file, match) => match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${CodePreviewer.getPreviewAssetUrl(file, 'image/x-icon')}"`)
-            },
-            font: {
-                pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.(?:woff|woff2|ttf|otf|eot))["']([^>]*?)>/gi,
-                types: ['font'],
-                replace: (file, match, before, filename, after) => `<link${before}href="${CodePreviewer.getPreviewAssetUrl(file, 'font/woff2')}"${after}>`
-            }
-        },
-
-        /**
-         * Generic replacement handler using configuration
-         * @param {string} htmlContent - The HTML content to process
-         * @param {Map} fileSystem - The virtual file system
-         * @param {string} currentFilePath - Current file path for relative resolution
-         * @param {Object} config - Replacement configuration object
-         * @returns {string} Processed HTML content
-         */
-        applyReplacement(htmlContent, fileSystem, currentFilePath, config) {
-            return htmlContent.replace(config.pattern, (match, before, filename, after) => {
-                const file = CodePreviewer.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
-                if (file && config.types.includes(file.type)) {
-                    return config.replace(file, match, before, filename, after);
-                }
-                if (typeof config.onMissing === 'function') {
-                    return config.onMissing(match, before, filename, after, currentFilePath);
-                }
-                return match;
-            });
-        },
-
-        /**
-         * Applies all config-driven replacements (CSS, images, video, source, audio, favicon, font)
-         * in a single pass over the configuration map.
-         * Iteration follows insertion order of REPLACEMENT_CONFIGS, matching the original call sequence.
-         * @param {string} htmlContent - The HTML content to process
-         * @param {Map} fileSystem - The virtual file system
-         * @param {string} currentFilePath - Current file path for relative resolution
-         * @returns {string} Processed HTML content
-         */
-        replaceAllConfigBased(htmlContent, fileSystem, currentFilePath) {
-            for (const config of Object.values(this.REPLACEMENT_CONFIGS)) {
-                htmlContent = this.applyReplacement(htmlContent, fileSystem, currentFilePath, config);
-            }
-            return htmlContent;
-        },
-
-        replaceDownloadLinks(htmlContent, fileSystem, currentFilePath, processedHtmlFiles) {
-            if (!processedHtmlFiles) processedHtmlFiles = new Map();
-            return htmlContent.replace(/<a([^>]*?)href\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
-                if (match.includes('download') || !filename.includes('://')) {
-                    const file = CodePreviewer.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
-                    if (file) {
-                        if (file.type === 'html' && !match.includes('download')) {
-                            const resolvedPath = currentFilePath
-                                ? CodePreviewer.fileSystemUtils.resolvePath(currentFilePath, filename)
-                                : filename;
-                            const cachedUrl = processedHtmlFiles.get(resolvedPath);
-                            if (cachedUrl) {
-                                return match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${cachedUrl}"`);
-                            }
-                            if (!processedHtmlFiles.has(resolvedPath)) {
-                                processedHtmlFiles.set(resolvedPath, null);
-                                let processedContent = CodePreviewer.replaceAssetReferences(file.content, fileSystem, resolvedPath, processedHtmlFiles);
-                                processedContent = CodePreviewer.injectConsoleScript(processedContent, fileSystem, resolvedPath);
-                                const blob = new Blob([processedContent], { type: 'text/html' });
-                                const blobUrl = URL.createObjectURL(blob);
-                                CodePreviewer.state.previewAssetUrls.add(blobUrl);
-                                processedHtmlFiles.set(resolvedPath, blobUrl);
-                                return match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${blobUrl}"`);
-                            }
-                        }
-                        const href = CodePreviewer.getPreviewAssetUrl(file);
-                        return match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${href}"`);
-                    }
-                }
-                return match;
-            });
-        },
-
-        replaceStyleTags(htmlContent, fileSystem, currentFilePath) {
-            return htmlContent.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (match, cssContent) => {
-                const updatedCSS = CodePreviewer.replaceCSSAssetReferences(cssContent, fileSystem, currentFilePath);
-                return match.replace(cssContent, updatedCSS);
-            });
-        },
-
-        replaceScriptTags(htmlContent, fileSystem, currentFilePath, workerFileSet) {
-            return htmlContent.replace(/<script([^>]*?)src\s*=\s*["']([^"']+\.(?:js|mjs))["']([^>]*?)><\/script>/gi, (match, before, filename, after) => {
-                if (workerFileSet.has(filename)) {
-                    return '';
-                }
-
-                const isExternalScript = CodePreviewer.assetReplacers.isExternalAssetPath(filename);
-                if (isExternalScript) {
-                    return match;
-                }
-
-                const scriptHasModuleType = /\btype\s*=\s*["']module["']/i.test(`${before} ${after}`);
-                const resolvedPath = CodePreviewer.fileSystemUtils.resolvePath(currentFilePath, filename);
-                const file = CodePreviewer.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
-                if (file && (file.type === 'javascript' || file.type === 'javascript-module')) {
-                    const isModule = scriptHasModuleType || file.type === 'javascript-module' || CodePreviewer.isModuleFile(file.content, resolvedPath);
-                    if (isModule) {
-                        const moduleSrc = CodePreviewer.createModuleAssetUrl(fileSystem, resolvedPath);
-                        if (moduleSrc) {
-                            return match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${moduleSrc}"`);
-                        }
-                    }
-
-                    const escapedContent = file.content.replace(/<\/script>/gi, '<\\/script>');
-                    return `<script>${escapedContent}</script>`;
-                }
-
-                const scriptAttributes = scriptHasModuleType ? ' type="module"' : '';
-                return CodePreviewer.assetReplacers.createMissingAssetConsoleScript('Script', filename, currentFilePath, {
-                    scriptAttributes,
-                });
-            });
-        }
-    },
-
     setupMainHtmlDropdownEvents() {
         if (!this.dom.mainHtmlDropdownTrigger || !this.dom.mainHtmlDropdownList || !this.dom.mainHtmlDropdown) return;
 
@@ -7531,7 +7774,7 @@ This content is loaded from a markdown file.
             this.dom.mainHtmlDropdownList.innerHTML = options.map((option) => {
                 const selectedClass = option.value === selectedValue ? ' is-selected' : '';
                 const checked = option.value === selectedValue ? 'true' : 'false';
-                return `<li role="option" aria-selected="${checked}"><button type="button" class="main-html-dropdown-option${selectedClass}" data-value="${this.escapeHtml(option.value)}">${this.escapeHtml(option.label)}</button></li>`;
+                return `<li role="option" aria-selected="${checked}"><button type="button" class="main-html-dropdown-option${selectedClass}" data-value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</button></li>`;
             }).join('');
         }
 
@@ -7564,344 +7807,6 @@ This content is loaded from a markdown file.
         return htmlFiles[0] || null;
     },
 
-    // ============================================================================
-    // CONSOLE CAPTURE AND LOGGING
-    // ============================================================================
-    consoleBridge: {
-        logCounts: { log: 0, warn: 0, error: 0, info: 0 },
-        filters: { log: true, warn: true, error: true, info: true },
-        
-        /**
-         * Configuration constants for console behavior
-         * @property {number} OBJECT_COLLAPSE_THRESHOLD - Character count threshold for collapsing JSON objects into expandable details
-         * @property {number} COPY_FEEDBACK_DURATION - Duration in milliseconds to show copy success/failure feedback
-         */
-        OBJECT_COLLAPSE_THRESHOLD: 100,
-        COPY_FEEDBACK_DURATION: 1000,
-        
-        /**
-         * Wires the console capture bridge to its DOM output element and the preview iframe.
-         * Must be called once after the DOM is fully cached.
-         * @param {HTMLElement} outputEl - The container element for rendered log messages
-         * @param {HTMLElement} clearBtn - The "Clear console" button
-         * @param {HTMLIFrameElement} previewFrame - The preview iframe (used to filter incoming messages)
-         */
-        init(outputEl, clearBtn, previewFrame) {
-            this.outputEl = outputEl;
-            this.previewFrame = previewFrame;
-            clearBtn.addEventListener('click', () => this.clear());
-            window.addEventListener('message', (e) => this.handleMessage(e));
-            this.initFilterButtons();
-        },
-        
-        initFilterButtons() {
-            const consoleHeader = this.outputEl.parentElement.querySelector('.console-header');
-            if (!consoleHeader) return;
-            
-            // Create filter container
-            const filterContainer = document.createElement('div');
-            filterContainer.className = 'console-filters';
-            filterContainer.innerHTML = `
-                <button class="console-filter-btn active" data-filter="log" title="Show logs">
-                    <span class="filter-icon">${SVG_ICONS.pencil}</span>
-                    <span class="filter-count" data-count="log">0</span>
-                </button>
-                <button class="console-filter-btn active" data-filter="info" title="Show info">
-                    <span class="filter-icon">${SVG_ICONS.info}</span>
-                    <span class="filter-count" data-count="info">0</span>
-                </button>
-                <button class="console-filter-btn active" data-filter="warn" title="Show warnings">
-                    <span class="filter-icon">${SVG_ICONS.warning}</span>
-                    <span class="filter-count" data-count="warn">0</span>
-                </button>
-                <button class="console-filter-btn active" data-filter="error" title="Show errors">
-                    <span class="filter-icon">${SVG_ICONS.xCircle}</span>
-                    <span class="filter-count" data-count="error">0</span>
-                </button>
-            `;
-            
-            // Insert before clear button
-            const clearButton = consoleHeader.querySelector('.clear-btn');
-            if (clearButton) {
-                consoleHeader.insertBefore(filterContainer, clearButton);
-            } else {
-                consoleHeader.appendChild(filterContainer);
-            }
-            
-            // Add filter click handlers
-            filterContainer.querySelectorAll('.console-filter-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const filterType = btn.dataset.filter;
-                    this.filters[filterType] = !this.filters[filterType];
-                    btn.classList.toggle('active', this.filters[filterType]);
-                    this.applyFilters();
-                });
-            });
-        },
-        
-        applyFilters() {
-            const messages = this.outputEl.querySelectorAll('.log-message');
-            messages.forEach(msg => {
-                const types = ['log', 'info', 'warn', 'error'];
-                for (const type of types) {
-                    if (msg.classList.contains(`log-type-${type}`)) {
-                        msg.style.display = this.filters[type] ? '' : 'none';
-                        break;
-                    }
-                }
-            });
-        },
-        
-        updateFilterCounts() {
-            Object.keys(this.logCounts).forEach(type => {
-                const countEl = document.querySelector(`.filter-count[data-count="${type}"]`);
-                if (countEl) {
-                    countEl.textContent = this.logCounts[type];
-                    countEl.classList.toggle('has-count', this.logCounts[type] > 0);
-                }
-            });
-        },
-        
-        /**
-         * Clears all logged messages from the output element and resets all log counters.
-         */
-        clear() {
-            this.outputEl.innerHTML = '';
-            this.logCounts = { log: 0, warn: 0, error: 0, info: 0 };
-            this.updateFilterCounts();
-        },
-        
-        formatValue(arg) {
-            if (arg === null) return '<span class="console-null">null</span>';
-            if (arg === undefined) return '<span class="console-undefined">undefined</span>';
-            if (typeof arg === 'boolean') return `<span class="console-boolean">${arg}</span>`;
-            if (typeof arg === 'number') return `<span class="console-number">${arg}</span>`;
-            if (typeof arg === 'string') return this.escapeHtml(arg);
-            if (typeof arg === 'object' && arg !== null) {
-                try {
-                    const json = JSON.stringify(arg, null, 2);
-                    const isLarge = json.length > this.OBJECT_COLLAPSE_THRESHOLD || json.includes('\n');
-                    if (isLarge) {
-                        return `<details class="console-object"><summary>${Array.isArray(arg) ? `Array(${arg.length})` : 'Object'}</summary><pre>${this.escapeHtml(json)}</pre></details>`;
-                    }
-                    return `<span class="console-object-inline">${this.escapeHtml(json)}</span>`;
-                } catch (e) {
-                    return '<span class="console-error">[Unserializable Object]</span>';
-                }
-            }
-            return String(arg);
-        },
-        
-        escapeHtml(str) {
-            const div = document.createElement('div');
-            div.textContent = str;
-            return div.innerHTML;
-        },
-        
-        getIcon(level) {
-            const icons = {
-                log: SVG_ICONS.pencil,
-                info: SVG_ICONS.info,
-                warn: SVG_ICONS.warning,
-                error: SVG_ICONS.xCircle
-            };
-            return icons[level] || SVG_ICONS.pencil;
-        },
-        
-        getTimestamp() {
-            const now = new Date();
-            return now.toLocaleTimeString('en-US', { 
-                hour12: false, 
-                hour: '2-digit', 
-                minute: '2-digit', 
-                second: '2-digit',
-                fractionalSecondDigits: 3
-            });
-        },
-        
-        formatRuntimeErrorEntry(entry) {
-            const source = entry.source || '(unknown source)';
-            const line = Number(entry.line) || 0;
-            const column = Number(entry.column) || 0;
-            const location = line || column ? `${source}:${line}:${column}` : source;
-            const origin = entry.originType || 'unknown';
-            const stack = entry.stack
-                ? `<details class="console-object"><summary>Stack trace</summary><pre>${this.escapeHtml(entry.stack)}</pre></details>`
-                : '';
-
-            return `<span class="console-runtime-error"><strong>${this.escapeHtml(String(entry.message || 'Runtime error'))}</strong> <span class="console-object-inline">(${this.escapeHtml(origin)})</span><br><span class="console-object-inline">${this.escapeHtml(location)}</span>${stack}</span>`;
-        },
-
-        normalizeMessage(message) {
-            if (Array.isArray(message)) return message;
-            if (message === undefined) return [];
-            return [message];
-        },
-
-        isStructuredRuntimeErrorEntry(arg) {
-            return !!(
-                arg &&
-                typeof arg === 'object' &&
-                !Array.isArray(arg) &&
-                arg.kind === 'runtime-error' &&
-                Object.prototype.hasOwnProperty.call(arg, 'message') &&
-                Object.prototype.hasOwnProperty.call(arg, 'source') &&
-                Object.prototype.hasOwnProperty.call(arg, 'originType')
-            );
-        },
-
-        formatMessageEntries(messageEntries) {
-            return messageEntries.map(arg => {
-                if (this.isStructuredRuntimeErrorEntry(arg)) {
-                    return this.formatRuntimeErrorEntry(arg);
-                }
-                return this.formatValue(arg);
-            }).join(' ');
-        },
-
-        log(logData) {
-            const level = logData.level || 'log';
-            this.logCounts[level] = (this.logCounts[level] || 0) + 1;
-            this.updateFilterCounts();
-
-            const el = document.createElement('div');
-            el.className = `log-message log-type-${level}`;
-
-            // Apply current filter
-            if (!this.filters[level]) {
-                el.style.display = 'none';
-            }
-
-            const messageEntries = this.normalizeMessage(logData.message);
-            const messageContent = this.formatMessageEntries(messageEntries);
-
-            el.innerHTML = `
-                <span class="log-icon" aria-hidden="true">${this.getIcon(level)}</span>
-                <span class="log-timestamp">${this.getTimestamp()}</span>
-                <span class="log-content">${messageContent}</span>
-                <button class="log-copy-btn" title="Copy message" aria-label="Copy message to clipboard">${SVG_ICONS.clipboard}</button>
-            `;
-
-            // Add copy functionality with accessibility support
-            const copyBtn = el.querySelector('.log-copy-btn');
-            copyBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const text = messageEntries.map(arg => {
-                    if (this.isStructuredRuntimeErrorEntry(arg)) {
-                        const source = arg.source || '(unknown source)';
-                        const line = Number(arg.line) || 0;
-                        const column = Number(arg.column) || 0;
-                        const location = line || column ? `${source}:${line}:${column}` : source;
-                        return `[RuntimeError/${arg.originType}] ${arg.message} @ ${location}${arg.stack ? `
-${arg.stack}` : ''}`;
-                    }
-                    if (typeof arg === 'object') {
-                        try { return JSON.stringify(arg, null, 2); } catch (e) { return String(arg); }
-                    }
-                    return String(arg);
-                }).join(' ');
-                navigator.clipboard.writeText(text).then(() => {
-                    copyBtn.innerHTML = SVG_ICONS.checkCircle;
-                    copyBtn.setAttribute('aria-label', 'Copied to clipboard');
-                    setTimeout(() => {
-                        copyBtn.innerHTML = SVG_ICONS.clipboard;
-                        copyBtn.setAttribute('aria-label', 'Copy message to clipboard');
-                    }, this.COPY_FEEDBACK_DURATION);
-                }).catch(() => {
-                    copyBtn.innerHTML = SVG_ICONS.xCircle;
-                    copyBtn.setAttribute('aria-label', 'Failed to copy');
-                    setTimeout(() => {
-                        copyBtn.innerHTML = SVG_ICONS.clipboard;
-                        copyBtn.setAttribute('aria-label', 'Copy message to clipboard');
-                    }, this.COPY_FEEDBACK_DURATION);
-                });
-            });
-
-            this.outputEl.appendChild(el);
-            this.outputEl.scrollTop = this.outputEl.scrollHeight;
-        },
-        
-        /**
-         * Handles postMessage events from the preview iframe.
-         * Filters to only process console capture messages from the active preview frame.
-         * @param {MessageEvent} event
-         */
-        handleMessage(event) {
-            const { CONSOLE_MESSAGE_TYPE } = CodePreviewer.constants;
-            // Guard: event.data may be null (e.g. from browser extensions).
-            if (
-                event.data &&
-                event.source === this.previewFrame?.contentWindow &&
-                event.data.type === CONSOLE_MESSAGE_TYPE
-            ) {
-                this.log(event.data);
-            }
-        },
-        getCaptureScript(fileSystem = null, mainHtmlPath = 'index.html') {
-            const MESSAGE_TYPE = CodePreviewer.constants.CONSOLE_MESSAGE_TYPE;
-            
-            // Generate file system initialization script
-            let fileSystemScript = '';
-            if (fileSystem && fileSystem instanceof Map) {
-                const fileObj = {};
-                fileSystem.forEach((fileData, filename) => {
-                    fileObj[filename] = {
-                        content: fileData.content,
-                        type: fileData.type,
-                        isBinary: fileData.isBinary || false
-                    };
-                });
-                const jsonString = JSON.stringify(fileObj);
-                const bytes = new TextEncoder().encode(jsonString);
-                const binaryChars = new Array(bytes.length);
-                for (let i = 0; i < bytes.length; i++) binaryChars[i] = String.fromCharCode(bytes[i]);
-                const base64Data = btoa(binaryChars.join(''));
-                fileSystemScript = `
-                    const virtualFileSystemData = "${base64Data}";
-                    const virtualFileSystem = JSON.parse(new TextDecoder().decode(base64ToUint8Array(virtualFileSystemData)));
-                    const mainHtmlPath = "${mainHtmlPath}";
-                `;
-            } else {
-                fileSystemScript = `
-                    const virtualFileSystem = {};
-                    const mainHtmlPath = "index.html";
-                `;
-            }
-            
-            // Use the centralized code generators from previewScriptGenerator
-            const fsUtils = CodePreviewer.previewScriptGenerator;
-            const base64HelperCode = fsUtils.generateBase64HelperCode();
-            const resolvePathCode = fsUtils.generateResolvePathCode();
-            const findFileCode = fsUtils.generateFindFileCode();
-            const getCurrentFilePathCode = fsUtils.generateGetCurrentFilePathCode();
-            const fetchOverrideCode = fsUtils.generateFetchOverrideCode();
-            const xhrOverrideCode = fsUtils.generateXHROverrideCode();
-            const imageOverrideCode = fsUtils.generateImageOverrideCode();
-            const audioOverrideCode = fsUtils.generateAudioOverrideCode();
-            const cssURLOverrideCode = fsUtils.generateCSSURLOverrideCode();
-            const elementSrcOverrideCode = fsUtils.generateElementSrcOverrideCode();
-            const serviceWorkerOverrideCode = fsUtils.generateServiceWorkerOverrideCode();
-            const consoleOverrideCode = fsUtils.generateConsoleOverrideCode(MESSAGE_TYPE);
-            
-            return `<script>
-(function() {
-    ${fileSystemScript}
-    ${base64HelperCode}
-    ${resolvePathCode}
-    ${findFileCode}
-    ${getCurrentFilePathCode}
-    ${fetchOverrideCode}
-    ${xhrOverrideCode}
-    ${imageOverrideCode}
-    ${audioOverrideCode}
-    ${cssURLOverrideCode}
-    ${elementSrcOverrideCode}
-    ${serviceWorkerOverrideCode}
-    ${consoleOverrideCode}
-})();
-</script>`;
-        },
-    },
 };
 
 
