@@ -851,6 +851,7 @@ button > svg,
 
 .workspace-layout {
     display: flex;
+    align-items: flex-start;
     gap: var(--space-lg);
     flex: 1;
     background: transparent;
@@ -1149,6 +1150,7 @@ button > svg,
     --panel-size: var(--file-panel-size);
     display: grid;
     grid-template-columns: repeat(auto-fill, var(--panel-size));
+    align-content: start;
     gap: var(--space-lg);
     align-items: start;
     justify-content: start;
