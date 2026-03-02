@@ -2345,213 +2345,239 @@ class AssetReplacers {
     }
 }
 
-const CodePreviewer = {
-    // ============================================================================
-    // APPLICATION STATE
-    // ============================================================================
-    state: {
-        mode: 'multi',
-        editors: {
-            html: null,
-            css: null,
-            js: null,
-        },
-        files: [],
-        folders: [],
-        nextFileId: 4,
-        nextFolderId: 1,
-        expandedFolders: new Set(),
-        openPanels: new Set(), // Track which file panels are currently open/visible
-        savedFileStates: {}, // Track saved states for files: { fileId: { content: string, fileName: string, fileType: string } }
-        modifiedFiles: new Set(),
-        sidebarShowModifiedOnly: false,
-        sidebarSearchQuery: '',
-        selectedFileIds: new Set(),
-        selectedFolderPaths: new Set(),
-        sidebarSearchDebounceTimer: null,
-        codeModalEditor: null,
-        currentCodeModalSource: null,
-        codeModalSearchState: { query: '', cursorIndex: -1 },
-        activePanelId: 'default-html',
-        autoFormatTimers: new Map(),
-        formattingEditors: new Set(),
-        mainHtmlFile: '',
-        viewportResizeHandler: null,
-        viewportResizeTimer: null,
-        visualViewportResizeHandler: null,
-        previewTabWindow: null,
-        previewTabUrl: null,
-        previewAssetUrls: new Set(),
-        previewBlobUrlCache: new Map(),
-        mediaPreviewUrls: new Set(),
-        filePanelPreviewUrls: new Map(),
-        previewRefreshTimer: null,
-        previewRefreshDelay: 1000,
-        isPreviewDocked: false,
-        previewDockOrientation: 'right',
-        previewDockSize: { right: null, bottom: null },
-        dockResizeSession: null,
-        consoleResizeSession: null,
-        consoleHeight: 200,
-        isCodeModalDockedLeft: false,
-        isSyncingCodeModalToSource: false,
-        codeModalPlaintextInputHandlerBound: false,
-        settingsCloseHandler: null,
-        settingsEscHandler: null,
-        settings: {
-            lineNumbers: true,
-            lineWrapping: false,
-            autoFormatOnType: false,
-            fontSize: 14,
-            theme: 'dracula',
-            tabSize: 4,
-            indentWithTabs: false,
-            autoCloseBrackets: true,
-            matchBrackets: true,
-        },
-    },
+class CodePreviewer {
+    constructor() {
+        // ============================================================================
+        // APPLICATION STATE
+        // ============================================================================
+        this.state = {
+            mode: 'multi',
+            editors: {
+                html: null,
+                css: null,
+                js: null,
+            },
+            files: [],
+            folders: [],
+            nextFileId: 4,
+            nextFolderId: 1,
+            expandedFolders: new Set(),
+            openPanels: new Set(), // Track which file panels are currently open/visible
+            savedFileStates: {}, // Track saved states for files: { fileId: { content: string, fileName: string, fileType: string } }
+            modifiedFiles: new Set(),
+            sidebarShowModifiedOnly: false,
+            sidebarSearchQuery: '',
+            selectedFileIds: new Set(),
+            selectedFolderPaths: new Set(),
+            sidebarSearchDebounceTimer: null,
+            codeModalEditor: null,
+            currentCodeModalSource: null,
+            codeModalSearchState: { query: '', cursorIndex: -1 },
+            activePanelId: 'default-html',
+            autoFormatTimers: new Map(),
+            formattingEditors: new Set(),
+            mainHtmlFile: '',
+            viewportResizeHandler: null,
+            viewportResizeTimer: null,
+            visualViewportResizeHandler: null,
+            previewTabWindow: null,
+            previewTabUrl: null,
+            previewAssetUrls: new Set(),
+            previewBlobUrlCache: new Map(),
+            mediaPreviewUrls: new Set(),
+            filePanelPreviewUrls: new Map(),
+            previewRefreshTimer: null,
+            previewRefreshDelay: 1000,
+            isPreviewDocked: false,
+            previewDockOrientation: 'right',
+            previewDockSize: { right: null, bottom: null },
+            dockResizeSession: null,
+            consoleResizeSession: null,
+            consoleHeight: 200,
+            isCodeModalDockedLeft: false,
+            isSyncingCodeModalToSource: false,
+            codeModalPlaintextInputHandlerBound: false,
+            settingsCloseHandler: null,
+            settingsEscHandler: null,
+            settings: {
+                lineNumbers: true,
+                lineWrapping: false,
+                autoFormatOnType: false,
+                fontSize: 14,
+                theme: 'dracula',
+                tabSize: 4,
+                indentWithTabs: false,
+                autoCloseBrackets: true,
+                matchBrackets: true,
+            },
+        };
 
-    // ============================================================================
-    // DOM ELEMENTS CACHE
-    // ============================================================================
-    dom: {},
+        // ============================================================================
+        // DOM ELEMENTS CACHE
+        // ============================================================================
+        this.dom = {};
 
-    // ============================================================================
-    // CONSTANTS AND CONFIGURATION
-    // ============================================================================
-    constants: {
-        EDITOR_IDS: {
-            HTML: 'html-editor',
-            CSS: 'css-editor',
-            JS: 'js-editor',
-        },
-        CONTROL_IDS: {
-            MODAL_BTN: 'preview-modal-btn',
-            TAB_BTN: 'preview-tab-btn',
-            CLEAR_CONSOLE_BTN: 'clear-console-btn',
-            TOGGLE_CONSOLE_BTN: 'toggle-console-btn',
-            REFRESH_PREVIEW_BTN: 'refresh-preview-btn',
-            ADD_FILE_BTN: 'add-file-btn',
-            ADD_FOLDER_BTN: 'add-folder-btn',
-            CLEAR_ALL_FILES_BTN: 'clear-all-files-btn',
-            IMPORT_FILE_BTN: 'import-file-btn',
-            IMPORT_FOLDER_BTN: 'import-folder-btn',
-            IMPORT_ZIP_BTN: 'import-zip-btn',
-            EXPORT_ZIP_BTN: 'export-zip-btn',
-            SETTINGS_BTN: 'settings-btn',
-            SETTINGS_MODAL: 'settings-modal',
-            SETTINGS_LINE_NUMBERS: 'setting-line-numbers',
-            SETTINGS_LINE_WRAP: 'setting-line-wrap',
-            SETTINGS_AUTO_FORMAT: 'setting-auto-format',
-            SETTINGS_FONT_SIZE: 'setting-font-size',
-            SETTINGS_EDITOR_THEME: 'setting-editor-theme',
-            SETTINGS_TAB_SIZE: 'setting-tab-size',
-            SETTINGS_INDENT_WITH_TABS: 'setting-indent-with-tabs',
-            SETTINGS_AUTO_CLOSE_BRACKETS: 'setting-auto-close-brackets',
-            SETTINGS_MATCH_BRACKETS: 'setting-match-brackets',
-            MAIN_HTML_SELECT: 'main-html-select',
-        },
-        CONTAINER_IDS: {
-            MULTI_FILE: 'multi-file-container',
-            FILE_TREE: 'file-tree-container',
-        },
-        MODAL_IDS: {
-            OVERLAY: 'preview-modal',
-            FRAME: 'preview-frame',
-            CLOSE_BTN: '.close-btn',
-        },
-        CONSOLE_ID: 'console-output',
-        MODAL_CONSOLE_PANEL_ID: 'modal-console-panel',
-        CONSOLE_MESSAGE_TYPE: 'console',
-        SETTINGS_STORAGE_KEY: 'codepreviewer.settings',
-        
-        FILE_TYPES: {
-            EXTENSIONS: {
-                'html': 'html', 'htm': 'html', 'xhtml': 'html',
-                'css': 'css', 'scss': 'css', 'sass': 'css', 'less': 'css',
-                'js': 'javascript', 'jsx': 'javascript', 'ts': 'javascript', 'tsx': 'javascript',
-                'mjs': 'javascript-module', 'esm': 'javascript-module',
-                'json': 'json',
-                'webmanifest': 'json',
-                'xml': 'xml',
-                'md': 'markdown', 'markdown': 'markdown',
-                'txt': 'text', 'gitignore': 'text',
-                'svg': 'svg',
-                'jpg': 'image', 'jpeg': 'image', 'png': 'image', 'gif': 'image', 
-                'webp': 'image', 'bmp': 'image', 'ico': 'image', 'tiff': 'image',
-                'mp3': 'audio', 'wav': 'audio', 'ogg': 'audio', 'm4a': 'audio', 
-                'aac': 'audio', 'flac': 'audio', 'wma': 'audio',
-                'mp4': 'video', 'webm': 'video', 'mov': 'video', 'avi': 'video', 
-                'mkv': 'video', 'wmv': 'video', 'flv': 'video', 'm4v': 'video',
-                'woff': 'font', 'woff2': 'font', 'ttf': 'font', 'otf': 'font', 'eot': 'font',
-                'pdf': 'pdf'
+        // ============================================================================
+        // CONSTANTS AND CONFIGURATION
+        // ============================================================================
+        this.constants = {
+            EDITOR_IDS: {
+                HTML: 'html-editor',
+                CSS: 'css-editor',
+                JS: 'js-editor',
             },
-            
-            MIME_TYPES: {
-                'html': 'text/html',
-                'css': 'text/css',
-                'javascript': 'text/javascript',
-                'javascript-module': 'text/javascript',
-                'json': 'application/json',
-                'xml': 'application/xml',
-                'markdown': 'text/markdown',
-                'text': 'text/plain',
-                'svg': 'image/svg+xml',
-                'image': 'image/png',
-                'audio': 'audio/mpeg',
-                'video': 'video/mp4',
-                'font': 'font/woff2',
-                'pdf': 'application/pdf',
-                'binary': 'application/octet-stream'
+            CONTROL_IDS: {
+                MODAL_BTN: 'preview-modal-btn',
+                TAB_BTN: 'preview-tab-btn',
+                CLEAR_CONSOLE_BTN: 'clear-console-btn',
+                TOGGLE_CONSOLE_BTN: 'toggle-console-btn',
+                REFRESH_PREVIEW_BTN: 'refresh-preview-btn',
+                ADD_FILE_BTN: 'add-file-btn',
+                ADD_FOLDER_BTN: 'add-folder-btn',
+                CLEAR_ALL_FILES_BTN: 'clear-all-files-btn',
+                IMPORT_FILE_BTN: 'import-file-btn',
+                IMPORT_FOLDER_BTN: 'import-folder-btn',
+                IMPORT_ZIP_BTN: 'import-zip-btn',
+                EXPORT_ZIP_BTN: 'export-zip-btn',
+                SETTINGS_BTN: 'settings-btn',
+                SETTINGS_MODAL: 'settings-modal',
+                SETTINGS_LINE_NUMBERS: 'setting-line-numbers',
+                SETTINGS_LINE_WRAP: 'setting-line-wrap',
+                SETTINGS_AUTO_FORMAT: 'setting-auto-format',
+                SETTINGS_FONT_SIZE: 'setting-font-size',
+                SETTINGS_EDITOR_THEME: 'setting-editor-theme',
+                SETTINGS_TAB_SIZE: 'setting-tab-size',
+                SETTINGS_INDENT_WITH_TABS: 'setting-indent-with-tabs',
+                SETTINGS_AUTO_CLOSE_BRACKETS: 'setting-auto-close-brackets',
+                SETTINGS_MATCH_BRACKETS: 'setting-match-brackets',
+                MAIN_HTML_SELECT: 'main-html-select',
             },
-            
-            EXTENSION_MIME_MAP: {
-                'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif',
-                'webp': 'image/webp', 'bmp': 'image/bmp', 'ico': 'image/x-icon', 'svg': 'image/svg+xml',
-                'mp3': 'audio/mpeg', 'wav': 'audio/wav', 'ogg': 'audio/ogg', 'm4a': 'audio/mp4',
-                'aac': 'audio/aac', 'flac': 'audio/flac', 'wma': 'audio/x-ms-wma',
-                'mp4': 'video/mp4', 'webm': 'video/webm', 'mov': 'video/quicktime',
-                'avi': 'video/x-msvideo', 'mkv': 'video/x-matroska', 'wmv': 'video/x-ms-wmv',
-                'flv': 'video/x-flv', 'm4v': 'video/mp4',
-                'woff': 'font/woff', 'woff2': 'font/woff2', 'ttf': 'font/ttf', 'otf': 'font/otf',
-                'eot': 'application/vnd.ms-fontobject',
-                'pdf': 'application/pdf',
-                'txt': 'text/plain', 'html': 'text/html', 'css': 'text/css', 'js': 'text/javascript',
-                'json': 'application/json', 'webmanifest': 'application/manifest+json', 'xml': 'application/xml',
-                'gitignore': 'text/plain'
+            CONTAINER_IDS: {
+                MULTI_FILE: 'multi-file-container',
+                FILE_TREE: 'file-tree-container',
             },
-            
-            BINARY_EXTENSIONS: new Set([
-                'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'ico', 'tiff',
-                'mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'wma',
-                'mp4', 'webm', 'mov', 'avi', 'mkv', 'wmv', 'flv', 'm4v',
-                'woff', 'woff2', 'ttf', 'otf', 'eot',
-                'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
-                'zip', 'rar', '7z', 'tar', 'gz',
-                'exe', 'dll', 'so', 'dylib'
-            ]),
-            
-            EDITABLE_TYPES: ['html', 'css', 'javascript', 'javascript-module', 'json', 'xml', 'markdown', 'text', 'svg'],
-            PREVIEWABLE_TYPES: ['html', 'css', 'javascript', 'javascript-module', 'json', 'xml', 'markdown', 'text', 'svg', 'image', 'audio', 'video', 'pdf'],
-            CODEMIRROR_MODES: {
-                'html': 'htmlmixed',
-                'css': 'css',
-                'javascript': 'javascript',
-                'javascript-module': 'javascript',
-                'json': { name: 'javascript', json: true },
-                'xml': 'xml',
-                'markdown': 'markdown',
-                'text': 'text',
-                'svg': 'xml'
+            MODAL_IDS: {
+                OVERLAY: 'preview-modal',
+                FRAME: 'preview-frame',
+                CLOSE_BTN: '.close-btn',
             },
-            DEFAULT_EXTENSIONS: {
-                'html': '.html', 'css': '.css',
-                'javascript': '.js', 'javascript-module': '.js',
-                'json': '.json', 'xml': '.xml', 'markdown': '.md',
-                'svg': '.svg', 'text': '.txt'
+            CONSOLE_ID: 'console-output',
+            MODAL_CONSOLE_PANEL_ID: 'modal-console-panel',
+            CONSOLE_MESSAGE_TYPE: 'console',
+            SETTINGS_STORAGE_KEY: 'codepreviewer.settings',
+            
+            FILE_TYPES: {
+                EXTENSIONS: {
+                    'html': 'html', 'htm': 'html', 'xhtml': 'html',
+                    'css': 'css', 'scss': 'css', 'sass': 'css', 'less': 'css',
+                    'js': 'javascript', 'jsx': 'javascript', 'ts': 'javascript', 'tsx': 'javascript',
+                    'mjs': 'javascript-module', 'esm': 'javascript-module',
+                    'json': 'json',
+                    'webmanifest': 'json',
+                    'xml': 'xml',
+                    'md': 'markdown', 'markdown': 'markdown',
+                    'txt': 'text', 'gitignore': 'text',
+                    'svg': 'svg',
+                    'jpg': 'image', 'jpeg': 'image', 'png': 'image', 'gif': 'image', 
+                    'webp': 'image', 'bmp': 'image', 'ico': 'image', 'tiff': 'image',
+                    'mp3': 'audio', 'wav': 'audio', 'ogg': 'audio', 'm4a': 'audio', 
+                    'aac': 'audio', 'flac': 'audio', 'wma': 'audio',
+                    'mp4': 'video', 'webm': 'video', 'mov': 'video', 'avi': 'video', 
+                    'mkv': 'video', 'wmv': 'video', 'flv': 'video', 'm4v': 'video',
+                    'woff': 'font', 'woff2': 'font', 'ttf': 'font', 'otf': 'font', 'eot': 'font',
+                    'pdf': 'pdf'
+                },
+                
+                MIME_TYPES: {
+                    'html': 'text/html',
+                    'css': 'text/css',
+                    'javascript': 'text/javascript',
+                    'javascript-module': 'text/javascript',
+                    'json': 'application/json',
+                    'xml': 'application/xml',
+                    'markdown': 'text/markdown',
+                    'text': 'text/plain',
+                    'svg': 'image/svg+xml',
+                    'image': 'image/png',
+                    'audio': 'audio/mpeg',
+                    'video': 'video/mp4',
+                    'font': 'font/woff2',
+                    'pdf': 'application/pdf',
+                    'binary': 'application/octet-stream'
+                },
+                
+                EXTENSION_MIME_MAP: {
+                    'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif',
+                    'webp': 'image/webp', 'bmp': 'image/bmp', 'ico': 'image/x-icon', 'svg': 'image/svg+xml',
+                    'mp3': 'audio/mpeg', 'wav': 'audio/wav', 'ogg': 'audio/ogg', 'm4a': 'audio/mp4',
+                    'aac': 'audio/aac', 'flac': 'audio/flac', 'wma': 'audio/x-ms-wma',
+                    'mp4': 'video/mp4', 'webm': 'video/webm', 'mov': 'video/quicktime',
+                    'avi': 'video/x-msvideo', 'mkv': 'video/x-matroska', 'wmv': 'video/x-ms-wmv',
+                    'flv': 'video/x-flv', 'm4v': 'video/mp4',
+                    'woff': 'font/woff', 'woff2': 'font/woff2', 'ttf': 'font/ttf', 'otf': 'font/otf',
+                    'eot': 'application/vnd.ms-fontobject',
+                    'pdf': 'application/pdf',
+                    'txt': 'text/plain', 'html': 'text/html', 'css': 'text/css', 'js': 'text/javascript',
+                    'json': 'application/json', 'webmanifest': 'application/manifest+json', 'xml': 'application/xml',
+                    'gitignore': 'text/plain'
+                },
+                
+                BINARY_EXTENSIONS: new Set([
+                    'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'ico', 'tiff',
+                    'mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'wma',
+                    'mp4', 'webm', 'mov', 'avi', 'mkv', 'wmv', 'flv', 'm4v',
+                    'woff', 'woff2', 'ttf', 'otf', 'eot',
+                    'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+                    'zip', 'rar', '7z', 'tar', 'gz',
+                    'exe', 'dll', 'so', 'dylib'
+                ]),
+                
+                EDITABLE_TYPES: ['html', 'css', 'javascript', 'javascript-module', 'json', 'xml', 'markdown', 'text', 'svg'],
+                PREVIEWABLE_TYPES: ['html', 'css', 'javascript', 'javascript-module', 'json', 'xml', 'markdown', 'text', 'svg', 'image', 'audio', 'video', 'pdf'],
+                CODEMIRROR_MODES: {
+                    'html': 'htmlmixed',
+                    'css': 'css',
+                    'javascript': 'javascript',
+                    'javascript-module': 'javascript',
+                    'json': { name: 'javascript', json: true },
+                    'xml': 'xml',
+                    'markdown': 'markdown',
+                    'text': 'text',
+                    'svg': 'xml'
+                },
+                DEFAULT_EXTENSIONS: {
+                    'html': '.html', 'css': '.css',
+                    'javascript': '.js', 'javascript-module': '.js',
+                    'json': '.json', 'xml': '.xml', 'markdown': '.md',
+                    'svg': '.svg', 'text': '.txt'
+                }
             }
-        }
-    },
+        };
+
+        Object.freeze(this.constants.FILE_TYPES.EXTENSIONS);
+        Object.freeze(this.constants.FILE_TYPES.MIME_TYPES);
+        Object.freeze(this.constants.FILE_TYPES.EXTENSION_MIME_MAP);
+        Object.freeze(this.constants.FILE_TYPES.CODEMIRROR_MODES);
+        Object.freeze(this.constants.FILE_TYPES.DEFAULT_EXTENSIONS);
+    }
+
+    static _FILE_TYPE_CHOICES = Object.freeze([
+        { value: 'html',              label: 'HTML',              icon: SVG_ICONS.fileHtml     },
+        { value: 'css',               label: 'CSS',               icon: SVG_ICONS.fileCss      },
+        { value: 'javascript',        label: 'JavaScript',        icon: SVG_ICONS.fileJs       },
+        { value: 'javascript-module', label: 'JavaScript Module', icon: SVG_ICONS.package      },
+        { value: 'json',              label: 'JSON',              icon: SVG_ICONS.fileJson     },
+        { value: 'xml',               label: 'XML',               icon: SVG_ICONS.fileXml      },
+        { value: 'markdown',          label: 'Markdown',          icon: SVG_ICONS.fileMarkdown },
+        { value: 'text',              label: 'Text',              icon: SVG_ICONS.fileText     },
+        { value: 'svg',               label: 'SVG',               icon: SVG_ICONS.fileImage    },
+        { value: 'image',             label: 'Image',             icon: SVG_ICONS.fileImage    },
+        { value: 'audio',             label: 'Audio',             icon: SVG_ICONS.fileAudio    },
+        { value: 'video',             label: 'Video',             icon: SVG_ICONS.fileVideo    },
+        { value: 'font',              label: 'Font',              icon: SVG_ICONS.fileFont     },
+        { value: 'pdf',               label: 'PDF',               icon: SVG_ICONS.filePdf      },
+        { value: 'binary',            label: 'Binary',            icon: SVG_ICONS.fileBinary   },
+    ]);
     init() {
         // Create utility instances with dependency injection.
         // Order matters: each class receives its dependencies via constructor, so
@@ -2587,7 +2613,7 @@ const CodePreviewer = {
         this.updatePreviewActionButtons();
         this.updatePreviewViewportHeight();
         this.updateAdaptiveLayoutMode();
-    },
+    }
 
     /**
      * Cache all DOM element references for performance
@@ -2651,7 +2677,7 @@ const CodePreviewer = {
             mediaModalContent: document.getElementById('media-modal-content'),
             mediaModalTitle: document.getElementById('media-modal-title'),
         };
-    },
+    }
 
     /**
      * Returns the parent element of the given element ID, or null if not found.
@@ -2661,7 +2687,16 @@ const CodePreviewer = {
     getSafeParentElement(elementId) {
         const element = document.getElementById(elementId);
         return element ? element.parentElement : null;
-    },
+    }
+
+    /**
+     * Returns the editor panel element for the given file ID.
+     * @param {string} fileId
+     * @returns {HTMLElement|null}
+     */
+    getEditorPanel(fileId) {
+        return document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+    }
 
     /**
      * Gets the current content of a file, preferring the editor value when available.
@@ -2670,7 +2705,7 @@ const CodePreviewer = {
      */
     getFileContent(file) {
         return (file.editor && file.editor.getValue ? file.editor.getValue() : file.content) || '';
-    },
+    }
 
     createObjectUrlFromDataUrl(dataUrl) {
         if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) return dataUrl;
@@ -2688,7 +2723,7 @@ const CodePreviewer = {
         } catch (error) {
             return null;
         }
-    },
+    }
 
     createTrackedObjectUrlFromDataUrl(dataUrl, urlSet = this.state.previewAssetUrls) {
         const objectUrl = this.createObjectUrlFromDataUrl(dataUrl);
@@ -2702,7 +2737,7 @@ const CodePreviewer = {
             urlSet.add(objectUrl);
         }
         return objectUrl;
-    },
+    }
 
     /**
      * Returns true if the given string is a blob: URL.
@@ -2711,7 +2746,7 @@ const CodePreviewer = {
      */
     isBlobUrl(url) {
         return typeof url === 'string' && url.startsWith('blob:');
-    },
+    }
 
     getPreviewAssetUrl(fileData, defaultMimeType = 'text/plain', urlSet = this.state.previewAssetUrls) {
         const sourceUrl = this.fileSystemUtils.getFileDataUrl(fileData, defaultMimeType);
@@ -2719,7 +2754,7 @@ const CodePreviewer = {
             return this.createTrackedObjectUrlFromDataUrl(sourceUrl, urlSet);
         }
         return sourceUrl;
-    },
+    }
 
     /**
      * Revokes all object URLs in the provided Set and clears it.
@@ -2730,7 +2765,7 @@ const CodePreviewer = {
             URL.revokeObjectURL(url);
         }
         urlSet.clear();
-    },
+    }
 
     getFilePanelPreviewContent(fileId, fileType, content, isBinary) {
         const isDirectPreviewType = ['image', 'audio', 'video', 'pdf'].includes(fileType);
@@ -2750,21 +2785,21 @@ const CodePreviewer = {
         }
         this.state.filePanelPreviewUrls.set(fileId, previewUrl);
         return previewUrl;
-    },
+    }
 
     revokeFilePanelPreviewUrl(fileId) {
         const previewUrl = this.state.filePanelPreviewUrls.get(fileId);
         if (!previewUrl) return;
         URL.revokeObjectURL(previewUrl);
         this.state.filePanelPreviewUrls.delete(fileId);
-    },
+    }
 
     revokeAllFilePanelPreviewUrls() {
         for (const previewUrl of this.state.filePanelPreviewUrls.values()) {
             URL.revokeObjectURL(previewUrl);
         }
         this.state.filePanelPreviewUrls.clear();
-    },
+    }
 
     cleanupPreviewAssetUrlsIfUnused() {
         const isPreviewModalOpen = this.dom.modalOverlay?.getAttribute('aria-hidden') === 'false';
@@ -2773,11 +2808,11 @@ const CodePreviewer = {
             this.revokeTrackedObjectUrls(this.state.previewAssetUrls);
             this.state.previewBlobUrlCache.clear();
         }
-    },
+    }
 
     hasHtmlFiles() {
         return this.state.files.some(file => file.type === 'html');
-    },
+    }
 
     getPreviewAvailability() {
         const hasHtml = this.hasHtmlFiles();
@@ -2785,7 +2820,7 @@ const CodePreviewer = {
             allowed: hasHtml,
             reason: hasHtml ? '' : 'Add at least one HTML file to preview.'
         };
-    },
+    }
 
     /**
      * Applies preview-button enabled/disabled state to a single button element.
@@ -2801,14 +2836,14 @@ const CodePreviewer = {
         btn.setAttribute('aria-disabled', String(disabled));
         btn.classList.toggle('button-disabled-state', disabled);
         btn.title = disabled ? disabledReason : enabledTitle;
-    },
+    }
 
     updatePreviewActionButtons() {
         const availability = this.getPreviewAvailability();
         const disabled = !availability.allowed;
         this._applyPreviewButtonState(this.dom.modalBtn, disabled, 'Open preview in modal', availability.reason);
         this._applyPreviewButtonState(this.dom.tabBtn,   disabled, 'Open preview in new tab', availability.reason);
-    },
+    }
 
     initEditors() {
         if (typeof window.CodeMirror === 'undefined') {
@@ -2845,14 +2880,14 @@ const CodePreviewer = {
 
         this.applyEditorSettingsToAllEditors();
         this.setDefaultContent();
-    },
+    }
     initFallbackEditors() {
         this.state.editors.html = createMockEditor(this.dom.htmlEditor, this.state.settings.fontSize);
         this.state.editors.css = createMockEditor(this.dom.cssEditor, this.state.settings.fontSize);
         this.state.editors.js = createMockEditor(this.dom.jsEditor, this.state.settings.fontSize);
 
         this.setDefaultContent();
-    },
+    }
     getDefaultSiteFiles() {
         return {
             html: `<!DOCTYPE html>
@@ -2943,7 +2978,7 @@ This content is loaded from a markdown file.
 - Clean
 - Working`
         };
-    },
+    }
 
     setDefaultContent() {
         const defaultSiteFiles = this.getDefaultSiteFiles();
@@ -2957,7 +2992,7 @@ This content is loaded from a markdown file.
         if (this.state.editors.js) {
             this.state.editors.js.setValue(defaultSiteFiles.js);
         }
-    },
+    }
 
     ensureDefaultContentFile() {
         const hasContentMd = this.state.files.some(file => {
@@ -2988,13 +3023,13 @@ This content is loaded from a markdown file.
         this.setupEditorChangeListener(fileId, editor);
         this.state.openPanels.add(fileId);
 
-        const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+        const panel = this.getEditorPanel(fileId);
         if (panel) {
             this.bindFilePanelEvents(panel);
         }
 
         this.refreshPanelAndFileTreeUI();
-    },
+    }
 
 
     /**
@@ -3003,7 +3038,7 @@ This content is loaded from a markdown file.
      */
     loadSettings() {
         this.storageHandler.loadSettings();
-    },
+    }
 
     /**
      * Save user settings to localStorage
@@ -3011,7 +3046,7 @@ This content is loaded from a markdown file.
      */
     saveSettings() {
         this.storageHandler.saveSettings();
-    },
+    }
 
     normalizeSettings(nextSettings = {}) {
         const allowedFontSizes = new Set([12, 13, 14, 15, 16, 18]);
@@ -3033,7 +3068,7 @@ This content is loaded from a markdown file.
             autoCloseBrackets: typeof nextSettings.autoCloseBrackets === 'boolean' ? nextSettings.autoCloseBrackets : true,
             matchBrackets: typeof nextSettings.matchBrackets === 'boolean' ? nextSettings.matchBrackets : true,
         };
-    },
+    }
 
     syncSettingsUI() {
         if (this.dom.settingLineNumbers) this.dom.settingLineNumbers.checked = !!this.state.settings.lineNumbers;
@@ -3049,7 +3084,7 @@ This content is loaded from a markdown file.
         [this.dom.settingFontSize, this.dom.settingEditorTheme, this.dom.settingTabSize]
             .filter(Boolean)
             .forEach((select) => this.updateSettingsSelectDropdownUI(select));
-    },
+    }
 
     initSettingsCustomDropdowns() {
         const settingSelects = [this.dom.settingFontSize, this.dom.settingEditorTheme, this.dom.settingTabSize].filter(Boolean);
@@ -3083,7 +3118,7 @@ This content is loaded from a markdown file.
                 this.updateSettingsSelectDropdownUI(select);
             });
         });
-    },
+    }
 
     getSettingsSelectDropdown(select) {
         if (!select || !select.parentElement) {
@@ -3091,7 +3126,7 @@ This content is loaded from a markdown file.
         }
 
         return select.parentElement.querySelector(`.settings-select-dropdown[data-select-id="${select.id}"]`);
-    },
+    }
 
     updateSettingsSelectDropdownUI(select) {
         const dropdown = this.getSettingsSelectDropdown(select);
@@ -3115,7 +3150,7 @@ This content is loaded from a markdown file.
                 listItem.setAttribute('aria-selected', isSelected ? 'true' : 'false');
             }
         });
-    },
+    }
 
     closeAllSettingsSelectDropdowns(exceptDropdown = null) {
         document.querySelectorAll('.settings-select-dropdown').forEach((dropdown) => {
@@ -3130,7 +3165,7 @@ This content is loaded from a markdown file.
                 list.hidden = true;
             }
         });
-    },
+    }
 
     toggleSettingsSelectDropdown(dropdown, forceOpen = null) {
         if (!dropdown) {
@@ -3155,7 +3190,7 @@ This content is loaded from a markdown file.
                 || dropdown.querySelector('.settings-select-dropdown-option');
             selectedOption?.focus();
         }
-    },
+    }
 
     selectSettingsDropdownOption(dropdown, optionButton) {
         if (!dropdown || !optionButton) {
@@ -3178,7 +3213,7 @@ This content is loaded from a markdown file.
 
         this.toggleSettingsSelectDropdown(dropdown, false);
         dropdown.querySelector('.settings-select-dropdown-trigger')?.focus();
-    },
+    }
 
     moveSettingsDropdownFocus(dropdown, direction) {
         if (!dropdown || !direction) {
@@ -3195,7 +3230,7 @@ This content is loaded from a markdown file.
         const startIndex = currentIndex >= 0 ? currentIndex : (selectedIndex >= 0 ? selectedIndex : 0);
         const nextIndex = (startIndex + direction + options.length) % options.length;
         options[nextIndex].focus();
-    },
+    }
 
     getAllEditors() {
         const editors = Object.values(this.state.editors || {}).filter(Boolean);
@@ -3204,7 +3239,7 @@ This content is loaded from a markdown file.
         });
         if (this.state.codeModalEditor) editors.push(this.state.codeModalEditor);
         return editors;
-    },
+    }
 
     applySettingsToEditor(editor) {
         if (!editor) return;
@@ -3233,15 +3268,15 @@ This content is loaded from a markdown file.
         if (editor.refresh) {
             editor.refresh();
         }
-    },
+    }
 
     applyEditorSettingsToAllEditors() {
         this.getAllEditors().forEach((editor) => this.applySettingsToEditor(editor));
-    },
+    }
 
     isSettingsModalOpen() {
         return !!(this.dom.settingsModal && this.dom.settingsModal.getAttribute('aria-hidden') === 'false');
-    },
+    }
 
     toggleSettingsModal(forceOpen = null) {
         if (!this.dom.settingsModal) return;
@@ -3256,12 +3291,12 @@ This content is loaded from a markdown file.
 
         this.updateDockDividerVisibility();
         this.updateBackgroundScrollLock();
-    },
+    }
 
     updatePreviewViewportHeight() {
         const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
         document.documentElement.style.setProperty('--preview-viewport-height', `${viewportHeight}px`);
-    },
+    }
 
     getAvailableEditorWidth() {
         if (!this.state.isPreviewDocked || this.state.previewDockOrientation !== 'right') {
@@ -3269,13 +3304,13 @@ This content is loaded from a markdown file.
         }
 
         return this.getViewportWidth() - this.getDockSizePx('right');
-    },
+    }
 
     updateAdaptiveLayoutMode() {
         const availableWidth = this.getAvailableEditorWidth();
         const isCompact = availableWidth <= 900;
         document.body.classList.toggle('compact-editor-layout', isCompact);
-    },
+    }
 
     updateDockedModalCompactModes() {
         const previewIsNarrow = this.isMobileViewport()
@@ -3297,7 +3332,7 @@ This content is loaded from a markdown file.
         if (this.dom.codeModal?.getAttribute('aria-hidden') === 'false') {
             this.updateCodeModalHeaderAndButtons();
         }
-    },
+    }
 
     updatePreviewDockControlButtons() {
         const isCompact = document.body.classList.contains('preview-dock-compact-controls');
@@ -3316,7 +3351,7 @@ This content is loaded from a markdown file.
         if (this.dom.refreshPreviewBtn) {
             this.setIconButtonLabel(this.dom.refreshPreviewBtn, SVG_ICONS.refresh, 'Refresh', isCompact);
         }
-    },
+    }
 
     /**
      * Updates a header control button with icon-only (compact) or icon+label content.
@@ -3328,33 +3363,33 @@ This content is loaded from a markdown file.
     setIconButtonLabel(button, iconMarkup, label, isCompact) {
         if (!button) return;
         button.innerHTML = isCompact ? iconMarkup : `${iconMarkup} ${label}`;
-    },
+    }
 
     isMobileViewport() {
         return window.matchMedia('(max-width: 768px)').matches;
-    },
+    }
 
     isCompactEditorViewport() {
         return this.getAvailableEditorWidth() <= 768;
-    },
+    }
 
     canDockCodeModalLeft() {
         return this.state.isPreviewDocked
             && this.dom.modalOverlay?.getAttribute('aria-hidden') === 'false';
-    },
+    }
 
     isPreviewDockedBottom() {
         return this.state.previewDockOrientation === 'bottom';
-    },
+    }
 
     isCodeModalCurrentlyDocked() {
         return this.dom.codeModal?.classList.contains('is-docked-left');
-    },
+    }
 
     setCodeModalDockedState(shouldDock) {
         if (!this.dom.codeModal) return;
         this.dom.codeModal.classList.toggle('is-docked-left', !!shouldDock);
-    },
+    }
 
     getCodeModalDockButtonText(isDockedLeft = this.state.isCodeModalDockedLeft) {
         const isBottomDock = this.isPreviewDockedBottom();
@@ -3362,7 +3397,7 @@ This content is loaded from a markdown file.
             return isDockedLeft ? 'Undock' : 'Dock Above';
         }
         return isDockedLeft ? 'Undock Left' : 'Dock Left';
-    },
+    }
 
     updateCodeModalDockButton() {
         const dockBtn = this.dom.codeModalDockBtn;
@@ -3384,12 +3419,12 @@ This content is loaded from a markdown file.
             ? 'Undock expanded code view'
             : `Dock expanded code view ${dockTargetDescription}`);
         dockBtn.title = isDockedLeft ? 'Undock expanded code view' : `Dock expanded code view ${dockTargetDescription}`;
-    },
+    }
 
     applyCodeModalDockLayout() {
         const shouldDockLeft = this.canDockCodeModalLeft() && this.state.isCodeModalDockedLeft;
         this.setCodeModalDockedState(shouldDockLeft);
-    },
+    }
 
     toggleCodeModalDockLeft(forceState = null) {
         if (!this.canDockCodeModalLeft()) return;
@@ -3403,13 +3438,13 @@ This content is loaded from a markdown file.
         this.updateDockedModalCompactModes();
         this.updateDockDividerVisibility();
         this.refreshCodeModalEditor();
-    },
+    }
 
     getCurrentCodeModalFileName(fallbackName = '') {
         return fallbackName
             || this.state.currentCodeModalSource?.querySelector('.file-name-input')?.value
             || 'Code';
-    },
+    }
 
     getCodeModalFileMeta(fileName = null) {
         const sourceFileId = this.state.currentCodeModalSource?.dataset?.fileId;
@@ -3426,7 +3461,7 @@ This content is loaded from a markdown file.
         }
 
         return `${displayFileName} • ${metaParts.join(' • ')}`;
-    },
+    }
 
     updateCodeModalHeaderAndButtons(fileName = null) {
         const modalTitle = this.dom.codeModalTitle;
@@ -3451,7 +3486,7 @@ This content is loaded from a markdown file.
             this.dom.codeModalSearchBtn.innerHTML = isMobile ? SVG_ICONS.search : SVG_ICONS.search + ' Search';
         }
 
-    },
+    }
 
     updatePanelMoveButtonDirections() {
         const isMobile = this.isCompactEditorViewport();
@@ -3467,22 +3502,22 @@ This content is loaded from a markdown file.
                 button.title = isMobile ? 'Move down' : 'Move right';
             }
         });
-    },
+    }
 
     isExternalImportSpecifier(specifier) {
         return /^(?:[a-z][a-z\d+.-]*:|\/\/|data:|blob:|#)/i.test(specifier || '');
-    },
+    }
 
     shouldRewriteImportSpecifier(specifier) {
         if (typeof specifier !== 'string' || !specifier.trim()) return false;
         if (this.isExternalImportSpecifier(specifier)) return false;
         return specifier.startsWith('.') || specifier.startsWith('/');
-    },
+    }
 
     toVirtualModuleSpecifier(path) {
         const normalized = String(path || '').replace(/^\/+/, '');
         return `@preview/${normalized}`;
-    },
+    }
 
     normalizeModuleSpecifier(specifier, currentFilePath) {
         if (!this.shouldRewriteImportSpecifier(specifier)) return specifier;
@@ -3493,7 +3528,7 @@ This content is loaded from a markdown file.
             ? specifierPath.slice(1)
             : this.fileSystemUtils.resolvePath(currentFilePath, specifierPath);
         return this.toVirtualModuleSpecifier(resolvedPath) + suffix;
-    },
+    }
 
     rewriteModuleSpecifiers(content, currentFilePath = 'index.html') {
         if (typeof content !== 'string' || !content) return content;
@@ -3508,7 +3543,7 @@ This content is loaded from a markdown file.
         });
 
         return rewritten;
-    },
+    }
 
     createRewrittenModuleBlobUrl(fileContent, modulePath) {
         const cached = this.state.previewBlobUrlCache.get(modulePath);
@@ -3519,7 +3554,7 @@ This content is loaded from a markdown file.
         this.state.previewAssetUrls.add(moduleUrl);
         this.state.previewBlobUrlCache.set(modulePath, moduleUrl);
         return moduleUrl;
-    },
+    }
 
     buildModuleImportMap(fileSystem) {
         if (!(fileSystem instanceof Map) || fileSystem.size === 0) return null;
@@ -3535,7 +3570,7 @@ This content is loaded from a markdown file.
         }
 
         return Object.keys(imports).length > 0 ? imports : null;
-    },
+    }
 
     createModuleAssetUrl(fileSystem, modulePath) {
         if (!modulePath || !(fileSystem instanceof Map)) return null;
@@ -3545,13 +3580,13 @@ This content is loaded from a markdown file.
         }
 
         return this.createRewrittenModuleBlobUrl(file.content, modulePath);
-    },
+    }
 
     buildModuleImportMapScript(fileSystem) {
         const imports = this.buildModuleImportMap(fileSystem);
         if (!imports) return '';
         return `<script type="importmap">${JSON.stringify({ imports })}</script>`;
-    },
+    }
 
     detectFileTypeForFilename(filename, content = null, mimeType = '', currentType = '') {
         const extensionType = this.fileTypeUtils.getTypeFromExtension(filename);
@@ -3565,16 +3600,16 @@ This content is loaded from a markdown file.
         }
 
         return currentType || 'binary';
-    },
+    }
 
     getFileNameFromPanel(fileId) {
-        const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+        const panel = this.getEditorPanel(fileId);
         if (panel) {
             const nameInput = panel.querySelector('.file-name-input');
             return nameInput ? nameInput.value : null;
         }
         return null;
-    },
+    }
 
     /**
      * Get the folder path from a full file path
@@ -3584,7 +3619,7 @@ This content is loaded from a markdown file.
     getFolderFromPath(path) {
         if (!path || !path.includes('/')) return '';
         return path.substring(0, path.lastIndexOf('/'));
-    },
+    }
 
     /**
      * Get the filename from a full file path
@@ -3595,7 +3630,7 @@ This content is loaded from a markdown file.
         if (!path) return 'unnamed';
         if (!path.includes('/')) return path;
         return path.substring(path.lastIndexOf('/') + 1);
-    },
+    }
 
     /**
      * Build a folder tree structure from files
@@ -3638,7 +3673,7 @@ This content is loaded from a markdown file.
         });
         
         return tree;
-    },
+    }
 
     /**
      * Create a folder path after validating/sanitizing folder name
@@ -3664,7 +3699,7 @@ This content is loaded from a markdown file.
         this.showNotification(`Folder "${fullPath}" created.`, 'success');
 
         return fullPath;
-    },
+    }
 
     /**
      * Add a new folder
@@ -3673,7 +3708,7 @@ This content is loaded from a markdown file.
         const folderName = await this.showPromptDialog('New Folder', 'Enter folder name:');
         if (!folderName) return;
         this.createFolderPath(folderName);
-    },
+    }
 
     /**
      * Add a new file within a specific folder
@@ -3681,11 +3716,11 @@ This content is loaded from a markdown file.
      */
     async addFileToFolder(folderPath) {
         await this.addNewFile(folderPath);
-    },
+    }
 
     normalizeFolderPath(folderPath) {
         return (folderPath || '').trim().replace(/^\/+|\/+$/g, '');
-    },
+    }
 
     sanitizeFolderPathInput(folderPath) {
         const normalizedPath = this.normalizeFolderPath(folderPath);
@@ -3696,13 +3731,13 @@ This content is loaded from a markdown file.
             .map(segment => segment.trim().replace(/[<>:\"|?*]/g, ''))
             .filter(Boolean)
             .join('/');
-    },
+    }
 
     getFilePathById(fileId) {
         const fileInfo = this.state.files.find(file => file.id === fileId);
         if (!fileInfo) return '';
         return this.getFileNameFromPanel(fileId) || fileInfo.fileName || '';
-    },
+    }
 
     async promptMoveFile(fileId) {
         const fileInfo = this.state.files.find(file => file.id === fileId);
@@ -3720,13 +3755,13 @@ This content is loaded from a markdown file.
         if (destinationInput === null) return;
 
         await this.moveFileToFolder(fileId, destinationInput);
-    },
+    }
 
     async moveFileToFolder(fileId, destinationFolderPath) {
         const fileInfo = this.state.files.find(file => file.id === fileId);
         if (!fileInfo) return;
 
-        const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+        const panel = this.getEditorPanel(fileId);
         if (!panel) return;
 
         const fileNameInput = panel.querySelector('.file-name-input');
@@ -3762,7 +3797,7 @@ This content is loaded from a markdown file.
         this.checkFileModified(fileId, panel);
         this.refreshPanelAndFileTreeUI();
         this.showNotification(`Moved "${baseFilename}" to ${resolvedDestination || 'root'}.`, 'success');
-    },
+    }
 
     /**
      * Toggle folder expansion
@@ -3775,7 +3810,7 @@ This content is loaded from a markdown file.
             this.state.expandedFolders.add(folderPath);
         }
         this.renderFileTree();
-    },
+    }
 
     /**
      * Get all file IDs inside a folder path (including nested subfolders)
@@ -3790,7 +3825,7 @@ This content is loaded from a markdown file.
                 return filename.startsWith(folderPrefix);
             })
             .map(file => file.id);
-    },
+    }
 
     /**
      * Close all open file panels in a folder
@@ -3803,7 +3838,7 @@ This content is loaded from a markdown file.
         if (openFileIds.length === 0) return;
 
         openFileIds.forEach(fileId => {
-            const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+            const panel = this.getEditorPanel(fileId);
             if (panel) {
                 this.clearPendingAutoFormat(fileId);
                 panel.style.display = 'none';
@@ -3814,7 +3849,7 @@ This content is loaded from a markdown file.
         this.renderFileTree();
         this.updatePanelMoveButtonsVisibility();
         this.updatePreviewActionButtons();
-    },
+    }
 
     /**
      * Resolve selected files + selected folders to unique file IDs
@@ -3828,7 +3863,7 @@ This content is loaded from a markdown file.
         });
 
         return Array.from(fileIds);
-    },
+    }
 
     /**
      * Clear sidebar selections for files and folders
@@ -3836,7 +3871,7 @@ This content is loaded from a markdown file.
     clearSidebarSelection() {
         this.state.selectedFileIds.clear();
         this.state.selectedFolderPaths.clear();
-    },
+    }
 
     focusSidebarSearch() {
         const searchInput = this.dom.fileTreeContainer?.querySelector('.file-tree-search-input');
@@ -3844,7 +3879,7 @@ This content is loaded from a markdown file.
 
         searchInput.focus();
         searchInput.select();
-    },
+    }
 
     /**
      * Render the file tree sidebar
@@ -3878,7 +3913,7 @@ This content is loaded from a markdown file.
                 }
             }
         }
-    },
+    }
 
     pruneSidebarSelections() {
         const existingIds = new Set(this.state.files.map(file => file.id));
@@ -3894,7 +3929,7 @@ This content is loaded from a markdown file.
                 this.state.selectedFolderPaths.delete(folderPath);
             }
         });
-    },
+    }
 
     renderFileTreeToolbar(tree) {
         const hasSelection = this.state.selectedFileIds.size > 0 || this.state.selectedFolderPaths.size > 0;
@@ -3921,12 +3956,12 @@ This content is loaded from a markdown file.
                 </div>
             </div>
         `;
-    },
+    }
 
     countFilesInTree(node) {
         const childCount = Object.values(node.children).reduce((total, childNode) => total + this.countFilesInTree(childNode), 0);
         return node.files.length + childCount;
-    },
+    }
 
     /**
      * Recursively render folder contents
@@ -4003,7 +4038,7 @@ This content is loaded from a markdown file.
         });
 
         return html;
-    },
+    }
 
     /**
      * Get the appropriate icon for a file type
@@ -4029,7 +4064,7 @@ This content is loaded from a markdown file.
             'binary': SVG_ICONS.fileBinary
         };
         return icons[fileType] || SVG_ICONS.document;
-    },
+    }
 
     /**
      * Bind click events for file tree elements using event delegation
@@ -4219,7 +4254,7 @@ This content is loaded from a markdown file.
                 this.openPanel(fileId);
             }
         });
-    },
+    }
 
     /**
      * Delete a folder and all its contents
@@ -4238,7 +4273,7 @@ This content is loaded from a markdown file.
         });
         
         filesToRemove.forEach(file => {
-            const panel = document.querySelector(`.editor-panel[data-file-id="${file.id}"]`);
+            const panel = this.getEditorPanel(file.id);
             if (panel) panel.remove();
             this.state.openPanels.delete(file.id);
         });
@@ -4256,7 +4291,7 @@ This content is loaded from a markdown file.
         });
         filesToRemove.forEach(file => this.state.selectedFileIds.delete(file.id));
         this.refreshPanelAndFileTreeUI();
-    },
+    }
 
     async addNewFile(folderPath) {
         const initialFileName = folderPath ? `${folderPath}/newfile.html` : 'newfile.html';
@@ -4289,11 +4324,11 @@ This content is loaded from a markdown file.
         // Mark panel as open
         this.state.openPanels.add(fileId);
         
-        const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+        const panel = this.getEditorPanel(fileId);
         this.bindFilePanelEvents(panel);
         
         this.refreshPanelAndFileTreeUI();
-    },
+    }
 
     /**
      * Create and show a modal dialog with custom content and buttons
@@ -4393,7 +4428,7 @@ This content is loaded from a markdown file.
                 dialog.focus();
             }
         });
-    },
+    }
 
     /**
      * Show a dialog to resolve file conflicts.
@@ -4419,14 +4454,14 @@ This content is loaded from a markdown file.
                 {text: 'Rename', action: 'rename', className: 'conflict-replace'}
             ]
         });
-    },
+    }
 
     findFileByPath(path, excludeFileId = null) {
         return this.state.files.find(file => {
             if (excludeFileId && file.id === excludeFileId) return false;
             return this.getFilePathById(file.id) === path;
         });
-    },
+    }
 
     generateRenamedFilePath(path, excludeFileId = null) {
         const folderPath = this.getFolderFromPath(path);
@@ -4435,7 +4470,8 @@ This content is loaded from a markdown file.
         const baseName = extension ? filename.slice(0, -(extension.length + 1)) : filename;
 
         let suffix = 1;
-        while (true) {
+        const MAX_RENAME_ATTEMPTS = 1000;
+        while (suffix <= MAX_RENAME_ATTEMPTS) {
             const candidateName = extension
                 ? `${baseName}(${suffix}).${extension}`
                 : `${baseName}(${suffix})`;
@@ -4445,7 +4481,8 @@ This content is loaded from a markdown file.
             }
             suffix++;
         }
-    },
+        throw new Error(`Unable to generate unique filename for "${path}" after ${MAX_RENAME_ATTEMPTS} attempts`);
+    }
 
     async resolvePathConflict(targetPath, options = {}) {
         const existingFile = this.findFileByPath(targetPath, options.excludeFileId || null);
@@ -4476,7 +4513,7 @@ This content is loaded from a markdown file.
             skipped: false,
             targetPath: this.generateRenamedFilePath(targetPath, options.excludeFileId || null)
         };
-    },
+    }
 
     /**
      * Show a confirmation dialog
@@ -4493,7 +4530,7 @@ This content is loaded from a markdown file.
             ]
         });
         return action === 'confirm';
-    },
+    }
 
 
     /**
@@ -4585,7 +4622,7 @@ This content is loaded from a markdown file.
         }
 
         return resolveResult;
-    },
+    }
 
     /**
      * Handle file conflict resolution during import.
@@ -4598,7 +4635,7 @@ This content is loaded from a markdown file.
             status: resolved.skipped ? 'skipped' : 'imported',
             fileName: resolved.targetPath
         };
-    },
+    }
 
     /**
      * Show an import summary notification
@@ -4614,7 +4651,7 @@ This content is loaded from a markdown file.
         } else if (skippedCount > 0) {
             this.showNotification(`Skipped ${skippedCount} file(s)`, 'info');
         }
-    },
+    }
 
     /**
      * Create a hidden file input, trigger it, and call back with selected files
@@ -4661,11 +4698,11 @@ This content is loaded from a markdown file.
         
         document.body.appendChild(fileInput);
         fileInput.click();
-    },
+    }
 
     normalizeImportPath(path) {
         return String(path || '').trim().replace(/^\/+/, '');
-    },
+    }
 
     getEffectiveHomeFolderForImports(paths) {
         const normalizedPaths = paths
@@ -4691,7 +4728,7 @@ This content is loaded from a markdown file.
 
         const [effectiveHomeFolder] = topLevelFolders;
         return effectiveHomeFolder;
-    },
+    }
 
     shouldAutoOpenImportedPanel(fileName, pendingFilePaths = []) {
         const normalizedFileName = this.normalizeImportPath(fileName);
@@ -4712,7 +4749,7 @@ This content is loaded from a markdown file.
         ]);
 
         return effectiveHomeFolder !== null && folderPath === effectiveHomeFolder;
-    },
+    }
 
     async _importFiles(fileList, getFileName, successMessage, options = {}) {
         const files = Array.from(fileList);
@@ -4767,13 +4804,13 @@ This content is loaded from a markdown file.
         }
 
         this._showImportSummary(importedCount, skippedCount, successMessage);
-    },
+    }
 
     importFile() {
         this._openFilePicker('*/*', true, async (fileList) => {
             await this._importFiles(fileList, (file) => file.name);
         });
-    },
+    }
 
     importFolder() {
         this._openFilePicker('*/*', true, async (fileList) => {
@@ -4787,7 +4824,7 @@ This content is loaded from a markdown file.
                 }
             );
         }, { directory: true });
-    },
+    }
 
     readFileContent(file) {
         return new Promise((resolve, reject) => {
@@ -4804,7 +4841,7 @@ This content is loaded from a markdown file.
                 reader.readAsText(file);
             }
         });
-    },
+    }
 
     addNewFileWithContent(fileName, fileType, content, isBinary = false, options = {}) {
         const { autoOpenPanel = true } = options;
@@ -4854,7 +4891,7 @@ This content is loaded from a markdown file.
             this.state.openPanels.add(fileId);
         }
         
-        const createdPanel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+        const createdPanel = this.getEditorPanel(fileId);
         if (!autoOpenPanel && createdPanel) {
             createdPanel.style.display = 'none';
         }
@@ -4862,7 +4899,7 @@ This content is loaded from a markdown file.
         this.bindFilePanelEvents(createdPanel);
         
         this.refreshPanelAndFileTreeUI();
-    },
+    }
 
     /**
      * Ensure a folder path exists, creating it if necessary
@@ -4883,7 +4920,7 @@ This content is loaded from a markdown file.
                 this.state.expandedFolders.add(currentPath);
             }
         });
-    },
+    }
 
     /**
      * Returns the static list of supported file-type choices.
@@ -4892,28 +4929,28 @@ This content is loaded from a markdown file.
      */
     getFileTypeChoices() {
         return CodePreviewer._FILE_TYPE_CHOICES;
-    },
+    }
 
     getFileTypeChoice(fileType) {
         return this.getFileTypeChoices().find(type => type.value === fileType) || null;
-    },
+    }
 
     getFileTypeChoiceLabel(fileType) {
         const choice = this.getFileTypeChoice(fileType);
         return choice ? choice.label : 'Text';
-    },
+    }
 
     renderFileTypeOptionLabel(choice) {
         const icon = choice.icon || SVG_ICONS.document;
         const label = escapeHtml(choice.label);
         return `<span class="file-type-option-icon" aria-hidden="true">${icon}</span><span>${label}</span>`;
-    },
+    }
 
     generateFileTypeOptions(selectedType) {
         return this.getFileTypeChoices().map(type =>
             `<option value="${type.value}" ${selectedType === type.value ? 'selected' : ''}>${type.label}</option>`
         ).join('');
-    },
+    }
 
     generateFileTypeDropdownOptions(selectedType) {
         return this.getFileTypeChoices().map(type => {
@@ -4921,7 +4958,7 @@ This content is loaded from a markdown file.
             const selectedState = selectedType === type.value ? 'true' : 'false';
             return `<li role="option" aria-selected="${selectedState}"><button type="button" class="file-type-dropdown-option${selectedClass}" data-value="${escapeHtml(type.value)}">${this.renderFileTypeOptionLabel(type)}</button></li>`;
         }).join('');
-    },
+    }
 
     decorateFileTypeDropdownOptions(panel) {
         const options = panel.querySelectorAll('.file-type-dropdown-option');
@@ -4938,7 +4975,7 @@ This content is loaded from a markdown file.
 
             option.innerHTML = this.renderFileTypeOptionLabel(choice);
         });
-    },
+    }
 
     createFilePanel(fileId, fileName, fileType, content, isBinary) {
         const fileTypeOptions = this.generateFileTypeOptions(fileType);
@@ -4973,7 +5010,7 @@ This content is loaded from a markdown file.
         `;
         
         this.dom.editorGrid.insertAdjacentHTML('beforeend', panelHTML);
-    },
+    }
 
     createEditorForTextarea(textarea, fileType, isBinary = false) {
         if (typeof window.CodeMirror !== 'undefined' && textarea) {
@@ -5001,7 +5038,7 @@ This content is loaded from a markdown file.
         }
         
         return null;
-    },
+    }
 
     generateToolbarHTML(fileType) {
         const isEditable = this.fileTypeUtils.isEditableType(fileType);
@@ -5042,15 +5079,15 @@ This content is loaded from a markdown file.
         }
 
         return toolbarHTML;
-    },
+    }
 
     hasExpandPreview(fileType) {
         return this.fileTypeUtils.isPreviewableType(fileType);
-    },
+    }
 
     getFileTypeLabel(fileType) {
         return `${fileType.charAt(0).toUpperCase() + fileType.slice(1)} ${this.fileTypeUtils.isEditableType(fileType) ? 'Editor' : 'Viewer'}`;
-    },
+    }
 
     generateFileContentDisplay(fileId, fileType, content, isBinary) {
         if (this.fileTypeUtils.isEditableType(fileType)) {
@@ -5058,7 +5095,7 @@ This content is loaded from a markdown file.
         }
 
         return this.htmlGenerators.filePreview(fileType, this.getFilePanelPreviewContent(fileId, fileType, content, isBinary));
-    },
+    }
 
 
     isTextFileType(fileInfo) {
@@ -5071,11 +5108,11 @@ This content is loaded from a markdown file.
             || mimeType.endsWith('+json')
             || mimeType.endsWith('+xml')
             || fileInfo.type === 'svg';
-    },
+    }
 
     supportsFormattingForType(fileType) {
         return ['html', 'css', 'javascript', 'javascript-module', 'json', 'xml', 'svg'].includes(fileType);
-    },
+    }
 
     updateToolbarForFileType(panel, newType) {
         const existingToolbar = panel.querySelector('.editor-toolbar');
@@ -5093,7 +5130,7 @@ This content is loaded from a markdown file.
         panelHeader.insertAdjacentHTML('afterend', newToolbarHTML);
         
         this.bindToolbarEvents(panel);
-    },
+    }
 
     closeAllFileTypeDropdowns(exceptPanel = null) {
         document.querySelectorAll('.editor-panel .file-type-dropdown').forEach((dropdown) => {
@@ -5107,7 +5144,7 @@ This content is loaded from a markdown file.
                 list.hidden = true;
             }
         });
-    },
+    }
 
     updatePanelFileTypeDropdownUI(panel, fileType) {
         const typeSelector = panel.querySelector('.file-type-selector');
@@ -5127,7 +5164,7 @@ This content is loaded from a markdown file.
                 listItem.setAttribute('aria-selected', isSelected ? 'true' : 'false');
             }
         });
-    },
+    }
 
     applyFileTypeChange(panel, fileId, newType, contentOverride = null) {
         this.revokeFilePanelPreviewUrl(fileId);
@@ -5164,7 +5201,7 @@ This content is loaded from a markdown file.
         this.updateMainHtmlSelector();
         this.renderFileTree();
         this.updatePreviewActionButtons();
-    },
+    }
 
     bindFilePanelEvents(panel) {
         const typeSelector = panel.querySelector('.file-type-selector');
@@ -5262,7 +5299,7 @@ This content is loaded from a markdown file.
         panel.addEventListener('pointerdown', () => this.setActiveEditorPanel(panel));
 
         this.bindToolbarEvents(panel);
-    },
+    }
 
     createEditorForFileType(fileInfo, fileId, fileType, content) {
         if (this.fileTypeUtils.isEditableType(fileType)) {
@@ -5282,7 +5319,7 @@ This content is loaded from a markdown file.
             
             fileInfo.content = content || '';
         }
-    },
+    }
 
     /**
      * Initialize the saved state for a file (call when file is first created or opened)
@@ -5296,15 +5333,15 @@ This content is loaded from a markdown file.
             fileName: fileName || '',
             fileType: fileType || 'text'
         };
-    },
+    }
 
     getCurrentFileType(panel, fileInfo) {
         return panel?.dataset.fileType || fileInfo?.type || 'text';
-    },
+    }
 
     getSavedFileType(savedState, fileInfo) {
         return savedState?.fileType || fileInfo?.type || 'text';
-    },
+    }
 
     /**
      * Check if a file has been modified from its saved state
@@ -5314,7 +5351,7 @@ This content is loaded from a markdown file.
      */
     checkFileModified(fileId, panel = null) {
         if (!panel) {
-            panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+            panel = this.getEditorPanel(fileId);
         }
         if (!panel) return false;
         
@@ -5341,7 +5378,7 @@ This content is loaded from a markdown file.
         this.updateModifiedIndicator(panel, isModified, fileId);
         
         return isModified;
-    },
+    }
 
     /**
      * Update the modified indicator and show/hide apply/discard buttons
@@ -5405,7 +5442,7 @@ This content is loaded from a markdown file.
 
         // Update the file tree to show modified indicator
         this.updateFileTreeModifiedState(fileId, isModified);
-    },
+    }
 
     /**
      * Update the file tree to show a modified indicator for a file
@@ -5417,14 +5454,14 @@ This content is loaded from a markdown file.
         if (treeFile) {
             treeFile.classList.toggle('file-modified', isModified);
         }
-    },
+    }
 
     /**
      * Apply changes to a file (save the current state)
      * @param {string} fileId - The file ID
      */
     async applyFileChanges(fileId) {
-        const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+        const panel = this.getEditorPanel(fileId);
         if (!panel) return;
         
         const fileInfo = this.state.files.find(f => f.id === fileId);
@@ -5462,14 +5499,14 @@ This content is loaded from a markdown file.
         this.schedulePreviewRefresh();
         
         this.showNotification('Changes applied successfully', 'success');
-    },
+    }
 
     /**
      * Discard changes to a file (revert to saved state)
      * @param {string} fileId - The file ID
      */
     discardFileChanges(fileId) {
-        const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+        const panel = this.getEditorPanel(fileId);
         if (!panel) return;
         
         const fileInfo = this.state.files.find(f => f.id === fileId);
@@ -5507,7 +5544,7 @@ This content is loaded from a markdown file.
         this.schedulePreviewRefresh();
         
         this.showNotification('Changes discarded', 'info');
-    },
+    }
 
     /**
      * Set up content change listeners for a file editor
@@ -5518,7 +5555,7 @@ This content is loaded from a markdown file.
         if (!editor || !editor.on) return;
 
         editor.on('change', (_cm, changeObj) => {
-            const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+            const panel = this.getEditorPanel(fileId);
             this.checkFileModified(fileId, panel);
 
             const fileInfo = this.state.files.find(f => f.id === fileId);
@@ -5533,7 +5570,7 @@ This content is loaded from a markdown file.
             this.scheduleAutoFormat(fileId, editor, fileType);
             this.schedulePreviewRefresh();
         });
-    },
+    }
 
     /**
      * Close a file panel (hide it) - does NOT delete the file
@@ -5547,15 +5584,15 @@ This content is loaded from a markdown file.
             this.state.autoFormatTimers.delete(fileId);
         }
         this.state.formattingEditors.delete(fileId);
-    },
+    }
 
     schedulePreviewRefresh() {
         this.previewRenderer.scheduleRefresh();
-    },
+    }
 
     closePanel(fileId) {
         // Use .editor-panel selector to avoid matching tree-file elements
-        const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+        const panel = this.getEditorPanel(fileId);
         if (panel) {
             this.clearPendingAutoFormat(fileId);
             panel.style.display = 'none';
@@ -5564,7 +5601,7 @@ This content is loaded from a markdown file.
             this.updatePanelMoveButtonsVisibility();
             this.updatePreviewActionButtons();
         }
-    },
+    }
 
     /**
      * Open a file panel (show it) or create it if it doesn't exist
@@ -5572,7 +5609,7 @@ This content is loaded from a markdown file.
      */
     openPanel(fileId) {
         // Use .editor-panel selector to avoid matching tree-file elements
-        const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+        const panel = this.getEditorPanel(fileId);
         if (panel) {
             panel.style.display = '';  // Reset to default (flex from CSS)
             this.state.openPanels.add(fileId);
@@ -5591,7 +5628,7 @@ This content is loaded from a markdown file.
         this.renderFileTree();
         this.updatePanelMoveButtonsVisibility();
         this.updatePreviewActionButtons();
-    },
+    }
 
     /**
      * Delete a file completely (remove from state and DOM)
@@ -5599,7 +5636,7 @@ This content is loaded from a markdown file.
      */
     deleteFile(fileId) {
         // Use .editor-panel selector to avoid matching tree-file elements
-        const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+        const panel = this.getEditorPanel(fileId);
         if (panel) {
             panel.remove();
         }
@@ -5624,7 +5661,7 @@ This content is loaded from a markdown file.
         }
         
         this.refreshPanelAndFileTreeUI();
-    },
+    }
 
     refreshPanelAndFileTreeUI() {
         document.querySelectorAll('.editor-panel[data-file-id]').forEach((panel) => {
@@ -5637,7 +5674,7 @@ This content is loaded from a markdown file.
         this.renderFileTree();
         this.updatePanelMoveButtonsVisibility();
         this.updatePreviewActionButtons();
-    },
+    }
 
     async clearAllFiles() {
         // Check if there are any files to clear
@@ -5659,7 +5696,7 @@ This content is loaded from a markdown file.
         // Close all open panels first
         const allFileIds = [...this.state.files.map(f => f.id)];
         allFileIds.forEach(fileId => {
-            const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+            const panel = this.getEditorPanel(fileId);
             if (panel) {
                 panel.remove();
             }
@@ -5693,7 +5730,7 @@ This content is loaded from a markdown file.
         this.refreshPanelAndFileTreeUI();
 
         this.showNotification('All files cleared successfully', 'success');
-    },
+    }
 
     updatePanelMoveButtonsVisibility() {
         const allPanels = Array.from(document.querySelectorAll('.editor-panel[data-file-id]'));
@@ -5720,7 +5757,7 @@ This content is loaded from a markdown file.
         });
 
         this.updatePanelMoveButtonDirections();
-    },
+    }
 
     updateRemoveButtonsVisibility() {
         const allPanels = document.querySelectorAll('.editor-panel[data-file-id]');
@@ -5732,7 +5769,7 @@ This content is loaded from a markdown file.
                 removeBtn.style.display = 'block';
             }
         });
-    },
+    }
 
     initExistingFilePanels() {
         const existingPanels = document.querySelectorAll('.editor-panel[data-file-type]');
@@ -5775,7 +5812,7 @@ This content is loaded from a markdown file.
             });
         this.refreshPanelAndFileTreeUI();
         this.getActiveEditorPanel();
-    },
+    }
 
     bindToolbarEvents(panel) {
         const clearBtn = panel.querySelector('.clear-btn');
@@ -5866,7 +5903,7 @@ This content is loaded from a markdown file.
         if (searchCloseBtn) {
             searchCloseBtn.addEventListener('click', () => this.closePanelSearch(panel));
         }
-    },
+    }
 
     setActiveEditorPanel(panel) {
         if (!panel || !panel.dataset.fileId) return;
@@ -5875,11 +5912,11 @@ This content is loaded from a markdown file.
             if (active !== panel) active.classList.remove('is-active');
         });
         panel.classList.add('is-active');
-    },
+    }
 
     getActiveEditorPanel() {
         if (this.state.activePanelId) {
-            const panel = document.querySelector(`.editor-panel[data-file-id="${this.state.activePanelId}"]`);
+            const panel = this.getEditorPanel(this.state.activePanelId);
             if (panel) return panel;
         }
 
@@ -5888,13 +5925,13 @@ This content is loaded from a markdown file.
             this.setActiveEditorPanel(fallback);
         }
         return fallback;
-    },
+    }
 
     openPanelSearch(panel) {
         const { searchContainer } = this.getPanelSearchElements(panel);
         if (!searchContainer) return;
         this.setPanelSearchActive(panel, true);
-    },
+    }
 
 
     formatPanelCode(panel, isAutomatic = false) {
@@ -5910,7 +5947,7 @@ This content is loaded from a markdown file.
             silent: isAutomatic,
             preserveCursor: true,
         });
-    },
+    }
 
     scheduleAutoFormat(fileId, editor, fileType) {
         if (!this.state.settings.autoFormatOnType) return;
@@ -5929,7 +5966,7 @@ This content is loaded from a markdown file.
         }, 900);
 
         this.state.autoFormatTimers.set(fileId, timer);
-    },
+    }
 
     formatEditorContent(fileId, editor, fileType, options = {}) {
         if (!editor || !editor.getValue || !editor.setValue) return false;
@@ -5960,7 +5997,7 @@ This content is loaded from a markdown file.
                 this.showNotification('Code formatted', 'success');
             }
 
-            const panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+            const panel = this.getEditorPanel(fileId);
             this.checkFileModified(fileId, panel);
             return true;
         } catch (error) {
@@ -5972,7 +6009,7 @@ This content is loaded from a markdown file.
         } finally {
             setTimeout(() => this.state.formattingEditors.delete(fileId), 0);
         }
-    },
+    }
 
     formatCodeByType(content, fileType) {
         try {
@@ -6033,7 +6070,7 @@ This content is loaded from a markdown file.
         }
 
         return content;
-    },
+    }
 
     getPanelSearchElements(panel) {
         return {
@@ -6043,7 +6080,7 @@ This content is loaded from a markdown file.
             searchNextBtn: panel.querySelector('.panel-search-next-btn'),
             searchCloseBtn: panel.querySelector('.panel-search-close-btn'),
         };
-    },
+    }
 
     setPanelSearchActive(panel, isActive) {
         const { searchContainer, searchBtn, searchInput } = this.getPanelSearchElements(panel);
@@ -6069,7 +6106,7 @@ This content is loaded from a markdown file.
             searchBtn.classList.remove('active');
             searchBtn.setAttribute('aria-expanded', 'false');
         }
-    },
+    }
 
     togglePanelSearch(panel) {
         const { searchContainer } = this.getPanelSearchElements(panel);
@@ -6077,11 +6114,11 @@ This content is loaded from a markdown file.
 
         const willOpen = searchContainer.hasAttribute('hidden');
         this.setPanelSearchActive(panel, willOpen);
-    },
+    }
 
     closePanelSearch(panel) {
         this.setPanelSearchActive(panel, false);
-    },
+    }
 
     getSearchStartIndex(editor, findNext) {
         if (!findNext || !editor?.getCursor || !editor?.indexFromPos) {
@@ -6093,7 +6130,7 @@ This content is loaded from a markdown file.
         } catch (_e) {
             return 0;
         }
-    },
+    }
 
     selectEditorSearchMatch(editor, matchIndex, queryLength, shouldFocus = true) {
         if (editor.posFromIndex && editor.setSelection) {
@@ -6118,7 +6155,7 @@ This content is loaded from a markdown file.
         }
 
         return false;
-    },
+    }
     searchInPanel(panel, query, findNext = false) {
         const editor = this.getEditorFromPanel(panel);
         const { searchInput } = this.getPanelSearchElements(panel);
@@ -6145,14 +6182,14 @@ This content is loaded from a markdown file.
         }
 
         this.selectEditorSearchMatch(editor, matchIndex, trimmedQuery.length, findNext);
-    },
+    }
 
     clearEditor(panel) {
         const editor = this.getEditorFromPanel(panel);
         if (editor) {
             editor.setValue('');
         }
-    },
+    }
 
     async pasteFromClipboard(panel) {
         try {
@@ -6165,7 +6202,7 @@ This content is loaded from a markdown file.
             console.warn('Failed to paste from clipboard:', error);
             this.showNotification('Unable to paste from clipboard. Please paste manually (Ctrl+V).', 'warn');
         }
-    },
+    }
 
     async copyToClipboard(panel) {
         try {
@@ -6179,7 +6216,7 @@ This content is loaded from a markdown file.
             console.warn('Failed to copy to clipboard:', error);
             this.showNotification('Unable to copy to clipboard. Please copy manually (Ctrl+C).', 'warn');
         }
-    },
+    }
 
     exportFile(panel) {
         try {
@@ -6234,7 +6271,7 @@ This content is loaded from a markdown file.
             console.error('Failed to export file:', error);
             this.showNotification('Unable to export file. Please try again.', 'error');
         }
-    },
+    }
 
     expandCode(panel) {
         const fileId = panel.dataset.fileId;
@@ -6259,7 +6296,7 @@ This content is loaded from a markdown file.
         }
 
         this.openCodeModal(content, fileName, language, panel);
-    },
+    }
 
     showMediaPreview(panel) {
         const fileId = panel.dataset.fileId;
@@ -6284,7 +6321,7 @@ This content is loaded from a markdown file.
         }
         
         this.openMediaModal(fileName, previewContent);
-    },
+    }
 
     openMediaModal(fileName, content) {
         if (!this.dom.mediaModal || !this.dom.mediaModalContent || !this.dom.mediaModalTitle) {
@@ -6299,7 +6336,7 @@ This content is loaded from a markdown file.
         this.dom.mediaModal.setAttribute('aria-hidden', 'false');
         this.updateDockDividerVisibility();
         this.updateBackgroundScrollLock();
-    },
+    }
 
     closeMediaModal() {
         this.revokeTrackedObjectUrls(this.state.mediaPreviewUrls);
@@ -6312,7 +6349,7 @@ This content is loaded from a markdown file.
         }
         this.updateDockDividerVisibility();
         this.updateBackgroundScrollLock();
-    },
+    }
 
     openCodeModal(content, fileName, language, sourcePanel) {
         try {
@@ -6402,7 +6439,7 @@ This content is loaded from a markdown file.
         } catch (error) {
             console.error('Error in openCodeModal:', error);
         }
-    },
+    }
 
     closeCodeModal() {
         const modal = document.getElementById('code-modal');
@@ -6416,13 +6453,13 @@ This content is loaded from a markdown file.
         this.closeCodeModalSearch();
         this.updateDockDividerVisibility();
         this.updateBackgroundScrollLock();
-    },
+    }
 
 
     refreshCodeModalEditor() {
         if (!(window.CodeMirror && this.state.codeModalEditor)) return;
         setTimeout(() => this.state.codeModalEditor.refresh(), 0);
-    },
+    }
 
     getCodeModalEditorText() {
         if (window.CodeMirror && this.state.codeModalEditor) {
@@ -6431,7 +6468,7 @@ This content is loaded from a markdown file.
 
         const editorTextarea = document.getElementById('code-modal-editor');
         return editorTextarea ? editorTextarea.value : '';
-    },
+    }
 
     openCodeModalSearch() {
         if (!this.dom.codeModalSearch || !this.dom.codeModalSearchInput) return;
@@ -6442,7 +6479,7 @@ This content is loaded from a markdown file.
         this.dom.codeModalSearchInput.focus();
         this.dom.codeModalSearchInput.select();
         this.refreshCodeModalEditor();
-    },
+    }
 
     closeCodeModalSearch() {
         if (!this.dom.codeModalSearch || !this.dom.codeModalSearchInput) return;
@@ -6459,7 +6496,7 @@ This content is loaded from a markdown file.
         }
 
         this.refreshCodeModalEditor();
-    },
+    }
 
     toggleCodeModalSearch() {
         if (!this.dom.codeModalSearch) return;
@@ -6469,7 +6506,7 @@ This content is loaded from a markdown file.
         } else {
             this.closeCodeModalSearch();
         }
-    },
+    }
     searchInCodeModal(findNext = false) {
         if (!this.dom.codeModalSearchInput) return;
 
@@ -6515,7 +6552,7 @@ This content is loaded from a markdown file.
                 editorTextarea.setSelectionRange(matchIndex, endIndex);
             }
         }
-    },
+    }
     syncCodeModalToSource(content) {
         try {
             if (!this.state.currentCodeModalSource || this.state.isSyncingCodeModalToSource) {
@@ -6542,7 +6579,7 @@ This content is loaded from a markdown file.
         } finally {
             this.state.isSyncingCodeModalToSource = false;
         }
-    },
+    }
     toggleEditorCollapse(panel) {
         const collapseBtn = panel.querySelector('.collapse-btn');
         const toolbarButtons = panel.querySelectorAll('.editor-toolbar .toolbar-btn:not(.collapse-btn)');
@@ -6566,7 +6603,7 @@ This content is loaded from a markdown file.
         if (willCollapse) {
             this.closePanelSearch(panel);
         }
-    },
+    }
 
     getEditorFromPanel(panel) {
         const textarea = panel.querySelector('textarea');
@@ -6584,7 +6621,7 @@ This content is loaded from a markdown file.
         }
         
         return null;
-    },
+    }
 
     /**
      * Displays a transient toast notification.
@@ -6593,7 +6630,7 @@ This content is loaded from a markdown file.
      */
     showNotification(message, type = 'info') {
         this.notificationSystem.show(message, type);
-    },
+    }
 
     /**
      * Displays a progress notification with a live progress bar.
@@ -6604,7 +6641,7 @@ This content is loaded from a markdown file.
      */
     showProgressNotification(message, options = {}) {
         return this.notificationSystem.showProgress(message, options);
-    },
+    }
 
     extractHTMLContent(content) {
         const bodyMatch = content.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
@@ -6619,7 +6656,7 @@ This content is loaded from a markdown file.
             }
         }
         return content;
-    },
+    }
 
     isFullHTMLDocument(content) {
         const hasDoctype = /<!doctype\s+html/i.test(content);
@@ -6628,7 +6665,7 @@ This content is loaded from a markdown file.
         const hasBodyTag = /<body[^>]*>/i.test(content);
         
         return (hasDoctype && hasHtmlTag) || (hasHtmlTag && hasHeadTag && hasBodyTag);
-    },
+    }
 
     extractStylesFromHTML(content) {
         const styles = [];
@@ -6643,7 +6680,7 @@ This content is loaded from a markdown file.
             styles: styles.join('\n'),
             contentWithoutStyles: remainingContent
         };
-    },
+    }
 
     processHTMLScripts(htmlContent, jsFiles, moduleFiles, currentFilePath = 'index.html') {
         const parser = new DOMParser();
@@ -6680,7 +6717,7 @@ This content is loaded from a markdown file.
 
         container.querySelectorAll('link[rel="stylesheet"]').forEach((linkEl) => linkEl.remove());
         return container.innerHTML;
-    },
+    }
 
     collectFileContents() {
         let html = '';
@@ -6724,13 +6761,13 @@ This content is loaded from a markdown file.
         });
 
         return { html, css, jsFiles, moduleFiles };
-    },
+    }
 
     detectFullDocumentMode() {
         return this.state.files.some(file => 
             file.type === 'html' && this.isFullHTMLDocument(file.editor.getValue())
         );
-    },
+    }
 
     createVirtualFileSystem() {
         const fileSystem = new Map();
@@ -6755,7 +6792,7 @@ This content is loaded from a markdown file.
         });
         
         return fileSystem;
-    },
+    }
 
     extractWorkerFileNames(htmlContent) {
         const workerMatches = htmlContent.match(/new\s+Worker\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/gi) || [];
@@ -6763,7 +6800,7 @@ This content is loaded from a markdown file.
             const fileMatch = match.match(/new\s+Worker\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/i);
             return fileMatch ? fileMatch[1] : null;
         }).filter(Boolean);
-    },
+    }
 
     createWorkerScript(workerFileNames, fileSystem, currentFilePath = '') {
         if (workerFileNames.length === 0) return '';
@@ -6779,7 +6816,7 @@ This content is loaded from a markdown file.
             }
         });
         return script + '</script>\n';
-    },
+    }
 
     replaceWorkerCalls(htmlContent, workerFileNames) {
         workerFileNames.forEach(fileName => {
@@ -6788,7 +6825,7 @@ This content is loaded from a markdown file.
             htmlContent = htmlContent.replace(regex, `new Worker(${urlVar})`);
         });
         return htmlContent;
-    },
+    }
 
     replaceAssetReferences(htmlContent, fileSystem, currentFilePath = '', processedHtmlFiles = null) {
         if (!processedHtmlFiles) processedHtmlFiles = new Map();
@@ -6816,7 +6853,7 @@ This content is loaded from a markdown file.
         htmlContent = this.assetReplacers.replaceScriptTags(htmlContent, fileSystem, currentFilePath, workerFileSet);
         
         return htmlContent;
-    },
+    }
 
     replaceCSSAssetReferences(cssContent, fileSystem, currentFilePath = '') {
         cssContent = cssContent.replace(/background-image\s*:\s*url\s*\(\s*["']?([^"')]+)["']?\s*\)/gi, (match, filename) => {
@@ -6837,7 +6874,7 @@ This content is loaded from a markdown file.
         });
         
         return cssContent;
-    },
+    }
 
     generateFullDocumentPreview() {
         const mainHtmlFile = this.getMainHtmlFile();
@@ -6853,7 +6890,7 @@ This content is loaded from a markdown file.
         let processedHtml = this.replaceAssetReferences(mainHtmlFile.editor.getValue(), fileSystem, mainHtmlPath, processedHtmlFiles);
         
         return this.injectConsoleScript(processedHtml, fileSystem, mainHtmlPath);
-    },
+    }
 
     injectConsoleScript(htmlContent, fileSystem = null, mainHtmlPath = 'index.html') {
         const moduleImportMapScript = this.buildModuleImportMapScript(fileSystem);
@@ -6867,7 +6904,7 @@ This content is loaded from a markdown file.
         } else {
             return htmlContent.replace(/<html[^>]*>/i, '$&\n<head>\n' + headInjection + '\n</head>');
         }
-    },
+    }
 
     processModuleFiles(moduleFiles, currentFilePath = 'index.html') {
         if (moduleFiles.length === 0) return '';
@@ -6888,7 +6925,7 @@ This content is loaded from a markdown file.
             const escapedContent = file.content.replace(/<\/script>/gi, '<\\/script>');
             return `<script type="module">\n${escapedContent}\n</script>`;
         }).join('\n') + '\n';
-    },
+    }
 
     processJavaScriptFiles(jsFiles, currentFilePath = 'index.html') {
         if (jsFiles.length === 0) return '';
@@ -6910,7 +6947,7 @@ This content is loaded from a markdown file.
         }
         
         return '';
-    },
+    }
 
     processWebWorkers(html, jsFiles) {
         const workerFileNames = this.extractWorkerFileNames(html);
@@ -6948,7 +6985,7 @@ This content is loaded from a markdown file.
             processedHtml: processedHtml, 
             workerScript: workerFileNames.length > 0 ? workerScript : '' 
         };
-    },
+    }
 
     generateMultiFilePreview() {
         if (this.detectFullDocumentMode()) {
@@ -6985,7 +7022,7 @@ This content is loaded from a markdown file.
             '    ' + jsScript + '\n' +
             '</body>\n' +
             '</html>';
-    },
+    }
 
     /**
      * Generates the full HTML document string for the current preview.
@@ -6993,7 +7030,7 @@ This content is loaded from a markdown file.
      */
     generatePreviewContent() {
         return this.generateMultiFilePreview();
-    },
+    }
 
     clearPreviewTabState() {
         if (this.state.previewTabUrl) {
@@ -7002,7 +7039,7 @@ This content is loaded from a markdown file.
         }
         this.state.previewTabWindow = null;
         this.cleanupPreviewAssetUrlsIfUnused();
-    },
+    }
 
     updatePreviewTab(content, openIfNeeded = false) {
         let previewWindow = this.state.previewTabWindow;
@@ -7028,7 +7065,7 @@ This content is loaded from a markdown file.
             queueMicrotask(() => URL.revokeObjectURL(previousTabUrl));
         }
         return true;
-    },
+    }
 
     refreshOpenPreviews() {
         const isModalOpen = this.dom.modalOverlay?.getAttribute('aria-hidden') === 'false';
@@ -7065,7 +7102,7 @@ This content is loaded from a markdown file.
                 this.clearPreviewTabState();
             }
         }
-    },
+    }
 
     /**
      * Delegates preview rendering to PreviewRenderer.
@@ -7073,7 +7110,7 @@ This content is loaded from a markdown file.
      */
     renderPreview(target) {
         this.previewRenderer.render(target);
-    },
+    }
 
 
     /**
@@ -7093,12 +7130,12 @@ This content is loaded from a markdown file.
         this.consoleBridge.clear();
         this.previewRenderer.safeWritePreviewFrame(content);
         this.showNotification('Preview refreshed.', 'success');
-    },
+    }
 
     getPreviewDockOrientation() {
         const isPortraitMobile = window.matchMedia('(max-width: 900px) and (orientation: portrait)').matches;
         return isPortraitMobile ? 'bottom' : 'right';
-    },
+    }
 
     updatePreviewDockButton() {
         if (!this.dom.dockPreviewBtn) return;
@@ -7106,15 +7143,15 @@ This content is loaded from a markdown file.
         this.dom.dockPreviewBtn.classList.toggle('active', isDocked);
         this.dom.dockPreviewBtn.setAttribute('aria-label', isDocked ? 'Undock preview panel' : 'Dock preview panel');
         this.updatePreviewDockControlButtons();
-    },
+    }
 
     getViewportWidth() {
         return window.visualViewport?.width ?? window.innerWidth;
-    },
+    }
 
     getViewportHeight() {
         return window.visualViewport?.height ?? window.innerHeight;
-    },
+    }
 
     getDockConstraints(orientation) {
         if (orientation === 'bottom') {
@@ -7128,7 +7165,7 @@ This content is loaded from a markdown file.
         const minEditor = 420;
         const maxPreview = Math.max(minPreview, this.getViewportWidth() - minEditor);
         return { minPreview, maxPreview };
-    },
+    }
 
     getDockSizePx(orientation) {
         const stored = this.state.previewDockSize[orientation];
@@ -7138,7 +7175,7 @@ This content is loaded from a markdown file.
         const clamped = Math.min(maxPreview, Math.max(minPreview, next));
         this.state.previewDockSize[orientation] = clamped;
         return clamped;
-    },
+    }
 
     isSecondaryModalOpen() {
         const codeOpen = document.getElementById('code-modal')?.getAttribute('aria-hidden') === 'false';
@@ -7146,7 +7183,7 @@ This content is loaded from a markdown file.
         const settingsOpen = this.isSettingsModalOpen();
         const codeModalOverDivider = codeOpen && !this.state.isCodeModalDockedLeft;
         return codeModalOverDivider || mediaOpen || settingsOpen;
-    },
+    }
 
     updateBackgroundScrollLock() {
         const previewOpen = this.dom.modalOverlay?.getAttribute('aria-hidden') === 'false';
@@ -7154,7 +7191,7 @@ This content is loaded from a markdown file.
         const settingsOpen = this.isSettingsModalOpen();
         const shouldLock = settingsOpen || codeOpen || (previewOpen && !this.state.isPreviewDocked);
         document.body.classList.toggle('modal-scroll-lock', shouldLock);
-    },
+    }
 
     updateDockDividerVisibility() {
         if (!this.dom.previewDockDivider) return;
@@ -7164,7 +7201,7 @@ This content is loaded from a markdown file.
 
         this.dom.previewDockDivider.hidden = !shouldShow;
         this.dom.previewDockDivider.classList.toggle('is-suspended', suspended);
-    },
+    }
 
     applyPreviewDockLayout() {
         const orientation = this.state.previewDockOrientation;
@@ -7192,7 +7229,7 @@ This content is loaded from a markdown file.
         this.updateDockedModalCompactModes();
         this.updateBackgroundScrollLock();
         this.syncConsoleDividerPosition();
-    },
+    }
 
     syncConsoleDividerPosition() {
         if (!this.dom.consoleResizeDivider
@@ -7203,7 +7240,7 @@ This content is loaded from a markdown file.
             this.state.consoleHeight = actualHeight;
             this.dom.consoleResizeDivider.style.bottom = actualHeight + 'px';
         }
-    },
+    }
 
     togglePreviewDock(forceState = null) {
         const nextState = typeof forceState === 'boolean' ? forceState : !this.state.isPreviewDocked;
@@ -7217,7 +7254,7 @@ This content is loaded from a markdown file.
             this.state.isCodeModalDockedLeft = false;
         }
         this.applyPreviewDockLayout();
-    },
+    }
 
     handleDockViewportResize() {
         this.updatePreviewViewportHeight();
@@ -7227,7 +7264,7 @@ This content is loaded from a markdown file.
             this.state.previewDockOrientation = nextOrientation;
         }
         this.applyPreviewDockLayout();
-    },
+    }
 
     startPreviewDockResize(event) {
         if (!this.state.isPreviewDocked || !this.dom.previewDockDivider) return;
@@ -7252,7 +7289,7 @@ This content is loaded from a markdown file.
 
         divider.classList.add('is-dragging');
         document.body.classList.add('is-resizing-preview-dock');
-    },
+    }
 
     endPreviewDockResize(event) {
         const session = this.state.dockResizeSession;
@@ -7272,7 +7309,7 @@ This content is loaded from a markdown file.
         if (event) {
             this.handlePreviewDockResize(event);
         }
-    },
+    }
 
     handlePreviewDockResize(event) {
         const session = this.state.dockResizeSession;
@@ -7289,7 +7326,7 @@ This content is loaded from a markdown file.
         }
 
         this.applyPreviewDockLayout();
-    },
+    }
 
     setModalConsoleVisibility(isVisible) {
         this.dom.modalConsolePanel.classList.toggle('hidden', !isVisible);
@@ -7308,7 +7345,7 @@ This content is loaded from a markdown file.
         }
 
         this.updatePreviewDockControlButtons();
-    },
+    }
 
     toggleModal(show) {
         this.dom.modalOverlay.setAttribute('aria-hidden', !show);
@@ -7344,12 +7381,12 @@ This content is loaded from a markdown file.
 
         this.updateDockDividerVisibility();
         this.updateBackgroundScrollLock();
-    },
+    }
 
     toggleConsole() {
         const isVisible = this.dom.modalConsolePanel.classList.contains('hidden');
         this.setModalConsoleVisibility(isVisible);
-    },
+    }
 
     startConsoleResize(event) {
         if (!this.dom.consoleResizeDivider) return;
@@ -7373,7 +7410,7 @@ This content is loaded from a markdown file.
 
         divider.classList.add('is-dragging');
         document.body.classList.add('is-resizing-console');
-    },
+    }
 
     endConsoleResize(event) {
         const session = this.state.consoleResizeSession;
@@ -7393,7 +7430,7 @@ This content is loaded from a markdown file.
         if (event) {
             this.handleConsoleResize(event);
         }
-    },
+    }
 
     handleConsoleResize(event) {
         if (!this.state.consoleResizeSession) return;
@@ -7410,7 +7447,7 @@ This content is loaded from a markdown file.
         this.state.consoleHeight = newHeight;
         this.dom.modalConsolePanel.style.height = newHeight + 'px';
         this.dom.consoleResizeDivider.style.bottom = newHeight + 'px';
-    },
+    }
 
     movePanel(panel, direction) {
         const parent = panel?.parentNode;
@@ -7435,7 +7472,7 @@ This content is loaded from a markdown file.
         }
 
         this.updateFilesOrder();
-    },
+    }
 
     updateFilesOrder() {
         const panels = Array.from(document.querySelectorAll('.editor-panel[data-file-id]'));
@@ -7451,7 +7488,7 @@ This content is loaded from a markdown file.
         
         this.state.files = newFilesOrder;
         this.updatePanelMoveButtonsVisibility();
-    },
+    }
 
     async exportZip() {
         if (this.state.files.length === 0) {
@@ -7528,7 +7565,7 @@ This content is loaded from a markdown file.
             progress.fail('ZIP export failed.');
             this.showNotification('Failed to export project as ZIP', 'error');
         }
-    },
+    }
     
     // ============================================================================
     // ARCHIVE IMPORT
@@ -7557,7 +7594,7 @@ This content is loaded from a markdown file.
 
             this.showNotification('Unsupported archive format.', 'error');
         });
-    },
+    }
 
     /**
      * Shared import loop for all archive formats.
@@ -7638,7 +7675,7 @@ This content is loaded from a markdown file.
             if (progress) progress.fail(label + ' import failed.');
             this.showNotification('Failed to import ' + label.toLowerCase(), 'error');
         }
-    },
+    }
 
     async _importFromZip(file) {
         if (typeof JSZip === 'undefined') {
@@ -7659,7 +7696,7 @@ This content is loaded from a markdown file.
             console.error('Error processing ZIP file:', error);
             this.showNotification('Failed to import ZIP file', 'error');
         }
-    },
+    }
 
     _uint8ArrayToBase64(bytes) {
         let binary = '';
@@ -7671,14 +7708,14 @@ This content is loaded from a markdown file.
             }
         }
         return btoa(binary);
-    },
+    }
 
     _readTarString(header, offset, length) {
         const bytes = header.subarray(offset, offset + length);
         const nullIndex = bytes.indexOf(0);
         const end = nullIndex === -1 ? length : nullIndex;
         return new TextDecoder().decode(bytes.subarray(0, end));
-    },
+    }
 
     _parseTar(buffer) {
         const files = [];
@@ -7710,7 +7747,7 @@ This content is loaded from a markdown file.
         }
 
         return files;
-    },
+    }
 
     _normalizeTarEntries(tarFiles) {
         return tarFiles.map(f => ({
@@ -7718,7 +7755,7 @@ This content is loaded from a markdown file.
             readBinary: () => this._uint8ArrayToBase64(f.data),
             readText: () => new TextDecoder().decode(f.data)
         }));
-    },
+    }
 
     async _importFromTar(file) {
         try {
@@ -7729,7 +7766,7 @@ This content is loaded from a markdown file.
             console.error('Error processing TAR file:', error);
             this.showNotification('Failed to import TAR file', 'error');
         }
-    },
+    }
 
     async _importFromTarGz(file) {
         if (typeof pako === 'undefined') {
@@ -7746,7 +7783,7 @@ This content is loaded from a markdown file.
             console.error('Error processing TAR.GZ file:', error);
             this.showNotification('Failed to import TAR.GZ file', 'error');
         }
-    },
+    }
 
     _flattenArchiveTree(obj, prefix = '') {
         const entries = [];
@@ -7758,7 +7795,7 @@ This content is loaded from a markdown file.
             }
         }
         return entries;
-    },
+    }
 
     async _loadLibArchive() {
         if (this._libArchiveCache) return this._libArchiveCache;
@@ -7781,7 +7818,7 @@ This content is loaded from a markdown file.
 
         this._libArchiveCache = mod.Archive;
         return this._libArchiveCache;
-    },
+    }
 
     async _importFromLibArchive(file) {
         let progress = null;
@@ -7812,7 +7849,7 @@ This content is loaded from a markdown file.
             if (progress) progress.fail('Archive import failed.');
             this.showNotification('Failed to import archive. The format may not be supported in this browser.', 'error');
         }
-    },
+    }
 
     setupMainHtmlDropdownEvents() {
         if (!this.dom.mainHtmlDropdownTrigger || !this.dom.mainHtmlDropdownList || !this.dom.mainHtmlDropdown) return;
@@ -7846,7 +7883,7 @@ This content is loaded from a markdown file.
                 this.closeMainHtmlDropdown(true);
             }
         });
-    },
+    }
 
     toggleMainHtmlDropdown() {
         if (!this.dom.mainHtmlDropdownList || !this.dom.mainHtmlDropdownTrigger) return;
@@ -7856,13 +7893,13 @@ This content is loaded from a markdown file.
         } else {
             this.openMainHtmlDropdown();
         }
-    },
+    }
 
     openMainHtmlDropdown() {
         if (!this.dom.mainHtmlDropdownList || !this.dom.mainHtmlDropdownTrigger) return;
         this.dom.mainHtmlDropdownList.hidden = false;
         this.dom.mainHtmlDropdownTrigger.setAttribute('aria-expanded', 'true');
-    },
+    }
 
     closeMainHtmlDropdown(focusTrigger = false) {
         if (!this.dom.mainHtmlDropdownList || !this.dom.mainHtmlDropdownTrigger) return;
@@ -7871,7 +7908,7 @@ This content is loaded from a markdown file.
         if (focusTrigger) {
             this.dom.mainHtmlDropdownTrigger.focus();
         }
-    },
+    }
 
     selectMainHtmlOption(fileId) {
         this.state.mainHtmlFile = fileId;
@@ -7880,7 +7917,7 @@ This content is loaded from a markdown file.
         }
         this.updateMainHtmlSelector();
         this.closeMainHtmlDropdown(true);
-    },
+    }
 
     updateMainHtmlSelector() {
         const htmlFiles = this.state.files.filter(f => f.type === 'html');
@@ -7921,7 +7958,7 @@ This content is loaded from a markdown file.
             const selectedOption = options.find(option => option.value === selectedValue) || options[0];
             this.dom.mainHtmlDropdownTrigger.textContent = selectedOption.label;
         }
-    },
+    }
     
     getMainHtmlFile() {
         if (this.state.mainHtmlFile) {
@@ -7944,37 +7981,11 @@ This content is loaded from a markdown file.
         if (fullDocFile) return fullDocFile;
         
         return htmlFiles[0] || null;
-    },
+    }
 
-};
+}
 
-
-// ============================================================================
-// STATIC CACHED CONSTANTS
-// These are defined after the object literal so they can reference SVG_ICONS.
-// ============================================================================
-
-/**
- * Immutable list of supported file-type choices. Cached here to avoid
- * allocating a new array on every getFileTypeChoices() call.
- * @type {ReadonlyArray<{value: string, label: string, icon: string}>}
- */
-CodePreviewer._FILE_TYPE_CHOICES = Object.freeze([
-    { value: 'html',              label: 'HTML',              icon: SVG_ICONS.fileHtml     },
-    { value: 'css',               label: 'CSS',               icon: SVG_ICONS.fileCss      },
-    { value: 'javascript',        label: 'JavaScript',        icon: SVG_ICONS.fileJs       },
-    { value: 'javascript-module', label: 'JavaScript Module', icon: SVG_ICONS.package      },
-    { value: 'json',              label: 'JSON',              icon: SVG_ICONS.fileJson     },
-    { value: 'xml',               label: 'XML',               icon: SVG_ICONS.fileXml      },
-    { value: 'markdown',          label: 'Markdown',          icon: SVG_ICONS.fileMarkdown },
-    { value: 'text',              label: 'Text',              icon: SVG_ICONS.fileText     },
-    { value: 'svg',               label: 'SVG',               icon: SVG_ICONS.fileImage    },
-    { value: 'image',             label: 'Image',             icon: SVG_ICONS.fileImage    },
-    { value: 'audio',             label: 'Audio',             icon: SVG_ICONS.fileAudio    },
-    { value: 'video',             label: 'Video',             icon: SVG_ICONS.fileVideo    },
-    { value: 'font',              label: 'Font',              icon: SVG_ICONS.fileFont     },
-    { value: 'pdf',               label: 'PDF',               icon: SVG_ICONS.filePdf      },
-    { value: 'binary',            label: 'Binary',            icon: SVG_ICONS.fileBinary   },
-]);
-
-document.addEventListener('DOMContentLoaded', () => CodePreviewer.init());
+document.addEventListener('DOMContentLoaded', () => {
+    const app = new CodePreviewer();
+    app.init();
+});
