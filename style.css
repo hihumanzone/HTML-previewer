@@ -58,23 +58,30 @@
     --radius-pill: 999px;
 
     /* --- Shadows --- */
+    --shadow-xs: 0 1px 3px rgba(0, 0, 0, 0.16);
     --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
     --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.35);
     --shadow-elevated: 0 18px 42px rgba(0, 0, 0, 0.32);
 
     /* --- Typography --- */
     --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     --font-mono: 'Menlo', 'Consolas', monospace;
-    --text-xs: 0.65rem;
-    --text-sm: 0.75rem;
-    --text-base: 0.85rem;
-    --text-md: 0.9rem;
+    --text-xs: 0.7rem;
+    --text-sm: 0.8rem;
+    --text-base: 0.875rem;
+    --text-md: 0.925rem;
     --text-lg: 1.1rem;
     --text-xl: 1.25rem;
+    --font-weight-normal: 400;
+    --font-weight-medium: 500;
+    --font-weight-semibold: 600;
+    --font-weight-bold: 700;
 
     /* --- Transitions --- */
     --transition-speed: 0.2s;
     --transition-fast: 0.16s;
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
     /* --- Surfaces & effects --- */
     --surface-elevated: rgba(var(--header-bg-rgb), 0.88);
@@ -117,6 +124,7 @@ body {
 :focus-visible {
     outline: 2px solid var(--accent-color);
     outline-offset: 2px;
+    box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.2);
 }
 
 .sr-only,
@@ -130,6 +138,25 @@ body {
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
     border: 0;
+}
+
+.skip-nav {
+    position: absolute;
+    top: -100%;
+    left: var(--space-lg);
+    z-index: 10000;
+    padding: var(--space-sm) var(--space-lg);
+    background: var(--accent-color);
+    color: var(--bg-color);
+    border-radius: var(--radius-base);
+    font-weight: var(--font-weight-bold);
+    font-size: var(--text-base);
+    text-decoration: none;
+    transition: top var(--transition-fast) var(--ease-out);
+}
+
+.skip-nav:focus {
+    top: var(--space-lg);
 }
 
 
@@ -159,7 +186,7 @@ body {
     justify-content: space-between;
     align-items: flex-start;
     gap: var(--space-lg);
-    padding: var(--space-lg) 1.1rem;
+    padding: var(--space-xl) 1.25rem;
     margin-bottom: var(--space-sm);
     background: linear-gradient(145deg, rgba(var(--secondary-rgb), 0.75), rgba(var(--header-bg-rgb), 0.9));
     border: 1px solid rgba(var(--accent-rgb), 0.22);
@@ -169,23 +196,26 @@ body {
 
 .app-eyebrow {
     font-size: 0.72rem;
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--accent-hover);
-    margin-bottom: 0.2rem;
+    margin-bottom: 0.25rem;
 }
 
 .app-header h1 {
     margin: 0;
-    font-size: 1.45rem;
+    font-size: 1.5rem;
+    font-weight: var(--font-weight-bold);
     line-height: 1.2;
+    letter-spacing: -0.01em;
 }
 
 .app-subtitle {
-    margin-top: 0.35rem;
-    color: rgba(var(--primary-rgb), 0.9);
-    font-size: 0.92rem;
+    margin-top: 0.4rem;
+    color: rgba(var(--primary-rgb), 0.78);
+    font-size: var(--text-base);
+    line-height: 1.5;
 }
 
 .app-status-pill {
@@ -199,7 +229,9 @@ body {
     background: rgba(var(--success-rgb), 0.16);
     border: 1px solid rgba(var(--success-rgb), 0.4);
     color: var(--success-color);
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 
@@ -228,7 +260,7 @@ body {
 }
 
 .files-header span {
-    font-weight: bold;
+    font-weight: var(--font-weight-bold);
     font-size: var(--text-lg);
     color: var(--accent-color);
 }
@@ -244,12 +276,12 @@ body {
     background: var(--button-surface);
     color: var(--primary-color);
     border-radius: var(--radius-base-lg);
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
     padding: 0.42rem 0.72rem;
     font-size: 0.78rem;
     letter-spacing: 0.01em;
     cursor: pointer;
-    transition: transform var(--transition-fast) ease, box-shadow var(--transition-fast) ease, border-color var(--transition-fast) ease, background var(--transition-fast) ease;
+    transition: transform var(--transition-fast) var(--ease-out), box-shadow var(--transition-fast) ease, border-color var(--transition-fast) ease, background var(--transition-fast) ease;
 }
 
 .files-header__action-btn:hover {
@@ -257,6 +289,11 @@ body {
     border-color: rgba(var(--accent-rgb), 0.6);
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
     background: var(--button-surface-hover);
+}
+
+.files-header__action-btn:active {
+    transform: translateY(0) scale(0.97);
+    box-shadow: var(--shadow-xs);
 }
 
 .settings-menu {
@@ -283,7 +320,7 @@ body {
     border-radius: var(--radius-sm);
     cursor: pointer;
     font-family: inherit;
-    transition: background-color var(--transition-speed), color var(--transition-speed), border-color var(--transition-speed), box-shadow var(--transition-speed), transform var(--transition-speed);
+    transition: background-color var(--transition-speed) var(--ease-out), color var(--transition-speed), border-color var(--transition-speed), box-shadow var(--transition-speed), transform var(--transition-speed) var(--ease-out);
 }
 
 .btn {
@@ -291,13 +328,19 @@ body {
     color: var(--bg-color);
     padding: var(--space-md) var(--space-2xl);
     font-size: 1rem;
-    font-weight: bold;
+    font-weight: var(--font-weight-bold);
+    border-radius: var(--radius-base-lg);
 }
 
 .btn:hover {
     background-color: var(--accent-hover);
     transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(var(--accent-rgb), 0.3);
+    box-shadow: 0 4px 12px rgba(var(--accent-rgb), 0.35);
+}
+
+.btn:active {
+    transform: translateY(0) scale(0.98);
+    box-shadow: 0 1px 4px rgba(var(--accent-rgb), 0.2);
 }
 
 .clear-btn {
@@ -321,10 +364,10 @@ body {
     color: var(--primary-color);
     padding: 0.45rem 0.9rem;
     font-size: var(--text-sm);
-    font-weight: 500;
+    font-weight: var(--font-weight-medium);
     border-radius: var(--radius-base);
     cursor: pointer;
-    transition: all var(--transition-speed) ease;
+    transition: all var(--transition-speed) var(--ease-out);
     position: relative;
     overflow: hidden;
 }
@@ -352,6 +395,10 @@ body {
     transform: translateY(-1px);
 }
 
+.toolbar-btn:active {
+    transform: translateY(0) scale(0.97);
+}
+
 .toolbar-btn.collapsed {
     background: linear-gradient(135deg, rgba(var(--warn-rgb), 0.9) 0%, rgba(var(--warn-rgb), 1) 100%);
     color: var(--bg-color);
@@ -371,7 +418,7 @@ button > svg,
 
 .close-btn {
     font-size: 1.75rem;
-    font-weight: bold;
+    font-weight: var(--font-weight-bold);
     cursor: pointer;
     color: var(--primary-color);
     background: none;
@@ -383,32 +430,41 @@ button > svg,
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: var(--radius-sm);
-    transition: color var(--transition-speed), background-color var(--transition-speed);
+    border-radius: var(--radius-base);
+    transition: color var(--transition-speed), background-color var(--transition-speed), transform var(--transition-fast) var(--ease-out);
 }
 
 .close-btn:hover {
-    color: var(--accent-color);
+    color: var(--error-color);
+    background: rgba(var(--error-rgb), 0.12);
+}
+
+.close-btn:active {
+    transform: scale(0.92);
 }
 
 .save-btn {
     font-size: var(--text-md);
-    font-weight: bold;
+    font-weight: var(--font-weight-bold);
     cursor: pointer;
     color: var(--bg-color);
     background: var(--accent-color);
     border: none;
     padding: 8px 12px;
     margin-right: 8px;
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-base);
     display: flex;
     align-items: center;
     gap: 6px;
-    transition: background-color var(--transition-speed) ease;
+    transition: background-color var(--transition-speed) ease, transform var(--transition-fast) var(--ease-out);
 }
 
 .save-btn:hover {
     background: var(--accent-hover);
+}
+
+.save-btn:active {
+    transform: scale(0.96);
 }
 
 .save-btn.active,
@@ -441,8 +497,8 @@ button > svg,
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all var(--transition-speed) ease;
-    font-weight: bold;
+    transition: all var(--transition-speed) var(--ease-out);
+    font-weight: var(--font-weight-bold);
 }
 
 .remove-file-btn:hover {
@@ -469,16 +525,20 @@ button > svg,
     background-color: var(--accent-color);
     color: var(--bg-color);
     border: none;
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-base);
     padding: 0.4rem 0.8rem;
     font-size: 0.8rem;
-    font-weight: bold;
+    font-weight: var(--font-weight-bold);
     cursor: pointer;
-    transition: background-color var(--transition-speed);
+    transition: background-color var(--transition-speed), transform var(--transition-fast) var(--ease-out);
 }
 
 .toggle-console-btn:hover {
     background-color: var(--accent-hover);
+}
+
+.toggle-console-btn:active {
+    transform: scale(0.96);
 }
 
 .toggle-console-btn.active {
@@ -499,7 +559,7 @@ button > svg,
     background: rgba(var(--secondary-rgb), 0.5);
     border: 1px solid rgba(var(--accent-rgb), 0.2);
     color: var(--accent-color);
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
     font-size: var(--text-base);
     text-transform: none;
     letter-spacing: 0.3px;
@@ -529,7 +589,7 @@ button > svg,
     padding: 0.35rem 0.75rem;
     border-radius: var(--radius-base);
     font-size: var(--text-sm);
-    font-weight: 500;
+    font-weight: var(--font-weight-medium);
     min-width: 130px;
     text-align: left;
     cursor: pointer;
@@ -616,7 +676,7 @@ button > svg,
 }
 
 .main-html-selector label {
-    font-weight: bold;
+    font-weight: var(--font-weight-bold);
     color: var(--accent-color);
     font-size: var(--text-md);
     white-space: nowrap;
@@ -727,7 +787,7 @@ button > svg,
 
 .settings-section-title {
     font-size: var(--text-md);
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
     color: var(--accent-color);
     margin-bottom: var(--space-xs);
     padding-bottom: var(--space-sm);
@@ -757,7 +817,7 @@ button > svg,
 }
 
 .settings-option.settings-select span {
-    font-weight: 500;
+    font-weight: var(--font-weight-medium);
 }
 
 .settings-select-dropdown {
@@ -941,7 +1001,8 @@ button > svg,
 
 .tree-toolbar-btn:disabled {
     cursor: not-allowed;
-    opacity: 0.55;
+    opacity: 0.45;
+    filter: grayscale(20%);
 }
 
 .tree-toolbar-btn:hover,
@@ -1008,7 +1069,7 @@ button > svg,
 .folder-name {
     flex: 1;
     font-size: var(--text-base);
-    font-weight: 500;
+    font-weight: var(--font-weight-medium);
     color: var(--accent-color);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1070,7 +1131,7 @@ button > svg,
 
 .tree-file.file-open .file-name {
     color: var(--accent-color);
-    font-weight: 500;
+    font-weight: var(--font-weight-medium);
 }
 
 .file-icon {
@@ -1169,7 +1230,7 @@ button > svg,
         0 4px 16px rgba(0, 0, 0, 0.3),
         0 1px 3px rgba(0, 0, 0, 0.2),
         inset 0 1px 0 rgba(var(--accent-rgb), 0.1);
-    transition: transform var(--transition-speed) ease, box-shadow var(--transition-speed) ease, border-color var(--transition-speed) ease;
+    transition: transform var(--transition-speed) var(--ease-out), box-shadow var(--transition-speed) var(--ease-out), border-color var(--transition-speed) ease;
     position: relative;
     will-change: transform;
 }
@@ -1249,7 +1310,7 @@ button > svg,
 .panel-header {
     background: linear-gradient(180deg, rgba(var(--header-bg-rgb), 0.95) 0%, rgba(var(--header-bg-rgb), 0.8) 100%);
     padding: var(--space-md) 3.2rem var(--space-md) var(--space-xl);
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
     font-size: var(--text-base);
     text-transform: uppercase;
     letter-spacing: 1.2px;
@@ -1413,8 +1474,8 @@ button > svg,
     padding: 0.35rem 0.62rem;
     cursor: pointer;
     font-size: 0.76rem;
-    font-weight: 600;
-    transition: all var(--transition-speed) ease;
+    font-weight: var(--font-weight-semibold);
+    transition: all var(--transition-speed) var(--ease-out);
 }
 
 .panel-search-next-btn:hover,
@@ -1504,7 +1565,8 @@ button > svg,
     padding: var(--space-2xl);
     opacity: 0;
     visibility: hidden;
-    transition: opacity 0.3s ease, visibility 0.3s ease;
+    transition: opacity 0.3s var(--ease-out), visibility 0.3s;
+    backdrop-filter: blur(4px);
 }
 
 .modal-overlay[aria-hidden="false"] {
@@ -1523,13 +1585,13 @@ body.modal-scroll-lock .container {
 .modal-content {
     background-color: var(--secondary-color);
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-base-lg);
+    border-radius: var(--radius-panel);
     width: 90%;
     height: 90%;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--shadow-lg), 0 0 0 1px rgba(0, 0, 0, 0.1);
 }
 
 .modal-header {
@@ -2022,7 +2084,7 @@ body.is-resizing-console {
 .console-header {
     background-color: var(--header-bg);
     padding: 0.4rem var(--space-lg);
-    font-weight: bold;
+    font-weight: var(--font-weight-bold);
     font-size: var(--text-sm);
     text-transform: uppercase;
     letter-spacing: 1px;
@@ -2065,7 +2127,7 @@ body.is-resizing-console {
     cursor: pointer;
     font-size: var(--text-sm);
     color: var(--primary-color);
-    opacity: 0.5;
+    opacity: 0.6;
     transition: all var(--transition-speed) ease;
 }
 
@@ -2238,7 +2300,7 @@ body.is-resizing-console {
 
 .tree-file.file-modified .file-name {
     color: var(--modified-file-name);
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
 }
 
 
@@ -2261,11 +2323,11 @@ body.is-resizing-console {
     background: linear-gradient(180deg, rgba(var(--secondary-rgb), 0.95) 0%, rgba(var(--bg-mid-rgb), 0.98) 100%);
     border: 1px solid rgba(var(--accent-rgb), 0.25);
     border-radius: var(--radius-md);
-    box-shadow: 0 10px 36px rgba(0, 0, 0, 0.65);
+    box-shadow: var(--shadow-elevated);
     max-width: 520px;
     width: min(92vw, 520px);
     padding: 0;
-    animation: slideIn var(--transition-speed) ease-out;
+    animation: slideIn var(--transition-speed) var(--ease-out);
 }
 
 .conflict-dialog-header {
@@ -2297,7 +2359,7 @@ body.is-resizing-console {
 
 .conflict-dialog-body strong {
     color: var(--accent-color);
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
 }
 
 .conflict-input {
@@ -2333,9 +2395,9 @@ body.is-resizing-console {
     border: 1px solid var(--border-color);
     border-radius: var(--radius-base);
     font-size: var(--text-md);
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
     cursor: pointer;
-    transition: all var(--transition-speed) ease;
+    transition: all var(--transition-speed) var(--ease-out);
 }
 
 .conflict-btn:focus-visible {
@@ -2395,10 +2457,10 @@ body.is-resizing-console {
     padding: var(--space-md) var(--space-lg);
     border-radius: var(--radius-base-lg);
     border: 1px solid var(--border-color);
-    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
-    backdrop-filter: blur(3px);
+    box-shadow: var(--shadow-lg);
+    backdrop-filter: blur(8px);
     pointer-events: auto;
-    animation: notification-slide-in 0.3s ease forwards;
+    animation: notification-slide-in 0.3s var(--ease-out) forwards;
     font-size: var(--text-base);
     line-height: 1.4;
 }
@@ -2452,7 +2514,7 @@ body.is-resizing-console {
 }
 
 .notification.notification-hiding {
-    animation: notification-slide-out 0.3s ease forwards;
+    animation: notification-slide-out 0.3s var(--ease-out) forwards;
 }
 
 .notification-success {
@@ -2636,22 +2698,22 @@ body.is-resizing-console {
 
     .files-header__buttons {
         flex-wrap: wrap;
-        gap: 0.3rem;
+        gap: 0.35rem;
         width: 100%;
     }
 
     .files-header__buttons button {
-        flex: 1 1 calc(50% - 0.3rem);
-        min-height: 40px;
+        flex: 1 1 calc(50% - 0.35rem);
+        min-height: 44px;
     }
 
     .files-header__buttons .settings-menu {
-        flex: 1 1 calc(50% - 0.3rem);
+        flex: 1 1 calc(50% - 0.35rem);
     }
 
     .files-header__buttons .settings-menu .settings-btn {
         width: 100%;
-        min-height: 40px;
+        min-height: 44px;
     }
 
     .import-zip-btn,
@@ -2839,9 +2901,18 @@ body.is-resizing-console {
 
 @media (pointer: coarse) {
     .move-panel-btn {
-        width: 2.1rem;
-        height: 2.1rem;
+        width: 2.5rem;
+        height: 2.5rem;
         font-size: var(--text-md);
+    }
+
+    .tree-file,
+    .tree-folder-header {
+        min-height: 44px;
+    }
+
+    .toolbar-btn {
+        min-height: 40px;
     }
 }
 
@@ -2905,4 +2976,20 @@ body.compact-editor-layout.preview-docked #preview-modal.is-docked .console-filt
 
 body.compact-editor-layout.preview-docked #preview-modal.is-docked .console-filter-btn .filter-icon {
     display: inline-block;
+}
+
+
+/* ==========================================================================
+   REDUCED MOTION
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
 }
