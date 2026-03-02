@@ -233,13 +233,13 @@ body {
     color: var(--accent-color);
 }
 
-.files-header-buttons {
+.files-header__buttons {
     display: flex;
     gap: var(--space-sm);
     align-items: center;
 }
 
-:is(.clear-all-files-btn, .import-zip-btn, .export-zip-btn, .import-file-btn, .add-folder-btn, .add-file-btn, .settings-btn) {
+.files-header__action-btn {
     border: 1px solid var(--button-border-subtle);
     background: var(--button-surface);
     color: var(--primary-color);
@@ -252,7 +252,7 @@ body {
     transition: transform var(--transition-fast) ease, box-shadow var(--transition-fast) ease, border-color var(--transition-fast) ease, background var(--transition-fast) ease;
 }
 
-:is(.clear-all-files-btn, .import-zip-btn, .export-zip-btn, .import-file-btn, .add-folder-btn, .add-file-btn, .settings-btn):hover {
+.files-header__action-btn:hover {
     transform: translateY(-1px);
     border-color: rgba(var(--accent-rgb), 0.6);
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
@@ -418,11 +418,11 @@ button > svg,
 
 #code-modal-dock-btn.active,
 #code-modal-dock-btn.active:hover {
-    background: var(--warn-color) !important;
+    background: var(--warn-color);
 }
 
 .save-btn[hidden] {
-    display: none !important;
+    display: none;
 }
 
 .remove-file-btn {
@@ -1226,7 +1226,7 @@ button > svg,
 }
 
 .editor-panel.toolbar-collapsed .panel-search {
-    display: none !important;
+    display: none;
 }
 
 .editor-panel.toolbar-collapsed .collapse-btn {
@@ -1517,7 +1517,7 @@ body.modal-scroll-lock {
 }
 
 body.modal-scroll-lock .container {
-    overflow: hidden !important;
+    overflow: hidden;
 }
 
 .modal-content {
@@ -2612,7 +2612,7 @@ body.is-resizing-console {
         gap: 0.6rem;
     }
 
-    .files-header-buttons {
+    .files-header__buttons {
         flex-wrap: wrap;
     }
 }
@@ -2634,22 +2634,22 @@ body.is-resizing-console {
         gap: var(--space-sm);
     }
 
-    .files-header-buttons {
+    .files-header__buttons {
         flex-wrap: wrap;
         gap: 0.3rem;
         width: 100%;
     }
 
-    .files-header-buttons button {
+    .files-header__buttons button {
         flex: 1 1 calc(50% - 0.3rem);
         min-height: 40px;
     }
 
-    .files-header-buttons .settings-menu {
+    .files-header__buttons .settings-menu {
         flex: 1 1 calc(50% - 0.3rem);
     }
 
-    .files-header-buttons .settings-menu .settings-btn {
+    .files-header__buttons .settings-menu .settings-btn {
         width: 100%;
         min-height: 40px;
     }
@@ -2884,7 +2884,7 @@ body.compact-editor-layout .files-header {
     gap: 0.6rem;
 }
 
-body.compact-editor-layout .files-header-buttons {
+body.compact-editor-layout .files-header__buttons {
     flex-wrap: wrap;
 }
 
