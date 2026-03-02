@@ -2554,11 +2554,20 @@ class CodePreviewer {
             }
         };
 
-        Object.freeze(this.constants.FILE_TYPES.EXTENSIONS);
-        Object.freeze(this.constants.FILE_TYPES.MIME_TYPES);
-        Object.freeze(this.constants.FILE_TYPES.EXTENSION_MIME_MAP);
-        Object.freeze(this.constants.FILE_TYPES.CODEMIRROR_MODES);
-        Object.freeze(this.constants.FILE_TYPES.DEFAULT_EXTENSIONS);
+        const deepFreeze = (obj) => {
+            Object.freeze(obj);
+            Object.values(obj).forEach(val => {
+                if (val && typeof val === 'object' && !Object.isFrozen(val)) {
+                    deepFreeze(val);
+                }
+            });
+            return obj;
+        };
+        deepFreeze(this.constants.FILE_TYPES.EXTENSIONS);
+        deepFreeze(this.constants.FILE_TYPES.MIME_TYPES);
+        deepFreeze(this.constants.FILE_TYPES.EXTENSION_MIME_MAP);
+        deepFreeze(this.constants.FILE_TYPES.CODEMIRROR_MODES);
+        deepFreeze(this.constants.FILE_TYPES.DEFAULT_EXTENSIONS);
     }
 
     static _FILE_TYPE_CHOICES = Object.freeze([
@@ -4481,7 +4490,7 @@ This content is loaded from a markdown file.
             }
             suffix++;
         }
-        throw new Error(`Unable to generate unique filename for "${path}" after ${MAX_RENAME_ATTEMPTS} attempts`);
+        throw new Error(`Unable to generate unique filename after ${MAX_RENAME_ATTEMPTS} attempts`);
     }
 
     async resolvePathConflict(targetPath, options = {}) {
