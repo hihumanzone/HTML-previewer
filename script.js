@@ -2629,6 +2629,14 @@ class CodePreviewer {
         this.updatePreviewActionButtons();
         this.updatePreviewViewportHeight();
         this.updateAdaptiveLayoutMode();
+
+        // Defer a final editor refresh so CodeMirror re-measures gutter widths
+        // and line heights after the browser has completed initial layout/paint.
+        requestAnimationFrame(() => {
+            this.getAllEditors().forEach(editor => {
+                if (editor && editor.refresh) editor.refresh();
+            });
+        });
     }
 
     /**
