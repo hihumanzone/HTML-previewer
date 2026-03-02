@@ -2880,9 +2880,9 @@ class CodePreviewer {
         }
 
         // Re-cache textarea references now that the panels exist in the DOM.
-        this.dom.htmlEditor = document.getElementById(this.constants.EDITOR_IDS.HTML) ?? document.getElementById('default-html');
-        this.dom.cssEditor  = document.getElementById(this.constants.EDITOR_IDS.CSS)  ?? document.getElementById('default-css');
-        this.dom.jsEditor   = document.getElementById(this.constants.EDITOR_IDS.JS)   ?? document.getElementById('default-js');
+        this.dom.htmlEditor = document.getElementById('default-html');
+        this.dom.cssEditor  = document.getElementById('default-css');
+        this.dom.jsEditor   = document.getElementById('default-js');
     }
 
     initEditors() {
