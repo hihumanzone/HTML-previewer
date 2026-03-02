@@ -181,6 +181,7 @@ class PreviewRenderer {
 
         // Always revoke previous asset URLs before generating new ones to avoid leaks.
         this.app.revokeTrackedObjectUrls(this.app.state.previewAssetUrls);
+        this.app.state.previewBlobUrlCache.clear();
         const content = this.app.generatePreviewContent();
 
         if (target === 'modal') {
@@ -2327,12 +2328,9 @@ class AssetReplacers {
             const resolvedPath = this.app.fileSystemUtils.resolvePath(currentFilePath, filename);
             const file = this.app.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
             if (file && (file.type === 'javascript' || file.type === 'javascript-module')) {
-                const isModule = scriptHasModuleType || file.type === 'javascript-module' || this.app.fileTypeUtils.isJavaScriptModule(file.content, resolvedPath);
-                if (isModule) {
-                    const moduleSrc = this.app.createModuleAssetUrl(fileSystem, resolvedPath);
-                    if (moduleSrc) {
-                        return match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${moduleSrc}"`);
-                    }
+                const blobUrl = this.app.createModuleAssetUrl(fileSystem, resolvedPath);
+                if (blobUrl) {
+                    return match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${blobUrl}"`);
                 }
 
                 const escapedContent = file.content.replace(/<\/script>/gi, '<\\/script>');
@@ -2384,6 +2382,7 @@ const CodePreviewer = {
         previewTabWindow: null,
         previewTabUrl: null,
         previewAssetUrls: new Set(),
+        previewBlobUrlCache: new Map(),
         mediaPreviewUrls: new Set(),
         filePanelPreviewUrls: new Map(),
         previewRefreshTimer: null,
@@ -2772,6 +2771,7 @@ const CodePreviewer = {
         const isPreviewTabOpen = this.state.previewTabWindow && !this.state.previewTabWindow.closed;
         if (!isPreviewModalOpen && !isPreviewTabOpen) {
             this.revokeTrackedObjectUrls(this.state.previewAssetUrls);
+            this.state.previewBlobUrlCache.clear();
         }
     },
 
@@ -3511,10 +3511,13 @@ This content is loaded from a markdown file.
     },
 
     createRewrittenModuleBlobUrl(fileContent, modulePath) {
+        const cached = this.state.previewBlobUrlCache.get(modulePath);
+        if (cached) return cached;
         const rewrittenContent = this.rewriteModuleSpecifiers(fileContent || '', modulePath);
         const moduleBlob = new Blob([rewrittenContent], { type: 'text/javascript' });
         const moduleUrl = URL.createObjectURL(moduleBlob);
         this.state.previewAssetUrls.add(moduleUrl);
+        this.state.previewBlobUrlCache.set(modulePath, moduleUrl);
         return moduleUrl;
     },
 
@@ -7037,6 +7040,7 @@ This content is loaded from a markdown file.
         if (!availability.allowed) return;
 
         this.revokeTrackedObjectUrls(this.state.previewAssetUrls);
+        this.state.previewBlobUrlCache.clear();
         const content = this.generatePreviewContent();
 
         if (isModalOpen && this.dom.previewFrame) {
@@ -7084,6 +7088,7 @@ This content is loaded from a markdown file.
         }
 
         this.revokeTrackedObjectUrls(this.state.previewAssetUrls);
+        this.state.previewBlobUrlCache.clear();
         const content = this.generatePreviewContent();
         this.consoleBridge.clear();
         this.previewRenderer.safeWritePreviewFrame(content);
