@@ -141,6 +141,21 @@ function findNextMatch(content, query, startIndex) {
     return matchIndex;
 }
 
+/**
+ * Recursively freezes an object and all its nested objects.
+ * @param {Object} obj - The object to deep-freeze
+ * @returns {Object} The frozen object
+ */
+const deepFreeze = (obj) => {
+    Object.freeze(obj);
+    Object.values(obj).forEach(val => {
+        if (val && typeof val === 'object' && !Object.isFrozen(val)) {
+            deepFreeze(val);
+        }
+    });
+    return obj;
+};
+
 
 /**
  * Handles preview rendering concerns such as debouncing and runtime fallback UI.
@@ -2554,15 +2569,6 @@ class CodePreviewer {
             }
         };
 
-        const deepFreeze = (obj) => {
-            Object.freeze(obj);
-            Object.values(obj).forEach(val => {
-                if (val && typeof val === 'object' && !Object.isFrozen(val)) {
-                    deepFreeze(val);
-                }
-            });
-            return obj;
-        };
         deepFreeze(this.constants.FILE_TYPES.EXTENSIONS);
         deepFreeze(this.constants.FILE_TYPES.MIME_TYPES);
         deepFreeze(this.constants.FILE_TYPES.EXTENSION_MIME_MAP);
@@ -2607,6 +2613,7 @@ class CodePreviewer {
         this.cacheDOMElements();
         this.initSettingsCustomDropdowns();
         this.loadSettings();
+        this.createDefaultPanels();
         this.initEditors();
         this.eventManager.bindAll();
         this.bindFileTreeEvents();
@@ -2852,6 +2859,30 @@ class CodePreviewer {
         const disabled = !availability.allowed;
         this._applyPreviewButtonState(this.dom.modalBtn, disabled, 'Open preview in modal', availability.reason);
         this._applyPreviewButtonState(this.dom.tabBtn,   disabled, 'Open preview in new tab', availability.reason);
+    }
+
+    /**
+     * Creates the three default editor panels (HTML, CSS, JS) dynamically.
+     * This replaces the previously hardcoded panel markup in index.html,
+     * eliminating ~250 lines of duplicated toolbar, dropdown, and SVG markup.
+     * Panels are generated using the same createFilePanel() path used for
+     * dynamically added files, ensuring consistent markup and behaviour.
+     */
+    createDefaultPanels() {
+        const defaults = [
+            { id: 'default-html', name: 'index.html', type: 'html' },
+            { id: 'default-css',  name: 'styles.css',  type: 'css' },
+            { id: 'default-js',   name: 'script.js',   type: 'javascript' },
+        ];
+
+        for (const { id, name, type } of defaults) {
+            this.createFilePanel(id, name, type, '', false);
+        }
+
+        // Re-cache textarea references now that the panels exist in the DOM.
+        this.dom.htmlEditor = document.getElementById('default-html');
+        this.dom.cssEditor  = document.getElementById('default-css');
+        this.dom.jsEditor   = document.getElementById('default-js');
     }
 
     initEditors() {
