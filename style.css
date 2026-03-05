@@ -84,7 +84,7 @@
     --button-border-subtle: rgba(var(--accent-rgb), 0.28);
 
     /* --- Layout sizing --- */
-    --file-panel-size: 420px;
+    --file-panel-size: 480px;
     --panel-mobile-height: clamp(60vh, 80vh, 90vh);
     --preview-dock-size: 50vw;
 }
@@ -1331,6 +1331,10 @@ button > svg,
     align-items: center;
     justify-content: center;
     transition: color var(--transition-fast) ease, background var(--transition-fast) ease;
+}
+
+.move-panel-btn[hidden] {
+    display: none;
 }
 
 .move-panel-btn:hover {
