@@ -3975,6 +3975,8 @@ This content is loaded from a markdown file.
         const hasSelection = this.state.selectedFileIds.size > 0 || this.state.selectedFolderPaths.size > 0;
         const fileCount = this.countFilesInTree(tree);
         const searchIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="0.85em" height="0.85em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.5" cy="6.5" r="4"/><line x1="10" y1="10" x2="14" y2="14"/></svg>';
+        const isMac = /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent);
+        const shortcutHint = isMac ? '⌘K' : 'Ctrl+K';
 
         return `
             <div class="file-tree-toolbar">
@@ -3987,7 +3989,7 @@ This content is loaded from a markdown file.
                         value="${escapeHtml(this.state.sidebarSearchQuery)}"
                         aria-label="Search files in sidebar"
                     >
-                    <span class="file-tree-search-hint" aria-hidden="true">⌘K</span>
+                    <span class="file-tree-search-hint" aria-hidden="true">${shortcutHint}</span>
                 </div>
                 <div class="file-tree-toolbar-meta">${fileCount} file${fileCount === 1 ? '' : 's'}</div>
                 <div class="file-tree-toolbar-actions">
