@@ -1661,6 +1661,8 @@ body.preview-docked-bottom .container {
 
 #preview-modal.is-docked {
     background: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
     padding: 0;
     opacity: 1;
     pointer-events: none;
@@ -1845,6 +1847,8 @@ body.preview-docked-bottom.is-resizing-preview-dock {
 
 body.preview-docked-right #code-modal.is-docked-left {
     background: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
     padding: 0;
     opacity: 1;
     visibility: visible;
@@ -1869,6 +1873,8 @@ body.preview-docked-right #code-modal.is-docked-left .modal-content {
 
 body.preview-docked-bottom #code-modal.is-docked-left {
     background: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
     padding: 0;
     opacity: 1;
     visibility: visible;
@@ -2817,6 +2823,8 @@ body.is-resizing-console {
         justify-content: center;
         align-items: center;
         background-color: var(--modal-bg);
+        -webkit-backdrop-filter: blur(8px);
+        backdrop-filter: blur(8px);
         padding: 0;
         pointer-events: auto;
     }
