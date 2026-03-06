@@ -374,44 +374,6 @@ button > svg,
     background: rgba(var(--primary-rgb), 0.1);
 }
 
-.save-btn {
-    font-size: var(--text-md);
-    font-weight: 500;
-    cursor: pointer;
-    color: rgba(var(--primary-rgb), 0.78);
-    background: rgba(var(--primary-rgb), 0.08);
-    border: 1px solid rgba(var(--border-rgb), 0.5);
-    padding: 0.35rem 0.75rem;
-    margin-right: 0;
-    border-radius: var(--radius-base);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    transition: background var(--transition-speed) ease, color var(--transition-speed) ease, border-color var(--transition-speed) ease;
-}
-
-.save-btn:hover {
-    background: rgba(var(--accent-rgb), 0.12);
-    color: var(--accent-color);
-    border-color: rgba(var(--accent-rgb), 0.4);
-}
-
-.save-btn.active,
-.save-btn.active:hover {
-    background: rgba(var(--warn-rgb), 0.15);
-    color: var(--warn-color);
-    border-color: rgba(var(--warn-rgb), 0.4);
-}
-
-#code-modal-dock-btn.active,
-#code-modal-dock-btn.active:hover {
-    background: var(--warn-color);
-}
-
-.save-btn[hidden] {
-    display: none;
-}
-
 .remove-file-btn {
     background: transparent;
     border: 1px solid transparent;
