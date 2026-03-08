@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * HTML Code Previewer
  * 
@@ -21,6 +22,165 @@
  * - consoleBridge: Console capture and logging
  * 
  */
+
+/**
+ * @typedef {Object} AppSettings
+ * @property {boolean} lineNumbers
+ * @property {boolean} lineWrapping
+ * @property {boolean} autoFormatOnType
+ * @property {number} fontSize
+ * @property {string} theme
+ * @property {number} tabSize
+ * @property {boolean} indentWithTabs
+ * @property {boolean} autoCloseBrackets
+ * @property {boolean} matchBrackets
+ */
+
+/**
+ * @typedef {Object} AppState
+ * @property {'multi'} mode
+ * @property {{ html: any, css: any, js: any }} editors
+ * @property {Array<any>} files
+ * @property {Array<any>} folders
+ * @property {number} nextFileId
+ * @property {number} nextFolderId
+ * @property {Set<string>} expandedFolders
+ * @property {Set<string>} openPanels
+ * @property {Record<string, { content: string, fileName: string, fileType: string }>} savedFileStates
+ * @property {Set<string>} modifiedFiles
+ * @property {boolean} sidebarShowModifiedOnly
+ * @property {string} sidebarSearchQuery
+ * @property {Set<string>} selectedFileIds
+ * @property {Set<string>} selectedFolderPaths
+ * @property {ReturnType<typeof setTimeout>|null} sidebarSearchDebounceTimer
+ * @property {any} codeModalEditor
+ * @property {HTMLElement|null} currentCodeModalSource
+ * @property {{ query: string, cursorIndex: number }} codeModalSearchState
+ * @property {string} activePanelId
+ * @property {Map<string, ReturnType<typeof setTimeout>>} autoFormatTimers
+ * @property {Set<string>} formattingEditors
+ * @property {string} mainHtmlFile
+ * @property {Function|null} viewportResizeHandler
+ * @property {ReturnType<typeof setTimeout>|null} viewportResizeTimer
+ * @property {Function|null} visualViewportResizeHandler
+ * @property {Window|null} previewTabWindow
+ * @property {string|null} previewTabUrl
+ * @property {Set<string>} previewAssetUrls
+ * @property {Map<string, string>} previewBlobUrlCache
+ * @property {Set<string>} mediaPreviewUrls
+ * @property {Map<string, string>} filePanelPreviewUrls
+ * @property {ReturnType<typeof setTimeout>|null} previewRefreshTimer
+ * @property {number} previewRefreshDelay
+ * @property {boolean} isPreviewDocked
+ * @property {'right'|'bottom'} previewDockOrientation
+ * @property {{ right: number|null, bottom: number|null }} previewDockSize
+ * @property {any} dockResizeSession
+ * @property {any} consoleResizeSession
+ * @property {number} consoleHeight
+ * @property {boolean} isCodeModalDockedLeft
+ * @property {boolean} isSyncingCodeModalToSource
+ * @property {boolean} codeModalPlaintextInputHandlerBound
+ * @property {Function|null} settingsCloseHandler
+ * @property {Function|null} settingsEscHandler
+ * @property {Map<string, { lastFocusedElement: HTMLElement | null }>} modalAccessibility
+ * @property {AppSettings} settings
+ */
+
+const APP_DEFAULTS = Object.freeze({
+    CODEMIRROR_VERSION: '6.65.7',
+    PREVIEW_REFRESH_DELAY_MS: 1000,
+    CONSOLE_INITIAL_HEIGHT_PX: 200,
+    MAX_MODAL_FOCUS_RETRY_FRAMES: 6,
+    MODAL_FOCUSABLE_SELECTOR: [
+        'button:not([disabled])',
+        '[href]',
+        'input:not([disabled]):not([type="hidden"])',
+        'select:not([disabled])',
+        'textarea:not([disabled])',
+        '[tabindex]:not([tabindex="-1"])'
+    ].join(','),
+    ALLOWED_FONT_SIZES: new Set([12, 13, 14, 15, 16, 18]),
+    ALLOWED_THEMES: new Set(['dracula', 'default', 'material', 'monokai', 'nord', 'eclipse', 'idea']),
+    ALLOWED_TAB_SIZES: new Set([2, 4, 8]),
+    CODEMIRROR_THEME_URL(theme) {
+        return `https://cdnjs.cloudflare.com/ajax/libs/codemirror/${this.CODEMIRROR_VERSION}/theme/${theme}.min.css`;
+    }
+});
+
+/**
+ * @returns {AppSettings}
+ */
+function createDefaultSettings() {
+    return {
+        lineNumbers: true,
+        lineWrapping: false,
+        autoFormatOnType: false,
+        fontSize: 14,
+        theme: 'dracula',
+        tabSize: 4,
+        indentWithTabs: false,
+        autoCloseBrackets: true,
+        matchBrackets: true,
+    };
+}
+
+/**
+ * @returns {AppState}
+ */
+function createInitialAppState() {
+    return {
+        mode: 'multi',
+        editors: {
+            html: null,
+            css: null,
+            js: null,
+        },
+        files: [],
+        folders: [],
+        nextFileId: 4,
+        nextFolderId: 1,
+        expandedFolders: new Set(),
+        openPanels: new Set(),
+        savedFileStates: {},
+        modifiedFiles: new Set(),
+        sidebarShowModifiedOnly: false,
+        sidebarSearchQuery: '',
+        selectedFileIds: new Set(),
+        selectedFolderPaths: new Set(),
+        sidebarSearchDebounceTimer: null,
+        codeModalEditor: null,
+        currentCodeModalSource: null,
+        codeModalSearchState: { query: '', cursorIndex: -1 },
+        activePanelId: 'default-html',
+        autoFormatTimers: new Map(),
+        formattingEditors: new Set(),
+        mainHtmlFile: '',
+        viewportResizeHandler: null,
+        viewportResizeTimer: null,
+        visualViewportResizeHandler: null,
+        previewTabWindow: null,
+        previewTabUrl: null,
+        previewAssetUrls: new Set(),
+        previewBlobUrlCache: new Map(),
+        mediaPreviewUrls: new Set(),
+        filePanelPreviewUrls: new Map(),
+        previewRefreshTimer: null,
+        previewRefreshDelay: APP_DEFAULTS.PREVIEW_REFRESH_DELAY_MS,
+        isPreviewDocked: false,
+        previewDockOrientation: 'right',
+        previewDockSize: { right: null, bottom: null },
+        dockResizeSession: null,
+        consoleResizeSession: null,
+        consoleHeight: APP_DEFAULTS.CONSOLE_INITIAL_HEIGHT_PX,
+        isCodeModalDockedLeft: false,
+        isSyncingCodeModalToSource: false,
+        codeModalPlaintextInputHandlerBound: false,
+        settingsCloseHandler: null,
+        settingsEscHandler: null,
+        modalAccessibility: new Map(),
+        settings: createDefaultSettings(),
+    };
+}
 const SVG_ICONS = {
     // UI Action Icons
     settings: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="14" y2="8"/><line x1="2" y1="12" x2="14" y2="12"/><circle cx="5" cy="4" r="1.5" fill="currentColor"/><circle cx="10" cy="8" r="1.5" fill="currentColor"/><circle cx="7" cy="12" r="1.5" fill="currentColor"/></svg>',
@@ -1702,6 +1862,9 @@ class NotificationSystem {
 
         const notification = document.createElement('div');
         notification.className = `notification notification-${type}`;
+        notification.setAttribute('role', type === 'error' ? 'alert' : 'status');
+        notification.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
+        notification.setAttribute('aria-atomic', 'true');
         notification.innerHTML = `
             <div class="notification-header">
                 <span class="notification-message">${escapeHtml(message)}</span>
@@ -1734,6 +1897,9 @@ class NotificationSystem {
         const notification = document.createElement('div');
         notification.className = `notification notification-${type} notification-progress`;
         notification.dataset.progressId = String(++this.progressId);
+        notification.setAttribute('role', 'status');
+        notification.setAttribute('aria-live', 'polite');
+        notification.setAttribute('aria-atomic', 'true');
 
         notification.innerHTML = `
             <div class="notification-header">
@@ -2365,67 +2531,7 @@ class CodePreviewer {
         // ============================================================================
         // APPLICATION STATE
         // ============================================================================
-        this.state = {
-            mode: 'multi',
-            editors: {
-                html: null,
-                css: null,
-                js: null,
-            },
-            files: [],
-            folders: [],
-            nextFileId: 4,
-            nextFolderId: 1,
-            expandedFolders: new Set(),
-            openPanels: new Set(), // Track which file panels are currently open/visible
-            savedFileStates: {}, // Track saved states for files: { fileId: { content: string, fileName: string, fileType: string } }
-            modifiedFiles: new Set(),
-            sidebarShowModifiedOnly: false,
-            sidebarSearchQuery: '',
-            selectedFileIds: new Set(),
-            selectedFolderPaths: new Set(),
-            sidebarSearchDebounceTimer: null,
-            codeModalEditor: null,
-            currentCodeModalSource: null,
-            codeModalSearchState: { query: '', cursorIndex: -1 },
-            activePanelId: 'default-html',
-            autoFormatTimers: new Map(),
-            formattingEditors: new Set(),
-            mainHtmlFile: '',
-            viewportResizeHandler: null,
-            viewportResizeTimer: null,
-            visualViewportResizeHandler: null,
-            previewTabWindow: null,
-            previewTabUrl: null,
-            previewAssetUrls: new Set(),
-            previewBlobUrlCache: new Map(),
-            mediaPreviewUrls: new Set(),
-            filePanelPreviewUrls: new Map(),
-            previewRefreshTimer: null,
-            previewRefreshDelay: 1000,
-            isPreviewDocked: false,
-            previewDockOrientation: 'right',
-            previewDockSize: { right: null, bottom: null },
-            dockResizeSession: null,
-            consoleResizeSession: null,
-            consoleHeight: 200,
-            isCodeModalDockedLeft: false,
-            isSyncingCodeModalToSource: false,
-            codeModalPlaintextInputHandlerBound: false,
-            settingsCloseHandler: null,
-            settingsEscHandler: null,
-            settings: {
-                lineNumbers: true,
-                lineWrapping: false,
-                autoFormatOnType: false,
-                fontSize: 14,
-                theme: 'dracula',
-                tabSize: 4,
-                indentWithTabs: false,
-                autoCloseBrackets: true,
-                matchBrackets: true,
-            },
-        };
+        this.state = createInitialAppState();
 
         // ============================================================================
         // DOM ELEMENTS CACHE
@@ -2466,6 +2572,7 @@ class CodePreviewer {
                 SETTINGS_AUTO_CLOSE_BRACKETS: 'setting-auto-close-brackets',
                 SETTINGS_MATCH_BRACKETS: 'setting-match-brackets',
                 MAIN_HTML_SELECT: 'main-html-select',
+                CODEMIRROR_THEME_LINK: 'codemirror-theme-stylesheet',
             },
             CONTAINER_IDS: {
                 MULTI_FILE: 'multi-file-container',
@@ -2613,6 +2720,7 @@ class CodePreviewer {
         this.cacheDOMElements();
         this.initSettingsCustomDropdowns();
         this.loadSettings();
+        this.ensureEditorThemeStylesheet();
         this.createDefaultPanels();
         this.initEditors();
         this.eventManager.bindAll();
@@ -2667,6 +2775,7 @@ class CodePreviewer {
             settingAutoCloseBrackets: document.getElementById(CONTROL_IDS.SETTINGS_AUTO_CLOSE_BRACKETS),
             settingMatchBrackets: document.getElementById(CONTROL_IDS.SETTINGS_MATCH_BRACKETS),
             mainHtmlSelect: document.getElementById(CONTROL_IDS.MAIN_HTML_SELECT),
+            codeMirrorThemeStylesheet: document.getElementById(CONTROL_IDS.CODEMIRROR_THEME_LINK),
             mainHtmlSelector: document.getElementById('main-html-selector'),
             mainHtmlDropdown: document.getElementById('main-html-dropdown'),
             mainHtmlDropdownTrigger: document.getElementById('main-html-dropdown-trigger'),
@@ -3089,24 +3198,22 @@ This content is loaded from a markdown file.
     }
 
     normalizeSettings(nextSettings = {}) {
-        const allowedFontSizes = new Set([12, 13, 14, 15, 16, 18]);
-        const allowedThemes = new Set(['dracula', 'default', 'material', 'monokai', 'nord', 'eclipse', 'idea']);
-        const allowedTabSizes = new Set([2, 4, 8]);
-
+        const defaults = createDefaultSettings();
         const fontSize = Number(nextSettings.fontSize);
         const tabSize = Number(nextSettings.tabSize);
 
         return {
+            ...defaults,
             ...nextSettings,
-            lineNumbers: typeof nextSettings.lineNumbers === 'boolean' ? nextSettings.lineNumbers : true,
-            lineWrapping: typeof nextSettings.lineWrapping === 'boolean' ? nextSettings.lineWrapping : false,
-            autoFormatOnType: typeof nextSettings.autoFormatOnType === 'boolean' ? nextSettings.autoFormatOnType : false,
-            fontSize: allowedFontSizes.has(fontSize) ? fontSize : 14,
-            theme: allowedThemes.has(nextSettings.theme) ? nextSettings.theme : 'dracula',
-            tabSize: allowedTabSizes.has(tabSize) ? tabSize : 4,
-            indentWithTabs: typeof nextSettings.indentWithTabs === 'boolean' ? nextSettings.indentWithTabs : false,
-            autoCloseBrackets: typeof nextSettings.autoCloseBrackets === 'boolean' ? nextSettings.autoCloseBrackets : true,
-            matchBrackets: typeof nextSettings.matchBrackets === 'boolean' ? nextSettings.matchBrackets : true,
+            lineNumbers: typeof nextSettings.lineNumbers === 'boolean' ? nextSettings.lineNumbers : defaults.lineNumbers,
+            lineWrapping: typeof nextSettings.lineWrapping === 'boolean' ? nextSettings.lineWrapping : defaults.lineWrapping,
+            autoFormatOnType: typeof nextSettings.autoFormatOnType === 'boolean' ? nextSettings.autoFormatOnType : defaults.autoFormatOnType,
+            fontSize: APP_DEFAULTS.ALLOWED_FONT_SIZES.has(fontSize) ? fontSize : defaults.fontSize,
+            theme: APP_DEFAULTS.ALLOWED_THEMES.has(nextSettings.theme) ? nextSettings.theme : defaults.theme,
+            tabSize: APP_DEFAULTS.ALLOWED_TAB_SIZES.has(tabSize) ? tabSize : defaults.tabSize,
+            indentWithTabs: typeof nextSettings.indentWithTabs === 'boolean' ? nextSettings.indentWithTabs : defaults.indentWithTabs,
+            autoCloseBrackets: typeof nextSettings.autoCloseBrackets === 'boolean' ? nextSettings.autoCloseBrackets : defaults.autoCloseBrackets,
+            matchBrackets: typeof nextSettings.matchBrackets === 'boolean' ? nextSettings.matchBrackets : defaults.matchBrackets,
         };
     }
 
@@ -3124,6 +3231,131 @@ This content is loaded from a markdown file.
         [this.dom.settingFontSize, this.dom.settingEditorTheme, this.dom.settingTabSize]
             .filter(Boolean)
             .forEach((select) => this.updateSettingsSelectDropdownUI(select));
+    }
+
+    ensureEditorThemeStylesheet(theme = this.state.settings.theme) {
+        const resolvedTheme = APP_DEFAULTS.ALLOWED_THEMES.has(theme) ? theme : createDefaultSettings().theme;
+        let themeLink = this.dom.codeMirrorThemeStylesheet || document.getElementById(this.constants.CONTROL_IDS.CODEMIRROR_THEME_LINK);
+
+        if (!themeLink) {
+            themeLink = document.createElement('link');
+            themeLink.id = this.constants.CONTROL_IDS.CODEMIRROR_THEME_LINK;
+            themeLink.rel = 'stylesheet';
+            document.head.appendChild(themeLink);
+            this.dom.codeMirrorThemeStylesheet = themeLink;
+        }
+
+        if (themeLink.dataset.theme === resolvedTheme && themeLink.getAttribute('href')) {
+            return;
+        }
+
+        themeLink.href = APP_DEFAULTS.CODEMIRROR_THEME_URL(resolvedTheme);
+        themeLink.dataset.theme = resolvedTheme;
+        this.dom.codeMirrorThemeStylesheet = themeLink;
+    }
+
+    getModalAccessibilityState(modal) {
+        if (!modal || !modal.id) {
+            return null;
+        }
+
+        if (!this.state.modalAccessibility.has(modal.id)) {
+            this.state.modalAccessibility.set(modal.id, { lastFocusedElement: null });
+        }
+
+        return this.state.modalAccessibility.get(modal.id) || null;
+    }
+
+    getFocusableElements(container) {
+        if (!container) return [];
+
+        return Array.from(container.querySelectorAll(APP_DEFAULTS.MODAL_FOCUSABLE_SELECTOR))
+            .filter((element) => element instanceof HTMLElement)
+            .filter((element) => !element.hasAttribute('disabled') && !element.getAttribute('aria-hidden'))
+            .filter((element) => !element.hidden && element.tabIndex !== -1)
+            .filter((element) => element.getClientRects().length > 0);
+    }
+
+    trapModalFocus(event, modal) {
+        if (event.key !== 'Tab') return;
+        if (modal === this.dom.modalOverlay && this.state.isPreviewDocked) return;
+
+        const focusableElements = this.getFocusableElements(modal);
+        if (!focusableElements.length) {
+            event.preventDefault();
+            modal.focus();
+            return;
+        }
+
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+        const activeElement = /** @type {HTMLElement|null} */ (document.activeElement);
+
+        if (event.shiftKey && (activeElement === firstElement || activeElement === modal)) {
+            event.preventDefault();
+            lastElement.focus();
+            return;
+        }
+
+        if (!event.shiftKey && activeElement === lastElement) {
+            event.preventDefault();
+            firstElement.focus();
+        }
+    }
+
+    activateModalAccessibility(modal, initialFocus = null) {
+        if (!modal) return;
+        if (!modal.hasAttribute('tabindex')) {
+            modal.tabIndex = -1;
+        }
+
+        const modalState = this.getModalAccessibilityState(modal);
+        const activeElement = /** @type {HTMLElement|null} */ (document.activeElement);
+        if (modalState && activeElement && !modal.contains(activeElement)) {
+            modalState.lastFocusedElement = activeElement;
+        }
+
+        if (modal.dataset.focusTrapBound !== 'true') {
+            modal.addEventListener('keydown', (event) => this.trapModalFocus(event, modal));
+            modal.dataset.focusTrapBound = 'true';
+        }
+
+        const focusTarget = initialFocus instanceof HTMLElement
+            ? initialFocus
+            : this.getFocusableElements(modal)[0];
+        this.focusModalTarget(modal, focusTarget || modal);
+    }
+
+    deactivateModalAccessibility(modal) {
+        const modalState = this.getModalAccessibilityState(modal);
+        const lastFocusedElement = modalState?.lastFocusedElement;
+
+        if (lastFocusedElement && document.contains(lastFocusedElement)) {
+            requestAnimationFrame(() => lastFocusedElement.focus({ preventScroll: true }));
+        }
+
+        if (modalState) {
+            modalState.lastFocusedElement = null;
+        }
+    }
+
+    focusModalTarget(modal, target, remainingFrames = APP_DEFAULTS.MAX_MODAL_FOCUS_RETRY_FRAMES) {
+        if (!modal || !target) return;
+        if (modal.getAttribute('aria-hidden') !== 'false') return;
+        if (modal.contains(document.activeElement) && document.activeElement !== document.body) return;
+
+        const modalIsVisible = modal.getClientRects().length > 0
+            && window.getComputedStyle(modal).visibility !== 'hidden';
+
+        if (modalIsVisible) {
+            target.focus({ preventScroll: true });
+            if (modal.contains(document.activeElement) || document.activeElement === target) {
+                return;
+            }
+        }
+
+        if (remainingFrames <= 0) return;
+        requestAnimationFrame(() => this.focusModalTarget(modal, target, remainingFrames - 1));
     }
 
     initSettingsCustomDropdowns() {
@@ -3283,6 +3515,7 @@ This content is loaded from a markdown file.
 
     applySettingsToEditor(editor) {
         if (!editor) return;
+        this.ensureEditorThemeStylesheet(this.state.settings.theme);
 
         if (editor.setOption) {
             editor.setOption('lineNumbers', !!this.state.settings.lineNumbers);
@@ -3325,8 +3558,12 @@ This content is loaded from a markdown file.
         this.dom.settingsModal.setAttribute('aria-hidden', String(!shouldOpen));
         this.dom.settingsModal.hidden = !shouldOpen;
 
-        if (!shouldOpen) {
+        if (shouldOpen) {
+            const closeButton = this.dom.settingsModal.querySelector('.close-btn');
+            this.activateModalAccessibility(this.dom.settingsModal, this.dom.settingLineNumbers || closeButton);
+        } else {
             this.closeAllSettingsSelectDropdowns();
+            this.deactivateModalAccessibility(this.dom.settingsModal);
         }
 
         this.updateDockDividerVisibility();
@@ -4067,11 +4304,13 @@ This content is loaded from a markdown file.
             const openClass = isOpen ? 'file-open' : '';
             const modifiedClass = isModified ? 'file-modified' : '';
             const selectedClass = isSelected ? 'file-selected-in-sidebar' : '';
+            const modifiedSuffix = isModified ? ', unsaved changes' : '';
+            const modifiedScreenReaderText = isModified ? '<span class="sr-only"> (unsaved changes)</span>' : '';
             html += `
                 <div class="tree-file ${openClass} ${modifiedClass} ${selectedClass}" data-file-id="${file.id}">
-                    <input type="checkbox" class="tree-file-checkbox" aria-label="Select file ${escapeHtml(file.displayName)}" ${isSelected ? 'checked' : ''}>
+                    <input type="checkbox" class="tree-file-checkbox" aria-label="Select file ${escapeHtml(file.displayName)}${modifiedSuffix}" ${isSelected ? 'checked' : ''}>
                     <span class="file-icon">${fileIcon}</span>
-                    <span class="file-name">${escapeHtml(file.displayName)}</span>
+                    <span class="file-name">${escapeHtml(file.displayName)}${modifiedScreenReaderText}</span>
                     <div class="file-actions">
                         <button class="open-file-btn" title="${isOpen ? 'Focus file' : 'Open file'}" aria-label="${isOpen ? 'Focus file' : 'Open file'}">${isOpen ? SVG_ICONS.eye : SVG_ICONS.pencil}</button>
                         <button class="move-file-btn" title="Move file" aria-label="Move file">${SVG_ICONS.move}</button>
@@ -5438,6 +5677,8 @@ This content is loaded from a markdown file.
         const fileNameInput = panel.querySelector('.file-name-input');
         if (fileNameInput) {
             fileNameInput.classList.toggle('modified', isModified);
+            const baseLabel = 'File name';
+            fileNameInput.setAttribute('aria-label', isModified ? `${baseLabel}, unsaved changes` : baseLabel);
         }
         
         // Show/hide apply and discard buttons in toolbar
@@ -6378,6 +6619,7 @@ This content is loaded from a markdown file.
         
         this.dom.mediaModal.style.display = 'flex';
         this.dom.mediaModal.setAttribute('aria-hidden', 'false');
+        this.activateModalAccessibility(this.dom.mediaModal, this.dom.mediaModal.querySelector('.close-btn'));
         this.updateDockDividerVisibility();
         this.updateBackgroundScrollLock();
     }
@@ -6387,6 +6629,7 @@ This content is loaded from a markdown file.
         if (this.dom.mediaModal) {
             this.dom.mediaModal.style.display = 'none';
             this.dom.mediaModal.setAttribute('aria-hidden', 'true');
+            this.deactivateModalAccessibility(this.dom.mediaModal);
         }
         if (this.dom.mediaModalContent) {
             this.dom.mediaModalContent.innerHTML = '';
@@ -6471,6 +6714,12 @@ This content is loaded from a markdown file.
 
             modal.style.display = 'flex';
             modal.setAttribute('aria-hidden', 'false');
+            this.activateModalAccessibility(
+                modal,
+                (window.CodeMirror && this.state.codeModalEditor && this.state.codeModalEditor.getInputField)
+                    ? this.state.codeModalEditor.getInputField()
+                    : editorTextarea
+            );
             this.updateDockDividerVisibility();
             this.updateDockedModalCompactModes();
             this.updateBackgroundScrollLock();
@@ -6490,6 +6739,7 @@ This content is loaded from a markdown file.
         if (modal) {
             modal.style.display = 'none';
             modal.setAttribute('aria-hidden', 'true');
+            this.deactivateModalAccessibility(modal);
         }
         this.state.currentCodeModalSource = null;
         this.setCodeModalDockedState(false);
@@ -7396,6 +7646,7 @@ This content is loaded from a markdown file.
         if (show) {
             this.applyPreviewDockLayout();
             this.setModalConsoleVisibility(false);
+            this.activateModalAccessibility(this.dom.modalOverlay, this.dom.refreshPreviewBtn || this.dom.closeModalBtn);
         } else {
             this.setModalConsoleVisibility(false);
             this.togglePreviewDock(false);
@@ -7421,6 +7672,7 @@ This content is loaded from a markdown file.
 
             this.consoleBridge.clear();
             this.cleanupPreviewAssetUrlsIfUnused();
+            this.deactivateModalAccessibility(this.dom.modalOverlay);
         }
 
         this.updateDockDividerVisibility();

@@ -8,16 +8,10 @@
     <link rel="stylesheet" href="style.css">
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/codemirror.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/theme/dracula.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/theme/default.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/theme/material.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/theme/monokai.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/theme/nord.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/theme/eclipse.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/theme/idea.min.css">
+    <link id="codemirror-theme-stylesheet" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/theme/dracula.min.css" data-theme="dracula">
 </head>
 <body>
-
+    <a class="skip-link" href="#app-main">Skip to workspace</a>
     <div class="container">
         <header class="app-header" role="banner">
             <div>
@@ -27,7 +21,7 @@
             </div>
             <span class="app-status-pill" aria-label="Application mode">Local-first</span>
         </header>
-        <main class="main-content">
+        <main id="app-main" class="main-content">
             <div id="multi-file-container" class="editor-container">
                 <div class="files-header">
                     <span>Files</span>
@@ -46,8 +40,9 @@
                 </div>
                 <div class="main-html-selector" id="main-html-selector" style="display: none;">
                     <label id="main-html-label" for="main-html-select">Main HTML file:</label>
+                    <p id="main-html-help" class="sr-only">Choose which HTML file should be used as the preview entry point. Auto-detect uses the first available document.</p>
                     <div class="main-html-dropdown" id="main-html-dropdown">
-                        <button type="button" id="main-html-dropdown-trigger" class="main-html-dropdown-trigger" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="main-html-label main-html-dropdown-trigger">Auto-detect</button>
+                        <button type="button" id="main-html-dropdown-trigger" class="main-html-dropdown-trigger" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="main-html-label main-html-dropdown-trigger" aria-describedby="main-html-help">Auto-detect</button>
                         <ul id="main-html-dropdown-list" class="main-html-dropdown-list" role="listbox" aria-labelledby="main-html-label" tabindex="-1" hidden></ul>
                     </div>
                     <select id="main-html-select" aria-label="Select main HTML file for preview" class="visually-hidden-select">
