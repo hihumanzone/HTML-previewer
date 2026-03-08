@@ -3317,11 +3317,16 @@ This content is loaded from a markdown file.
             modal.dataset.focusTrapBound = 'true';
         }
 
-        requestAnimationFrame(() => {
-            const target = initialFocus instanceof HTMLElement
-                ? initialFocus
-                : this.getFocusableElements(modal)[0];
-            (target || modal).focus();
+        const focusTarget = initialFocus instanceof HTMLElement
+            ? initialFocus
+            : this.getFocusableElements(modal)[0];
+
+        [0, 75, 150].forEach((delay) => {
+            setTimeout(() => {
+                if (modal.getAttribute('aria-hidden') === 'false' && !modal.contains(document.activeElement)) {
+                    (focusTarget || modal).focus({ preventScroll: true });
+                }
+            }, delay);
         });
     }
 
@@ -3330,7 +3335,7 @@ This content is loaded from a markdown file.
         const lastFocusedElement = modalState?.lastFocusedElement;
 
         if (lastFocusedElement && document.contains(lastFocusedElement)) {
-            requestAnimationFrame(() => lastFocusedElement.focus());
+            setTimeout(() => lastFocusedElement.focus({ preventScroll: true }), 0);
         }
 
         if (modalState) {
