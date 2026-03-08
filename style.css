@@ -76,6 +76,20 @@
     --transition-speed: 0.2s;
     --transition-fast: 0.16s;
 
+    /* --- Interaction sizing --- */
+    --touch-target-min: 44px;
+
+    /* --- Z-index scale --- */
+    --z-raised: 30;
+    --z-toolbar: 80;
+    --z-header: 120;
+    --z-dropdown: 130;
+    --z-modal: 1000;
+    --z-modal-docked: 1200;
+    --z-modal-divider: 1210;
+    --z-notification: 2000;
+    --z-overlay-critical: 10000;
+
     /* --- Surfaces & effects --- */
     --surface-elevated: rgba(var(--header-bg-rgb), 0.88);
     --surface-muted: rgba(var(--secondary-rgb), 0.55);
@@ -84,9 +98,9 @@
     --button-border-subtle: rgba(var(--accent-rgb), 0.28);
 
     /* --- Layout sizing --- */
-    --file-panel-size: 480px;
+    --file-panel-size: clamp(320px, 42vw, 480px);
     --panel-mobile-height: clamp(60vh, 80vh, 90vh);
-    --preview-dock-size: 50vw;
+    --preview-dock-size: clamp(320px, 50vw, 720px);
 }
 
 
@@ -130,6 +144,25 @@ body {
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
     border: 0;
+}
+
+.skip-link {
+    position: absolute;
+    top: var(--space-sm);
+    left: var(--space-sm);
+    transform: translateY(-160%);
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-base);
+    background: var(--accent-color);
+    color: var(--bg-color);
+    font-weight: 700;
+    text-decoration: none;
+    z-index: var(--z-overlay-critical);
+    transition: transform var(--transition-fast) ease;
+}
+
+.skip-link:focus {
+    transform: translateY(0);
 }
 
 
@@ -223,7 +256,7 @@ body {
     background: var(--surface-muted);
     backdrop-filter: blur(6px);
     position: relative;
-    z-index: 120;
+    z-index: var(--z-header);
     overflow: visible;
 }
 
@@ -250,6 +283,8 @@ body {
     letter-spacing: 0.01em;
     cursor: pointer;
     transition: transform var(--transition-fast) ease, box-shadow var(--transition-fast) ease, border-color var(--transition-fast) ease, background var(--transition-fast) ease;
+    min-height: var(--touch-target-min);
+    min-width: var(--touch-target-min);
 }
 
 .files-header__action-btn:hover {
@@ -261,7 +296,7 @@ body {
 
 .settings-menu {
     position: relative;
-    z-index: 130;
+    z-index: var(--z-dropdown);
 }
 
 .controls {
@@ -292,6 +327,7 @@ body {
     padding: var(--space-md) var(--space-2xl);
     font-size: 1rem;
     font-weight: bold;
+    min-height: var(--touch-target-min);
 }
 
 .btn:hover {
@@ -306,6 +342,7 @@ body {
     color: var(--primary-color);
     padding: 3px 10px;
     font-size: var(--text-sm);
+    min-height: calc(var(--touch-target-min) - 8px);
 }
 
 .clear-btn:hover {
@@ -326,6 +363,7 @@ body {
     cursor: pointer;
     transition: color var(--transition-fast) ease, background var(--transition-fast) ease, border-color var(--transition-fast) ease;
     white-space: nowrap;
+    min-height: calc(var(--touch-target-min) - 10px);
 }
 
 .toolbar-btn:hover {
@@ -360,8 +398,8 @@ button > svg,
     border: none;
     line-height: 1;
     padding: var(--space-xs);
-    width: 2rem;
-    height: 2rem;
+    width: var(--touch-target-min);
+    height: var(--touch-target-min);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -382,8 +420,8 @@ button > svg,
     cursor: pointer;
     padding: 0.15rem;
     border-radius: var(--radius-sm);
-    width: 1.6rem;
-    height: 1.6rem;
+    width: calc(var(--touch-target-min) - 12px);
+    height: calc(var(--touch-target-min) - 12px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -521,7 +559,7 @@ button > svg,
     border: 1px solid var(--border-color);
     border-radius: var(--radius-base);
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
-    z-index: 80;
+    z-index: var(--z-toolbar);
 }
 
 .file-type-dropdown-option {
@@ -618,7 +656,7 @@ button > svg,
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
     max-height: 220px;
     overflow-y: auto;
-    z-index: 30;
+    z-index: var(--z-raised);
 }
 
 .main-html-dropdown-option {
@@ -650,7 +688,7 @@ button > svg,
    ========================================================================== */
 
 .settings-modal-overlay {
-    z-index: 3000;
+    z-index: var(--z-notification);
 }
 
 .settings-modal-content {
@@ -1518,7 +1556,7 @@ button > svg,
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 1000;
+    z-index: var(--z-modal);
     padding: var(--space-2xl);
     opacity: 0;
     visibility: hidden;
@@ -1586,7 +1624,7 @@ body.modal-scroll-lock .container {
 
 #code-modal,
 #media-modal {
-    z-index: 1200;
+    z-index: var(--z-modal-docked);
 }
 
 
@@ -1667,7 +1705,7 @@ body.preview-docked-bottom #preview-modal.is-docked .modal-content {
     bottom: 0;
     width: 18px;
     cursor: col-resize;
-    z-index: 1210;
+    z-index: var(--z-modal-divider);
     left: calc(100vw - var(--preview-dock-size) - 9px);
     background: transparent;
     touch-action: none;
@@ -2295,7 +2333,7 @@ body.is-resizing-console {
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 10000;
+    z-index: var(--z-overlay-critical);
     backdrop-filter: blur(4px);
 }
 
@@ -2423,7 +2461,7 @@ body.is-resizing-console {
     position: fixed;
     top: 20px;
     right: 20px;
-    z-index: 2000;
+    z-index: var(--z-notification);
     display: flex;
     flex-direction: column;
     gap: var(--space-sm);
@@ -2685,7 +2723,7 @@ body.is-resizing-console {
 
     .files-header__buttons button {
         flex: 1 1 calc(50% - 0.3rem);
-        min-height: 40px;
+        min-height: var(--touch-target-min);
     }
 
     .files-header__buttons .settings-menu {
@@ -2694,7 +2732,7 @@ body.is-resizing-console {
 
     .files-header__buttons .settings-menu .settings-btn {
         width: 100%;
-        min-height: 40px;
+        min-height: var(--touch-target-min);
     }
 
     .import-zip-btn,
