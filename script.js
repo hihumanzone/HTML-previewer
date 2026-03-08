@@ -87,8 +87,10 @@
  */
 
 const APP_DEFAULTS = Object.freeze({
+    CODEMIRROR_VERSION: '6.65.7',
     PREVIEW_REFRESH_DELAY_MS: 1000,
     CONSOLE_INITIAL_HEIGHT_PX: 200,
+    MAX_MODAL_FOCUS_RETRY_FRAMES: 6,
     MODAL_FOCUSABLE_SELECTOR: [
         'button:not([disabled])',
         '[href]',
@@ -101,7 +103,7 @@ const APP_DEFAULTS = Object.freeze({
     ALLOWED_THEMES: new Set(['dracula', 'default', 'material', 'monokai', 'nord', 'eclipse', 'idea']),
     ALLOWED_TAB_SIZES: new Set([2, 4, 8]),
     CODEMIRROR_THEME_URL(theme) {
-        return `https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/theme/${theme}.min.css`;
+        return `https://cdnjs.cloudflare.com/ajax/libs/codemirror/${this.CODEMIRROR_VERSION}/theme/${theme}.min.css`;
     }
 });
 
@@ -1847,8 +1849,9 @@ class NotificationSystem {
         if (!this.container) {
             this.container = document.createElement('div');
             this.container.className = 'notification-container';
-            this.container.setAttribute('role', 'region');
-            this.container.setAttribute('aria-label', 'Notifications');
+            this.container.setAttribute('role', 'status');
+            this.container.setAttribute('aria-live', 'polite');
+            this.container.setAttribute('aria-atomic', 'false');
             document.body.appendChild(this.container);
         }
         return this.container;
@@ -3320,14 +3323,7 @@ This content is loaded from a markdown file.
         const focusTarget = initialFocus instanceof HTMLElement
             ? initialFocus
             : this.getFocusableElements(modal)[0];
-
-        [0, 75, 150].forEach((delay) => {
-            setTimeout(() => {
-                if (modal.getAttribute('aria-hidden') === 'false' && !modal.contains(document.activeElement)) {
-                    (focusTarget || modal).focus({ preventScroll: true });
-                }
-            }, delay);
-        });
+        this.focusModalTarget(modal, focusTarget || modal);
     }
 
     deactivateModalAccessibility(modal) {
@@ -3335,12 +3331,31 @@ This content is loaded from a markdown file.
         const lastFocusedElement = modalState?.lastFocusedElement;
 
         if (lastFocusedElement && document.contains(lastFocusedElement)) {
-            setTimeout(() => lastFocusedElement.focus({ preventScroll: true }), 0);
+            requestAnimationFrame(() => lastFocusedElement.focus({ preventScroll: true }));
         }
 
         if (modalState) {
             modalState.lastFocusedElement = null;
         }
+    }
+
+    focusModalTarget(modal, target, remainingFrames = APP_DEFAULTS.MAX_MODAL_FOCUS_RETRY_FRAMES) {
+        if (!modal || !target) return;
+        if (modal.getAttribute('aria-hidden') !== 'false') return;
+        if (modal.contains(document.activeElement) && document.activeElement !== document.body) return;
+
+        const modalIsVisible = modal.getClientRects().length > 0
+            && window.getComputedStyle(modal).visibility !== 'hidden';
+
+        if (modalIsVisible) {
+            target.focus({ preventScroll: true });
+            if (modal.contains(document.activeElement) || document.activeElement === target) {
+                return;
+            }
+        }
+
+        if (remainingFrames <= 0) return;
+        requestAnimationFrame(() => this.focusModalTarget(modal, target, remainingFrames - 1));
     }
 
     initSettingsCustomDropdowns() {
@@ -4290,11 +4305,12 @@ This content is loaded from a markdown file.
             const modifiedClass = isModified ? 'file-modified' : '';
             const selectedClass = isSelected ? 'file-selected-in-sidebar' : '';
             const modifiedSuffix = isModified ? ', unsaved changes' : '';
+            const modifiedScreenReaderText = isModified ? '<span class="sr-only"> (unsaved changes)</span>' : '';
             html += `
                 <div class="tree-file ${openClass} ${modifiedClass} ${selectedClass}" data-file-id="${file.id}">
                     <input type="checkbox" class="tree-file-checkbox" aria-label="Select file ${escapeHtml(file.displayName)}${modifiedSuffix}" ${isSelected ? 'checked' : ''}>
                     <span class="file-icon">${fileIcon}</span>
-                    <span class="file-name">${escapeHtml(file.displayName)}${isModified ? '<span class="sr-only"> (unsaved changes)</span>' : ''}</span>
+                    <span class="file-name">${escapeHtml(file.displayName)}${modifiedScreenReaderText}</span>
                     <div class="file-actions">
                         <button class="open-file-btn" title="${isOpen ? 'Focus file' : 'Open file'}" aria-label="${isOpen ? 'Focus file' : 'Open file'}">${isOpen ? SVG_ICONS.eye : SVG_ICONS.pencil}</button>
                         <button class="move-file-btn" title="Move file" aria-label="Move file">${SVG_ICONS.move}</button>

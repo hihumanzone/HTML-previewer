@@ -688,7 +688,7 @@ button > svg,
    ========================================================================== */
 
 .settings-modal-overlay {
-    z-index: var(--z-notification);
+    z-index: var(--z-modal);
 }
 
 .settings-modal-content {
