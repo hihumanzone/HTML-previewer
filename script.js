@@ -4795,6 +4795,32 @@ This content is loaded from a markdown file.
         return effectiveHomeFolder !== null && folderPath === effectiveHomeFolder;
     }
 
+    /**
+     * Determines if a file path should be ignored during import (e.g., development files/folders).
+     * @param {string} path - The relative path of the file to check
+     * @returns {boolean} True if the path should be ignored
+     */
+    _shouldIgnoreImportPath(path) {
+        if (!path) return false;
+        
+        const segments = path.split(/[/\\]/);
+        const ignoredFolders = new Set(['.git', 'node_modules', '.idea', '.vscode', '.github', '.svn', '.hg', 'cvs']);
+        const ignoredFiles = new Set(['.ds_store', 'thumbs.db', '.gitignore', '.gitattributes', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml']);
+        
+        return segments.some((segment, index) => {
+            const lowerSegment = segment.toLowerCase();
+            // Check if it's an ignored folder (any segment except the last one if it's just a filename)
+            if (index < segments.length - 1 && ignoredFolders.has(lowerSegment)) {
+                return true;
+            }
+            // Check if the last segment is an ignored file or folder
+            if (index === segments.length - 1) {
+                return ignoredFiles.has(lowerSegment) || ignoredFolders.has(lowerSegment);
+            }
+            return false;
+        });
+    }
+
     async _importFiles(fileList, getFileName, successMessage, options = {}) {
         const files = Array.from(fileList);
         if (files.length === 0) return;
@@ -4816,6 +4842,12 @@ This content is loaded from a markdown file.
         for (const file of files) {
             processedCount++;
             const targetFileName = getFileName(file);
+            
+            if (this._shouldIgnoreImportPath(targetFileName)) {
+                skippedCount++;
+                continue;
+            }
+
             if (progress) {
                 progress.update({
                     current: processedCount,
@@ -7673,6 +7705,11 @@ This content is loaded from a markdown file.
             for (let i = 0; i < entries.length; i++) {
                 const entry = entries[i];
                 const processedCount = i + 1;
+
+                if (this._shouldIgnoreImportPath(entry.path)) {
+                    skippedCount++;
+                    continue;
+                }
 
                 progress.update({
                     current: processedCount,

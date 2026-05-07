@@ -84,7 +84,10 @@
     --button-border-subtle: rgba(var(--accent-rgb), 0.28);
 
     /* --- Layout sizing --- */
-    --file-panel-size: 480px;
+    --panel-min-width: 400px;
+    --panel-max-width: 800px;
+    --panel-height: 500px;
+    --file-tree-width: 280px;
     --panel-mobile-height: clamp(60vh, 80vh, 90vh);
     --preview-dock-size: 50vw;
 }
@@ -811,10 +814,10 @@ button > svg,
 
 /* --- File tree container --- */
 .file-tree-container {
-    width: 280px;
+    width: var(--file-tree-width);
     min-width: 220px;
-    min-height: var(--file-panel-size);
-    max-height: calc(3 * var(--file-panel-size));
+    min-height: 400px;
+    max-height: 1200px;
     height: auto;
     resize: horizontal;
     overflow: hidden;
@@ -1191,9 +1194,8 @@ button > svg,
    ========================================================================== */
 
 .editor-grid {
-    --panel-size: var(--file-panel-size);
-    display: grid;
-    grid-template-columns: repeat(auto-fill, var(--panel-size));
+    display: flex;
+    flex-wrap: wrap;
     gap: var(--space-md);
     align-items: start;
     align-content: start;
@@ -1203,12 +1205,10 @@ button > svg,
 }
 
 .editor-panel {
-    width: var(--panel-size);
-    min-width: var(--panel-size);
-    max-width: var(--panel-size);
-    aspect-ratio: 1 / 1;
-    min-height: var(--panel-size);
-    max-height: var(--panel-size);
+    flex: 1 1 var(--panel-min-width);
+    min-width: min(100%, var(--panel-min-width));
+    max-width: var(--panel-max-width);
+    height: var(--panel-height);
     overflow: visible;
 }
 
@@ -2613,11 +2613,12 @@ body.is-resizing-console {
     }
 
     .editor-grid {
-        --panel-size: min(100%, var(--file-panel-size));
         justify-content: center;
     }
 
     .editor-panel {
+        flex: 1 1 100%;
+        max-width: none;
         min-width: 0;
         aspect-ratio: auto;
         height: var(--panel-mobile-height);
@@ -2909,11 +2910,12 @@ body.compact-editor-layout .file-tree-container {
 }
 
 body.compact-editor-layout .editor-grid {
-    --panel-size: min(100%, var(--file-panel-size));
     justify-content: center;
 }
 
 body.compact-editor-layout .editor-panel {
+    flex: 1 1 100%;
+    max-width: none;
     min-width: 0;
     aspect-ratio: auto;
     height: var(--panel-mobile-height);
