@@ -7315,6 +7315,7 @@ This content is loaded from a markdown file.
         if (actualHeight > 0) {
             this.state.consoleHeight = actualHeight;
             this.dom.consoleResizeDivider.style.bottom = actualHeight + 'px';
+            this.dom.consoleResizeDivider.style.setProperty('--console-height', actualHeight + 'px');
         }
     }
 
@@ -7410,13 +7411,12 @@ This content is loaded from a markdown file.
         this.dom.toggleConsoleBtn.classList.toggle('active', isVisible);
 
         if (this.dom.consoleResizeDivider) {
+            this.dom.consoleResizeDivider.classList.toggle('hidden', !isVisible);
             if (isVisible) {
                 this.dom.modalConsolePanel.style.height = this.state.consoleHeight + 'px';
-                this.dom.consoleResizeDivider.style.display = '';
                 this.dom.consoleResizeDivider.style.bottom = this.state.consoleHeight + 'px';
+                this.dom.consoleResizeDivider.style.setProperty('--console-height', this.state.consoleHeight + 'px');
                 this.syncConsoleDividerPosition();
-            } else {
-                this.dom.consoleResizeDivider.style.display = 'none';
             }
         }
 
@@ -7523,6 +7523,7 @@ This content is loaded from a markdown file.
         this.state.consoleHeight = newHeight;
         this.dom.modalConsolePanel.style.height = newHeight + 'px';
         this.dom.consoleResizeDivider.style.bottom = newHeight + 'px';
+        this.dom.consoleResizeDivider.style.setProperty('--console-height', newHeight + 'px');
     }
 
     movePanel(panel, direction) {
