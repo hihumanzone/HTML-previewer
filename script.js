@@ -887,6 +887,114 @@ class FileSystemUtils {
         this.fileTypeUtils = fileTypeUtils;
     }
 
+    isExternalAssetPath(path) {
+        return /^(?:[a-z][a-z\d+.-]*:|\/\/|#)/i.test(path || '');
+    }
+
+    splitPathSuffix(path) {
+        const rawPath = String(path || '').trim();
+        const suffixMatch = rawPath.match(/([?#].*)$/);
+        return {
+            path: suffixMatch ? rawPath.slice(0, -suffixMatch[1].length) : rawPath,
+            suffix: suffixMatch ? suffixMatch[1] : ''
+        };
+    }
+
+    safeDecodePath(path) {
+        return String(path || '')
+            .split('/')
+            .map((segment) => {
+                try {
+                    return decodeURIComponent(segment);
+                } catch (error) {
+                    return segment;
+                }
+            })
+            .join('/');
+    }
+
+    normalizePath(path) {
+        const parts = this.safeDecodePath(path)
+            .replace(/\\/g, '/')
+            .replace(/^\/+/, '')
+            .split('/');
+        const normalizedParts = [];
+
+        for (const part of parts) {
+            if (!part || part === '.') continue;
+            if (part === '..') {
+                normalizedParts.pop();
+                continue;
+            }
+            normalizedParts.push(part);
+        }
+
+        return normalizedParts.join('/');
+    }
+
+    normalizeRequestPath(path, currentFilePath = '') {
+        if (typeof path !== 'string' || !path.trim() || this.isExternalAssetPath(path.trim())) {
+            return '';
+        }
+
+        const { path: requestPath } = this.splitPathSuffix(path);
+        const normalizedRequestPath = this.normalizePath(requestPath);
+        if (!normalizedRequestPath) return '';
+
+        if (requestPath.trim().startsWith('/')) {
+            return normalizedRequestPath;
+        }
+
+        return currentFilePath
+            ? this.resolvePath(currentFilePath, normalizedRequestPath)
+            : normalizedRequestPath;
+    }
+
+    getBasename(path) {
+        const normalizedPath = this.normalizePath(path);
+        if (!normalizedPath) return '';
+        return normalizedPath.includes('/')
+            ? normalizedPath.substring(normalizedPath.lastIndexOf('/') + 1)
+            : normalizedPath;
+    }
+
+    getCandidatePaths(targetPath) {
+        const normalizedTarget = this.normalizePath(targetPath);
+        if (!normalizedTarget) return [];
+
+        const candidates = [normalizedTarget];
+        const parts = normalizedTarget.split('/');
+        if (parts.length > 1) {
+            for (let i = 1; i < parts.length - 1; i++) {
+                candidates.push(parts.slice(i).join('/'));
+            }
+        }
+
+        return Array.from(new Set(candidates));
+    }
+
+    getFileSystemEntries(fileSystem) {
+        if (fileSystem instanceof Map) {
+            return Array.from(fileSystem.entries());
+        }
+        if (fileSystem && typeof fileSystem === 'object') {
+            return Object.entries(fileSystem);
+        }
+        return [];
+    }
+
+    findUniqueByBasename(entries, targetPath) {
+        const targetBasename = this.getBasename(targetPath);
+        if (!targetBasename) return null;
+
+        const targetBasenameLower = targetBasename.toLowerCase();
+        const matches = entries.filter(([filename]) => this.getBasename(filename).toLowerCase() === targetBasenameLower);
+
+        return matches.length === 1
+            ? { path: matches[0][0], file: matches[0][1] }
+            : null;
+    }
+
     /**
      * Resolves a relative path against a base path
      * @param {string} basePath - The base file path
@@ -894,18 +1002,20 @@ class FileSystemUtils {
      * @returns {string} The resolved absolute path
      */
     resolvePath(basePath, relativePath) {
-        // Absolute paths start fresh
-        if (relativePath.startsWith('/')) {
-            return relativePath.substring(1);
+        const normalizedRelativePath = this.normalizePath(relativePath);
+        if (!normalizedRelativePath) return '';
+
+        if (String(relativePath || '').trim().startsWith('/')) {
+            return normalizedRelativePath;
         }
 
-        // Get directory portion of base path
-        const baseDir = basePath.includes('/')
-            ? basePath.substring(0, basePath.lastIndexOf('/'))
+        const normalizedBasePath = this.normalizePath(basePath);
+        const baseDir = normalizedBasePath.includes('/')
+            ? normalizedBasePath.substring(0, normalizedBasePath.lastIndexOf('/'))
             : '';
 
         const baseParts = baseDir ? baseDir.split('/') : [];
-        const relativeParts = relativePath.split('/');
+        const relativeParts = normalizedRelativePath.split('/');
         const resultParts = [...baseParts];
 
         for (const part of relativeParts) {
@@ -921,6 +1031,42 @@ class FileSystemUtils {
         return resultParts.join('/');
     }
 
+    findFileRecord(fileSystem, targetFilename, currentFilePath = '') {
+        const targetPath = this.normalizeRequestPath(targetFilename, currentFilePath);
+        if (!targetPath) return null;
+
+        const entries = this.getFileSystemEntries(fileSystem);
+        if (entries.length === 0) return null;
+
+        const directCandidates = this.getCandidatePaths(targetPath);
+        for (const candidate of directCandidates) {
+            const exactMatch = fileSystem instanceof Map ? fileSystem.get(candidate) : fileSystem[candidate];
+            if (exactMatch) {
+                return { path: candidate, file: exactMatch };
+            }
+        }
+
+        const lowerCandidates = new Set(directCandidates.map((candidate) => candidate.toLowerCase()));
+        for (const [filename, file] of entries) {
+            if (lowerCandidates.has(this.normalizePath(filename).toLowerCase())) {
+                return { path: filename, file };
+            }
+        }
+
+        if (targetPath.includes('/')) {
+            const targetSuffix = `/${targetPath}`;
+            const targetSuffixLower = targetSuffix.toLowerCase();
+            for (const [filename, file] of entries) {
+                const normalizedFilename = this.normalizePath(filename);
+                if (normalizedFilename.endsWith(targetSuffix) || normalizedFilename.toLowerCase().endsWith(targetSuffixLower)) {
+                    return { path: filename, file };
+                }
+            }
+        }
+
+        return this.findUniqueByBasename(entries, targetPath);
+    }
+
     /**
      * Finds a file in the virtual file system
      * @param {Map} fileSystem - The virtual file system map
@@ -929,49 +1075,7 @@ class FileSystemUtils {
      * @returns {Object|null} The file data or null if not found
      */
     findFile(fileSystem, targetFilename, currentFilePath = '') {
-        if (typeof targetFilename !== 'string' || !targetFilename) {
-            return null;
-        }
-
-        // Resolve relative path if we have context
-        if (currentFilePath) {
-            targetFilename = this.resolvePath(currentFilePath, targetFilename);
-        } else if (targetFilename.startsWith('/')) {
-            // Strip leading slash for root-relative paths even without context
-            targetFilename = targetFilename.substring(1);
-        }
-
-        // Try exact match first
-        const exactMatch = fileSystem.get(targetFilename);
-        if (exactMatch) {
-            return exactMatch;
-        }
-
-        // Try case-insensitive match
-        const targetLower = targetFilename.toLowerCase();
-        for (const [filename, file] of fileSystem) {
-            if (filename.toLowerCase() === targetLower) {
-                return file;
-            }
-        }
-
-        // Try matching by filename only (without directory path)
-        const targetBasename = targetFilename.includes('/')
-            ? targetFilename.substring(targetFilename.lastIndexOf('/') + 1)
-            : targetFilename;
-        if (targetBasename) {
-            const targetBasenameLower = targetBasename.toLowerCase();
-            for (const [filename, file] of fileSystem) {
-                const fileBasename = filename.includes('/')
-                    ? filename.substring(filename.lastIndexOf('/') + 1)
-                    : filename;
-                if (fileBasename.toLowerCase() === targetBasenameLower) {
-                    return file;
-                }
-            }
-        }
-
-        return null;
+        return this.findFileRecord(fileSystem, targetFilename, currentFilePath)?.file || null;
     }
 
     /**
@@ -1003,13 +1107,49 @@ class PreviewScriptGenerator {
      */
     generateResolvePathCode() {
         return `
-    function resolvePath(basePath, relativePath) {
-    if (relativePath.startsWith("/")) {
-        return relativePath.substring(1);
+    function isExternalPreviewUrl(value) {
+    return /^(?:[a-z][a-z\\d+.-]*:|\\/\\/|#)/i.test(value || "");
     }
-    const baseDir = basePath.includes("/") ? basePath.substring(0, basePath.lastIndexOf("/")) : "";
+    function splitPathSuffix(value) {
+    const rawValue = String(value || "").trim();
+    const match = rawValue.match(/([?#].*)$/);
+    return {
+        path: match ? rawValue.slice(0, -match[1].length) : rawValue,
+        suffix: match ? match[1] : ""
+    };
+    }
+    function safeDecodePath(path) {
+    return String(path || "").split("/").map(function(segment) {
+        try {
+            return decodeURIComponent(segment);
+        } catch (error) {
+            return segment;
+        }
+    }).join("/");
+    }
+    function normalizePath(path) {
+    const parts = safeDecodePath(path).replace(/\\\\/g, "/").replace(/^\\/+/,"").split("/");
+    const normalizedParts = [];
+    for (const part of parts) {
+        if (!part || part === ".") continue;
+        if (part === "..") {
+            normalizedParts.pop();
+            continue;
+        }
+        normalizedParts.push(part);
+    }
+    return normalizedParts.join("/");
+    }
+    function resolvePath(basePath, relativePath) {
+    const normalizedRelativePath = normalizePath(relativePath);
+    if (!normalizedRelativePath) return "";
+    if (String(relativePath || "").trim().startsWith("/")) {
+        return normalizedRelativePath;
+    }
+    const normalizedBasePath = normalizePath(basePath);
+    const baseDir = normalizedBasePath.includes("/") ? normalizedBasePath.substring(0, normalizedBasePath.lastIndexOf("/")) : "";
     const baseParts = baseDir ? baseDir.split("/") : [];
-    const relativeParts = relativePath.split("/");
+    const relativeParts = normalizedRelativePath.split("/");
     const resultParts = [...baseParts];
     for (const part of relativeParts) {
         if (part === "..") {
@@ -1028,32 +1168,127 @@ class PreviewScriptGenerator {
      */
     generateFindFileCode() {
         return `
-    function findFileInSystem(targetFilename, currentFilePath = "") {
-    if (typeof targetFilename !== "string" || !targetFilename) return null;
-    if (currentFilePath) {
-        targetFilename = resolvePath(currentFilePath, targetFilename);
-    } else if (targetFilename.startsWith("/")) {
-        targetFilename = targetFilename.substring(1);
+    function normalizeRequestPath(path, currentFilePath = "") {
+    if (typeof path !== "string" || !path.trim() || isExternalPreviewUrl(path.trim())) return "";
+    const requestPath = splitPathSuffix(path).path;
+    const normalizedRequestPath = normalizePath(requestPath);
+    if (!normalizedRequestPath) return "";
+    if (requestPath.trim().startsWith("/")) return normalizedRequestPath;
+    return currentFilePath ? resolvePath(currentFilePath, normalizedRequestPath) : normalizedRequestPath;
     }
-    const exactMatch = virtualFileSystem[targetFilename];
-    if (exactMatch) return exactMatch;
-    const targetLower = targetFilename.toLowerCase();
-    for (const [filename, file] of Object.entries(virtualFileSystem)) {
-        if (filename.toLowerCase() === targetLower) return file;
+    function getBasename(path) {
+    const normalizedPath = normalizePath(path);
+    if (!normalizedPath) return "";
+    return normalizedPath.includes("/") ? normalizedPath.substring(normalizedPath.lastIndexOf("/") + 1) : normalizedPath;
     }
-    const targetBasename = targetFilename.includes("/")
-        ? targetFilename.substring(targetFilename.lastIndexOf("/") + 1)
-        : targetFilename;
+    function getCandidatePaths(targetPath) {
+    const normalizedTarget = normalizePath(targetPath);
+    if (!normalizedTarget) return [];
+    const candidates = [normalizedTarget];
+    const parts = normalizedTarget.split("/");
+    if (parts.length > 1) {
+        for (let i = 1; i < parts.length - 1; i++) {
+            candidates.push(parts.slice(i).join("/"));
+        }
+    }
+    return Array.from(new Set(candidates));
+    }
+    function findFileRecordInSystem(targetFilename, currentFilePath = "") {
+    const targetPath = normalizeRequestPath(targetFilename, currentFilePath);
+    if (!targetPath) return null;
+    const entries = Object.entries(virtualFileSystem);
+    if (entries.length === 0) return null;
+    const directCandidates = getCandidatePaths(targetPath);
+    for (const candidate of directCandidates) {
+        const exactMatch = virtualFileSystem[candidate];
+        if (exactMatch) return { path: candidate, file: exactMatch };
+    }
+    const lowerCandidates = new Set(directCandidates.map(function(candidate) { return candidate.toLowerCase(); }));
+    for (const [filename, file] of entries) {
+        if (lowerCandidates.has(normalizePath(filename).toLowerCase())) return { path: filename, file };
+    }
+    if (targetPath.includes("/")) {
+        const targetSuffix = "/" + targetPath;
+        const targetSuffixLower = targetSuffix.toLowerCase();
+        for (const [filename, file] of entries) {
+            const normalizedFilename = normalizePath(filename);
+            if (normalizedFilename.endsWith(targetSuffix) || normalizedFilename.toLowerCase().endsWith(targetSuffixLower)) {
+                return { path: filename, file };
+            }
+        }
+    }
+    const targetBasename = getBasename(targetPath);
     if (targetBasename) {
         const targetBasenameLower = targetBasename.toLowerCase();
-        for (const [filename, file] of Object.entries(virtualFileSystem)) {
-            const fileBasename = filename.includes("/")
-                ? filename.substring(filename.lastIndexOf("/") + 1)
-                : filename;
-            if (fileBasename.toLowerCase() === targetBasenameLower) return file;
+        const matches = entries.filter(function(entry) {
+            return getBasename(entry[0]).toLowerCase() === targetBasenameLower;
+        });
+        if (matches.length === 1) {
+            return { path: matches[0][0], file: matches[0][1] };
         }
     }
     return null;
+    }
+    function findFileInSystem(targetFilename, currentFilePath = "") {
+    return findFileRecordInSystem(targetFilename, currentFilePath)?.file || null;
+    }`;
+    }
+
+    generateAssetResolverCode() {
+        return `
+    function getDataUrlForFile(fileData) {
+    if (!fileData) return null;
+    if (fileData.isBinary) return fileData.content;
+    if (fileData.type === "svg") {
+        return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(fileData.content);
+    }
+    const typeMap = {
+        "html": "text/html",
+        "css": "text/css",
+        "javascript": "text/javascript",
+        "javascript-module": "text/javascript",
+        "json": "application/json",
+        "xml": "application/xml",
+        "markdown": "text/markdown",
+        "text": "text/plain"
+    };
+    const mimeType = typeMap[fileData.type] || "text/plain";
+    return "data:" + mimeType + ";charset=utf-8," + encodeURIComponent(fileData.content);
+    }
+    function resolveVirtualAssetUrl(value, typeCheck, currentFilePath = getCurrentFilePath()) {
+    if (typeof value !== "string" || !value || isExternalPreviewUrl(value)) return null;
+    const fileData = findFileInSystem(value, currentFilePath);
+    if (!fileData || (typeof typeCheck === "function" && !typeCheck(fileData))) return null;
+    const dataUrl = getDataUrlForFile(fileData);
+    return dataUrl || null;
+    }
+    function rewriteVirtualCssContent(cssContent, currentFilePath = getCurrentFilePath()) {
+    if (typeof cssContent !== "string" || !cssContent.includes("url(")) return cssContent;
+    return cssContent.replace(/url\\(\\s*(["']?)([^"')]+)\\1\\s*\\)/gi, function(match, quote, url) {
+        const resolved = resolveVirtualAssetUrl(url, function(fileData) {
+            return isImageLikeFile(fileData) || fileData.type === "font";
+        }, currentFilePath);
+        return resolved ? 'url("' + resolved + '")' : match;
+    });
+    }
+    function getVirtualFileText(fileData, currentFilePath = getCurrentFilePath()) {
+    if (!fileData) return "";
+    if (fileData.type === "css" && !fileData.isBinary) {
+        return rewriteVirtualCssContent(fileData.content, currentFilePath);
+    }
+    return fileData.content;
+    }
+    function isImageLikeFile(fileData) {
+    return fileData && (fileData.type === "image" || fileData.type === "svg");
+    }
+    function isMediaLikeFile(fileData) {
+    return fileData && (fileData.type === "audio" || fileData.type === "video" || isImageLikeFile(fileData));
+    }
+    function isLinkLikeFile(fileData) {
+    return fileData && (fileData.type === "css" || fileData.type === "html" || fileData.type === "font" || isImageLikeFile(fileData));
+    }
+    function isScriptLikeFile(fileData) {
+    return fileData && (fileData.type === "javascript" || fileData.type === "javascript-module");
     }`;
     }
 
@@ -1105,10 +1340,14 @@ class PreviewScriptGenerator {
     }
 
     const currentFilePath = getCurrentFilePath();
-    let targetPath = url.replace(/^\\.\\//,"");
-    const fileData = findFileInSystem(targetPath, currentFilePath);
+    if (typeof url !== "string" || isExternalPreviewUrl(url)) {
+        return originalFetch.apply(this, arguments);
+    }
+    const fileRecord = findFileRecordInSystem(url, currentFilePath);
+    const fileData = fileRecord ? fileRecord.file : null;
 
     if (fileData) {
+        const textContent = getVirtualFileText(fileData, fileRecord.path);
         const response = {
             ok: true,
             status: 200,
@@ -1122,10 +1361,10 @@ class PreviewScriptGenerator {
                                "text/plain"
             }),
             url: url,
-            text: () => Promise.resolve(fileData.content),
+            text: () => Promise.resolve(textContent),
             json: () => {
                 try {
-                    return Promise.resolve(JSON.parse(fileData.content));
+                    return Promise.resolve(JSON.parse(textContent));
                 } catch (e) {
                     return Promise.reject(new Error("Invalid JSON"));
                 }
@@ -1136,7 +1375,7 @@ class PreviewScriptGenerator {
                     const mimeType = header.match(/data:([^;]+)/)[1];
                     return Promise.resolve(new Blob([base64ToUint8Array(base64)], { type: mimeType }));
                 } else {
-                    return Promise.resolve(new Blob([fileData.content], { type: "text/plain" }));
+                    return Promise.resolve(new Blob([textContent], { type: fileData.type === "css" ? "text/css" : "text/plain" }));
                 }
             },
             arrayBuffer: () => {
@@ -1145,7 +1384,7 @@ class PreviewScriptGenerator {
                     return Promise.resolve(base64ToUint8Array(base64).buffer);
                 } else {
                     const encoder = new TextEncoder();
-                    return Promise.resolve(encoder.encode(fileData.content).buffer);
+                    return Promise.resolve(encoder.encode(textContent).buffer);
                 }
             }
         };
@@ -1172,17 +1411,25 @@ class PreviewScriptGenerator {
 
     let isVirtualRequest = false;
     let virtualFileData = null;
+    let virtualFilePath = "";
 
     xhr.open = function(method, url, async, user, password) {
         try {
             if (method.toUpperCase() === "GET") {
                 const currentFilePath = getCurrentFilePath();
-                let targetPath = url.replace(/^\\.\\//,"");
-                const fileData = findFileInSystem(targetPath, currentFilePath);
+                if (typeof url !== "string" || isExternalPreviewUrl(url)) {
+                    isVirtualRequest = false;
+                    virtualFileData = null;
+                    virtualFilePath = "";
+                    return originalOpen.call(this, method, url, async, user, password);
+                }
+                const fileRecord = findFileRecordInSystem(url, currentFilePath);
+                const fileData = fileRecord ? fileRecord.file : null;
 
                 if (fileData) {
                     isVirtualRequest = true;
                     virtualFileData = fileData;
+                    virtualFilePath = fileRecord.path;
                     xhr.setRequestHeader = function() {};
                     xhr.overrideMimeType = function() {};
                     return;
@@ -1191,10 +1438,12 @@ class PreviewScriptGenerator {
 
             isVirtualRequest = false;
             virtualFileData = null;
+            virtualFilePath = "";
             return originalOpen.call(this, method, url, async, user, password);
         } catch (e) {
             isVirtualRequest = false;
             virtualFileData = null;
+            virtualFilePath = "";
             return originalOpen.call(this, method, url, async, user, password);
         }
     };
@@ -1207,6 +1456,8 @@ class PreviewScriptGenerator {
                         Object.defineProperty(xhr, "readyState", { value: 4, configurable: true });
                         Object.defineProperty(xhr, "status", { value: 200, configurable: true });
                         Object.defineProperty(xhr, "statusText", { value: "OK", configurable: true });
+
+                        const textContent = getVirtualFileText(virtualFileData, virtualFilePath);
 
                         if (virtualFileData.isBinary && virtualFileData.content.startsWith("data:")) {
                             if (xhr.responseType === "arraybuffer") {
@@ -1221,8 +1472,8 @@ class PreviewScriptGenerator {
                                 Object.defineProperty(xhr, "responseText", { value: virtualFileData.content, configurable: true });
                             }
                         } else {
-                            Object.defineProperty(xhr, "responseText", { value: virtualFileData.content, configurable: true });
-                            Object.defineProperty(xhr, "response", { value: virtualFileData.content, configurable: true });
+                            Object.defineProperty(xhr, "responseText", { value: textContent, configurable: true });
+                            Object.defineProperty(xhr, "response", { value: textContent, configurable: true });
                         }
 
                         xhr.getResponseHeader = function(name) {
@@ -1307,8 +1558,12 @@ class PreviewScriptGenerator {
             _originalSrc = value;
 
             const currentFilePath = getCurrentFilePath();
-            let targetPath = value.replace(/^\\.\\//,"");
-            const fileData = findFileInSystem(targetPath, currentFilePath);
+            if (typeof value !== "string" || isExternalPreviewUrl(value)) {
+                _resolvedSrc = value;
+                el.setAttribute("src", value);
+                return;
+            }
+            const fileData = findFileInSystem(value, currentFilePath);
 
             if (fileData && (${typeCheck})) {
                 const resolved = ${resolveExpr};
@@ -1360,12 +1615,9 @@ class PreviewScriptGenerator {
                 return match;
             }
             const currentFilePath = getCurrentFilePath();
-            const targetPath = url.replace(/^\\.\\//,"");
-            const fileData = findFileInSystem(targetPath, currentFilePath);
-            if (fileData && (fileData.type === "image" || fileData.type === "svg")) {
-                const dataUrl = fileData.isBinary ? fileData.content :
-                    "data:image/svg+xml;charset=utf-8," + encodeURIComponent(fileData.content);
-                return 'url("' + dataUrl + '")';
+            const resolved = resolveVirtualAssetUrl(url, isImageLikeFile, currentFilePath);
+            if (resolved) {
+                return 'url("' + resolved + '")';
             }
             return match;
         });
@@ -1418,23 +1670,47 @@ class PreviewScriptGenerator {
     generateElementSrcOverrideCode() {
         return `
     (function() {
-    function overrideSrcProperty(proto, typeCheck) {
-        const descriptor = Object.getOwnPropertyDescriptor(proto, 'src');
+    function resolveElementAsset(el, value, typeCheck) {
+        if (typeof value !== 'string' || !value) return null;
+        return resolveVirtualAssetUrl(value, typeCheck);
+    }
+    function getTypeCheckForElement(el, attrName) {
+        if (attrName === 'href') return isLinkLikeFile;
+        if (attrName === 'poster') return isImageLikeFile;
+        if (attrName === 'srcset') return isImageLikeFile;
+        if (el instanceof HTMLImageElement) return isImageLikeFile;
+        if (el instanceof HTMLSourceElement) return isMediaLikeFile;
+        if (el instanceof HTMLMediaElement) return function(f) { return f.type === "audio" || f.type === "video"; };
+        if (el instanceof HTMLScriptElement) return isScriptLikeFile;
+        return null;
+    }
+    function resolveSrcsetValue(value) {
+        if (typeof value !== 'string' || !value || isExternalPreviewUrl(value.trim())) return null;
+        let changed = false;
+        const resolvedCandidates = value.split(',').map(function(candidate) {
+            const trimmed = candidate.trim();
+            if (!trimmed) return candidate;
+            const parts = trimmed.split(/\\s+/);
+            const resolved = resolveVirtualAssetUrl(parts[0], isImageLikeFile);
+            if (!resolved) return candidate;
+            changed = true;
+            return [resolved].concat(parts.slice(1)).join(' ');
+        });
+        return changed ? resolvedCandidates.join(', ') : null;
+    }
+    function overrideUrlProperty(proto, propertyName, typeCheck) {
+        const descriptor = Object.getOwnPropertyDescriptor(proto, propertyName);
         if (!descriptor || !descriptor.set) return;
         const origSet = descriptor.set;
         const origGet = descriptor.get;
-        Object.defineProperty(proto, 'src', {
+        Object.defineProperty(proto, propertyName, {
             set: function(value) {
-                if (typeof value === 'string' && value && !value.startsWith('data:') && !value.startsWith('http://') && !value.startsWith('https://') && !value.startsWith('blob:') && !value.startsWith('//')) {
-                    const currentFilePath = getCurrentFilePath();
-                    const targetPath = value.replace(/^\\.\\//,"");
-                    const fileData = findFileInSystem(targetPath, currentFilePath);
-                    if (fileData && typeCheck(fileData)) {
-                        const resolved = fileData.isBinary ? fileData.content :
-                            (fileData.type === "svg" ? "data:image/svg+xml;charset=utf-8," + encodeURIComponent(fileData.content) : fileData.content);
-                        origSet.call(this, resolved);
-                        return;
-                    }
+                const resolved = propertyName === 'srcset'
+                    ? resolveSrcsetValue(value)
+                    : resolveElementAsset(this, value, typeCheck);
+                if (resolved) {
+                    origSet.call(this, resolved);
+                    return;
                 }
                 origSet.call(this, value);
             },
@@ -1443,10 +1719,81 @@ class PreviewScriptGenerator {
             configurable: true
         });
     }
-    overrideSrcProperty(HTMLImageElement.prototype, function(f) { return f.type === "image" || f.type === "svg"; });
-    overrideSrcProperty(HTMLAudioElement.prototype, function(f) { return f.type === "audio"; });
-    overrideSrcProperty(HTMLVideoElement.prototype, function(f) { return f.type === "video"; });
-    overrideSrcProperty(HTMLSourceElement.prototype, function(f) { return f.type === "audio" || f.type === "video" || f.type === "image"; });
+    overrideUrlProperty(HTMLImageElement.prototype, 'src', isImageLikeFile);
+    overrideUrlProperty(HTMLMediaElement.prototype, 'src', function(f) { return f.type === "audio" || f.type === "video"; });
+    overrideUrlProperty(HTMLSourceElement.prototype, 'src', isMediaLikeFile);
+    overrideUrlProperty(HTMLLinkElement.prototype, 'href', isLinkLikeFile);
+    overrideUrlProperty(HTMLScriptElement.prototype, 'src', isScriptLikeFile);
+    overrideUrlProperty(HTMLImageElement.prototype, 'srcset', isImageLikeFile);
+    overrideUrlProperty(HTMLSourceElement.prototype, 'srcset', isImageLikeFile);
+    overrideUrlProperty(HTMLVideoElement.prototype, 'poster', isImageLikeFile);
+
+    const originalSetAttribute = Element.prototype.setAttribute;
+    Element.prototype.setAttribute = function(name, value) {
+        const attrName = String(name || '').toLowerCase();
+        if (['src', 'href', 'poster', 'srcset'].includes(attrName) && typeof value === 'string') {
+            const typeCheck = getTypeCheckForElement(this, attrName);
+            if (typeCheck) {
+                const resolved = attrName === 'srcset'
+                    ? resolveSrcsetValue(value)
+                    : resolveElementAsset(this, value, typeCheck);
+                if (resolved) {
+                    return originalSetAttribute.call(this, name, resolved);
+                }
+            }
+        }
+        return originalSetAttribute.call(this, name, value);
+    };
+
+    function resolveExistingElement(el) {
+        if (!el || typeof el.getAttribute !== 'function') return;
+        for (const attrName of ['src', 'href', 'poster', 'srcset']) {
+            if (!el.hasAttribute(attrName)) continue;
+            const originalValue = el.getAttribute(attrName);
+            if (!originalValue || (attrName !== 'srcset' && isExternalPreviewUrl(originalValue))) continue;
+            const typeCheck = getTypeCheckForElement(el, attrName);
+            if (!typeCheck) continue;
+            const resolved = attrName === 'srcset'
+                ? resolveSrcsetValue(originalValue)
+                : resolveElementAsset(el, originalValue, typeCheck);
+            if (resolved && resolved !== originalValue) {
+                originalSetAttribute.call(el, attrName, resolved);
+                const mediaEl = el instanceof HTMLMediaElement
+                    ? el
+                    : (el instanceof HTMLSourceElement && el.parentElement instanceof HTMLMediaElement ? el.parentElement : null);
+                if (mediaEl && typeof mediaEl.load === 'function') {
+                    try { mediaEl.load(); } catch (e) {}
+                }
+            }
+        }
+    }
+    function resolveExistingAssets(root) {
+        if (!root || typeof root.querySelectorAll !== 'function') return;
+        if (root.matches && root.matches('img,video,audio,source,link,script')) resolveExistingElement(root);
+        root.querySelectorAll('img,video,audio,source,link,script').forEach(resolveExistingElement);
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() { resolveExistingAssets(document); }, { once: true });
+    } else {
+        resolveExistingAssets(document);
+    }
+    const observer = new MutationObserver(function(mutations) {
+        for (const mutation of mutations) {
+            if (mutation.type === 'childList') {
+                mutation.addedNodes.forEach(function(node) {
+                    if (node.nodeType === 1) resolveExistingAssets(node);
+                });
+            } else if (mutation.type === 'attributes') {
+                resolveExistingElement(mutation.target);
+            }
+        }
+    });
+    observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['src', 'href', 'poster', 'srcset']
+    });
     })();`;
     }
 
@@ -2101,6 +2448,7 @@ ${arg.stack}` : ''}`;
         const resolvePathCode = fsUtils.generateResolvePathCode();
         const findFileCode = fsUtils.generateFindFileCode();
         const getCurrentFilePathCode = fsUtils.generateGetCurrentFilePathCode();
+        const assetResolverCode = fsUtils.generateAssetResolverCode();
         const fetchOverrideCode = fsUtils.generateFetchOverrideCode();
         const xhrOverrideCode = fsUtils.generateXHROverrideCode();
         const imageOverrideCode = fsUtils.generateImageOverrideCode();
@@ -2117,6 +2465,7 @@ ${arg.stack}` : ''}`;
     ${resolvePathCode}
     ${findFileCode}
     ${getCurrentFilePathCode}
+    ${assetResolverCode}
     ${fetchOverrideCode}
     ${xhrOverrideCode}
     ${imageOverrideCode}
@@ -2136,7 +2485,7 @@ class AssetReplacers {
     }
 
     isExternalAssetPath(path) {
-        return /^(?:https?:|\/\/|data:|blob:)/i.test(path || '');
+        return this.app.fileSystemUtils.isExternalAssetPath(path);
     }
 
     withScriptBlocksPreserved(htmlContent, transform) {
@@ -2205,7 +2554,10 @@ class AssetReplacers {
             css: {
                 pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.css)["']([^>]*?)>/gi,
                 types: ['css'],
-                replace: (file) => `<style>${file.content}</style>`,
+                replace: (file, match, before, filename, after, currentFilePath, resolvedPath, fileSystem) => {
+                    const cssPath = resolvedPath || filename;
+                    return `<style>${this.app.replaceCSSAssetReferences(file.content, fileSystem, cssPath)}</style>`;
+                },
                 onMissing: (match, before, filename, after, currentFilePath) => {
                     if (this.isExternalAssetPath(filename)) {
                         return match;
@@ -2261,9 +2613,10 @@ class AssetReplacers {
      */
     applyReplacement(htmlContent, fileSystem, currentFilePath, config) {
         return htmlContent.replace(config.pattern, (match, before, filename, after) => {
-            const file = this.app.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
+            const resolved = this.app.fileSystemUtils.findFileRecord(fileSystem, filename, currentFilePath);
+            const file = resolved?.file || null;
             if (file && config.types.includes(file.type)) {
-                return config.replace(file, match, before, filename, after);
+                return config.replace(file, match, before, filename, after, currentFilePath, resolved.path, fileSystem);
             }
             if (typeof config.onMissing === 'function') {
                 return config.onMissing(match, before, filename, after, currentFilePath);
@@ -2292,12 +2645,11 @@ class AssetReplacers {
         if (!processedHtmlFiles) processedHtmlFiles = new Map();
         return htmlContent.replace(/<a([^>]*?)href\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
             if (match.includes('download') || !filename.includes('://')) {
-                const file = this.app.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
+                const resolved = this.app.fileSystemUtils.findFileRecord(fileSystem, filename, currentFilePath);
+                const file = resolved?.file || null;
                 if (file) {
                     if (file.type === 'html' && !match.includes('download')) {
-                        const resolvedPath = currentFilePath
-                            ? this.app.fileSystemUtils.resolvePath(currentFilePath, filename)
-                            : filename;
+                        const resolvedPath = resolved.path;
                         const cachedUrl = processedHtmlFiles.get(resolvedPath);
                         if (cachedUrl) {
                             return match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${cachedUrl}"`);
@@ -2340,10 +2692,10 @@ class AssetReplacers {
             }
 
             const scriptHasModuleType = /\btype\s*=\s*["']module["']/i.test(`${before} ${after}`);
-            const resolvedPath = this.app.fileSystemUtils.resolvePath(currentFilePath, filename);
-            const file = this.app.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
+            const resolved = this.app.fileSystemUtils.findFileRecord(fileSystem, filename, currentFilePath);
+            const file = resolved?.file || null;
             if (file && (file.type === 'javascript' || file.type === 'javascript-module')) {
-                const blobUrl = this.app.createModuleAssetUrl(fileSystem, resolvedPath);
+                const blobUrl = this.app.createModuleAssetUrl(fileSystem, resolved.path);
                 if (blobUrl) {
                     return match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${blobUrl}"`);
                 }
@@ -6798,23 +7150,33 @@ This content is loaded from a markdown file.
     collectFileContents() {
         let html = '';
         let css = '';
+        let cssFiles = [];
         let jsFiles = [];
         let moduleFiles = [];
         
         this.state.files.forEach(file => {
             const content = file.editor.getValue();
             if (file.type === 'html') {
+                const filename = this.getFileNameFromPanel(file.id) || 'index.html';
                 const { styles, contentWithoutStyles } = this.extractStylesFromHTML(content);
                 if (styles) {
                     css += '\n' + styles;
+                    cssFiles.push({
+                        content: styles,
+                        filename
+                    });
                 }
                 
-                const filename = this.getFileNameFromPanel(file.id) || 'index.html';
                 let htmlContent = this.extractHTMLContent(contentWithoutStyles);
                 htmlContent = this.processHTMLScripts(htmlContent, jsFiles, moduleFiles, filename);
                 html += '\n' + htmlContent;
             } else if (file.type === 'css') {
+                const filename = this.getFileNameFromPanel(file.id) || 'styles.css';
                 css += '\n' + content;
+                cssFiles.push({
+                    content,
+                    filename
+                });
             } else if (file.type === 'javascript') {
                 const filename = this.getFileNameFromPanel(file.id) || 'script.js';
                 if (this.fileTypeUtils.isJavaScriptModule(content, filename)) {
@@ -6836,7 +7198,7 @@ This content is loaded from a markdown file.
             }
         });
 
-        return { html, css, jsFiles, moduleFiles };
+        return { html, css, cssFiles, jsFiles, moduleFiles };
     }
 
     detectFullDocumentMode() {
@@ -6847,6 +7209,15 @@ This content is loaded from a markdown file.
 
     createVirtualFileSystem() {
         const fileSystem = new Map();
+
+        const addFileEntry = (filename, fileData) => {
+            const normalizedFilename = this.fileSystemUtils.normalizePath(filename);
+            if (!normalizedFilename) return;
+            fileSystem.set(normalizedFilename, fileData);
+            if (filename && filename !== normalizedFilename) {
+                fileSystem.set(filename, fileData);
+            }
+        };
         
         this.state.files.forEach(file => {
             const currentFilename = this.getFileNameFromPanel(file.id);
@@ -6859,10 +7230,10 @@ This content is loaded from a markdown file.
                     isBinary: file.isBinary || false
                 };
                 
-                fileSystem.set(currentFilename, fileData);
+                addFileEntry(currentFilename, fileData);
                 
                 if (originalFilename && originalFilename !== currentFilename) {
-                    fileSystem.set(originalFilename, fileData);
+                    addFileEntry(originalFilename, fileData);
                 }
             }
         });
@@ -6932,24 +7303,18 @@ This content is loaded from a markdown file.
     }
 
     replaceCSSAssetReferences(cssContent, fileSystem, currentFilePath = '') {
-        cssContent = cssContent.replace(/background-image\s*:\s*url\s*\(\s*["']?([^"')]+)["']?\s*\)/gi, (match, filename) => {
-            const file = this.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
-            if (file && (file.type === 'image' || file.type === 'svg')) {
-                const src = file.isBinary ? file.content : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(file.content)}`;
-                return `background-image: url("${src}")`;
+        if (typeof cssContent !== 'string' || !cssContent.includes('url(')) {
+            return cssContent;
+        }
+
+        return cssContent.replace(/url\(\s*(["']?)([^"')]+)\1\s*\)/gi, (match, quote, filename) => {
+            const resolved = this.fileSystemUtils.findFileRecord(fileSystem, filename, currentFilePath);
+            const file = resolved?.file || null;
+            if (!file || !['image', 'svg', 'font'].includes(file.type)) {
+                return match;
             }
-            return match;
+            return `url("${this.getPreviewAssetUrl(file, 'application/octet-stream')}")`;
         });
-        
-        cssContent = cssContent.replace(/@font-face\s*{[^}]*src\s*:\s*url\s*\(\s*["']?([^"')]+)["']?\s*\)[^}]*}/gi, (match, filename) => {
-            const file = this.fileSystemUtils.findFile(fileSystem, filename, currentFilePath);
-            if (file && file.type === 'font') {
-                return match.replace(filename, file.content);
-            }
-            return match;
-        });
-        
-        return cssContent;
     }
 
     generateFullDocumentPreview() {
@@ -7068,7 +7433,7 @@ This content is loaded from a markdown file.
             return this.generateFullDocumentPreview();
         }
         
-        const { html, css, jsFiles, moduleFiles } = this.collectFileContents();
+        const { html, css, cssFiles, jsFiles, moduleFiles } = this.collectFileContents();
         
         const { processedHtml, workerScript } = this.processWebWorkers(html, jsFiles);
         
@@ -7076,6 +7441,11 @@ This content is loaded from a markdown file.
         const mainHtmlFile = this.getMainHtmlFile();
         const mainHtmlPath = mainHtmlFile ? (this.getFileNameFromPanel(mainHtmlFile.id) || 'index.html') : 'index.html';
         const htmlWithAssets = this.replaceAssetReferences(processedHtml, fileSystem, mainHtmlPath);
+        const cssWithAssets = cssFiles.length > 0
+            ? cssFiles
+                .map((cssFile) => this.replaceCSSAssetReferences(cssFile.content, fileSystem, cssFile.filename))
+                .join('\n')
+            : this.replaceCSSAssetReferences(css, fileSystem, mainHtmlPath);
         
         const moduleImportMapScript = this.buildModuleImportMapScript(fileSystem);
         const moduleScript = this.processModuleFiles(moduleFiles, mainHtmlPath);
@@ -7090,7 +7460,7 @@ This content is loaded from a markdown file.
             '    ' + moduleImportMapScript + '\n' +
             '    ' + this.consoleBridge.getCaptureScript(fileSystem, mainHtmlPath) + '\n' +
             '    ' + workerScript + '\n' +
-            '    <style>' + css + '</style>\n' +
+            '    <style>' + cssWithAssets + '</style>\n' +
             '</head>\n' +
             '<body>\n' +
             '    ' + htmlWithAssets + '\n' +
