@@ -868,6 +868,7 @@ This content is loaded from a markdown file.
         list.style.width = '';
         list.style.minWidth = '';
         list.style.maxWidth = '';
+        list.style.maxHeight = '';
         list.classList.remove('opens-upward', 'opens-leftward');
     }
 
@@ -883,6 +884,7 @@ This content is loaded from a markdown file.
         const viewportHeight = viewport?.height ?? window.innerHeight;
         const padding = 8;
         const gap = 6;
+        const isCompactFileTypeDropdown = viewportWidth <= 768 && list.classList.contains('file-type-dropdown-list');
 
         this.resetCustomDropdownPosition(list);
 
@@ -896,7 +898,7 @@ This content is loaded from a markdown file.
             listRect.width || triggerRect.width,
             Math.max(triggerRect.width, viewportWidth - padding * 2)
         );
-        const listHeight = listRect.height || 0;
+        let listHeight = listRect.height || 0;
         const viewportRight = viewportLeft + viewportWidth;
         const viewportBottom = viewportTop + viewportHeight;
 
@@ -911,7 +913,13 @@ This content is loaded from a markdown file.
 
         const spaceBelow = viewportBottom - triggerRect.bottom - gap - padding;
         const spaceAbove = triggerRect.top - viewportTop - gap - padding;
-        const opensUpward = listHeight > spaceBelow && spaceAbove > spaceBelow;
+        if (isCompactFileTypeDropdown && listHeight > spaceBelow) {
+            const compactMaxHeight = Math.max(96, spaceBelow);
+            list.style.maxHeight = `${compactMaxHeight}px`;
+            listHeight = Math.min(listHeight, compactMaxHeight);
+        }
+
+        const opensUpward = !isCompactFileTypeDropdown && listHeight > spaceBelow && spaceAbove > spaceBelow;
         if (opensUpward) {
             top = triggerRect.top - listHeight - gap;
         }

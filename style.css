@@ -689,7 +689,7 @@ button > svg,
     border: 1px solid var(--border-color);
     border-radius: var(--radius-base);
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
-    z-index: 80;
+    z-index: 1200;
 }
 
 .file-type-dropdown-option {
@@ -2593,8 +2593,9 @@ body.is-resizing-console {
 }
 
 .console-filter-btn {
-    display: flex;
+    display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: var(--space-xs);
     padding: var(--space-xs) var(--space-sm);
     border: 1px solid rgba(var(--border-rgb), 0.35);
@@ -2619,7 +2620,15 @@ body.is-resizing-console {
 }
 
 .filter-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     font-size: var(--text-md);
+    line-height: 1;
+}
+
+.filter-icon svg {
+    display: block;
 }
 
 .console-filter-btn[data-filter="log"] .filter-icon { color: var(--primary-color); }
@@ -3290,6 +3299,41 @@ body.is-resizing-console {
         text-overflow: ellipsis;
         white-space: nowrap;
         font-size: var(--text-sm);
+    }
+
+    .console-header {
+        gap: var(--space-xs);
+        padding: 0.3rem var(--space-sm);
+    }
+
+    .console-header > span {
+        display: none;
+    }
+
+    .console-filters {
+        gap: 0.25rem;
+        margin-right: 0;
+    }
+
+    .console-filter-btn {
+        gap: 0.2rem;
+        padding: 0.2rem 0.32rem;
+        font-size: var(--text-xs);
+    }
+
+    .filter-icon {
+        font-size: var(--text-sm);
+    }
+
+    .filter-count {
+        min-width: 1rem;
+        padding: 0.05rem 0.25rem;
+        font-size: 0.62rem;
+    }
+
+    .console-header .clear-btn {
+        padding: 2px 7px;
+        flex-shrink: 0;
     }
 }
 
