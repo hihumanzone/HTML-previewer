@@ -1921,6 +1921,7 @@ This content is loaded from a markdown file.
 
     renderFileTreeToolbar(tree) {
         const hasSelection = this.state.selectedFileIds.size > 0 || this.state.selectedFolderPaths.size > 0;
+        const hasFiles = this.state.files.length > 0;
         const fileCount = this.countFilesInTree(tree);
         const searchIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="0.85em" height="0.85em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.5" cy="6.5" r="4"/><line x1="10" y1="10" x2="14" y2="14"/></svg>';
         const isMac = /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent);
@@ -1941,6 +1942,7 @@ This content is loaded from a markdown file.
                 </div>
                 <div class="file-tree-toolbar-meta">${fileCount} file${fileCount === 1 ? '' : 's'}</div>
                 <div class="file-tree-toolbar-actions">
+                    <button class="tree-toolbar-btn select-all-files-btn" title="Select all files" ${hasFiles ? '' : 'disabled'}>Select All</button>
                     <button class="tree-toolbar-btn clear-selection-btn" title="Clear selection" ${hasSelection ? '' : 'disabled'}>Clear</button>
                     <button class="tree-toolbar-btn open-selected-btn" title="Open selected files/folders" ${hasSelection ? '' : 'disabled'}>Open</button>
                     <button class="tree-toolbar-btn close-selected-btn" title="Close selected files/folders" ${hasSelection ? '' : 'disabled'}>Close</button>
@@ -2112,6 +2114,11 @@ This content is loaded from a markdown file.
                 return;
             }
 
+            if (target.closest('.select-all-files-btn')) {
+                this.state.files.forEach(file => this.state.selectedFileIds.add(file.id));
+                this.renderFileTree();
+                return;
+            }
 
             if (target.closest('.clear-selection-btn')) {
                 this.clearSidebarSelection();
