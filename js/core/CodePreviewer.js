@@ -1,2717 +1,3 @@
-/**
- * HTML Code Previewer
- * 
- * Main application object containing all functionality for the HTML/CSS/JS previewer.
- * 
- * STRUCTURE:
- * - state: Application state (editors, files, mode, panel/order state)
- * - dom: Cached DOM elements
- * - constants: Configuration constants (IDs, file types, MIME types)
- * - fileTypeUtils: File type detection and handling utilities
- * - fileSystemUtils: Virtual file system runtime operations (path resolution, file lookup, data URLs)
- * - previewScriptGenerator: Code-generation utilities — produces JS strings injected into the preview iframe
- * - init(): Application initialization
- * - Editor Management: initEditors(), createEditorForTextarea(), etc.
- * - File Management: addNewFile(), importFile(), exportFile(), etc.
- * - Preview Management: renderPreview(), toggleModal(), etc.
- * - UI Management: eventManager.bindAll(), switchMode(), etc.
- * - htmlGenerators: HTML generation utilities
- * - notificationSystem: Toast notifications
- * - assetReplacers: Asset path replacement for multi-file projects
- * - consoleBridge: Console capture and logging
- * 
- */
-const SVG_ICONS = {
-    // UI Action Icons
-    settings: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="14" y2="8"/><line x1="2" y1="12" x2="14" y2="12"/><circle cx="5" cy="4" r="1.5" fill="currentColor"/><circle cx="10" cy="8" r="1.5" fill="currentColor"/><circle cx="7" cy="12" r="1.5" fill="currentColor"/></svg>',
-    trash: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h10l-1 10H4L3 4z"/><path d="M1 4h14"/><path d="M6 4V2.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5V4"/><line x1="6.5" y1="7" x2="6.5" y2="11"/><line x1="9.5" y1="7" x2="9.5" y2="11"/></svg>',
-    package: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1L14 4v8l-6 3L2 12V4l6-3z"/><path d="M8 8v7"/><path d="M2 4l6 4 6-4"/></svg>',
-    folder: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5h4l2 2h7v8h-13v-10z"/></svg>',
-    folderOpen: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5h4l2 2h7v2"/><path d="M1.5 13.5l2-6h12l-2 6h-12z"/></svg>',
-    folderTabs: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5h4l2 2h7v8h-13v-10z"/><path d="M5 3.5V1.5h4v2"/></svg>',
-    clipboard: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="2.5" width="10" height="12" rx="1"/><path d="M5.5 2.5V2a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 .5.5v.5"/><line x1="5.5" y1="7" x2="10.5" y2="7"/><line x1="5.5" y1="9.5" x2="10.5" y2="9.5"/><line x1="5.5" y1="12" x2="8.5" y2="12"/></svg>',
-    document: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 1.5h5.5L13 5v9.5H4V1.5z"/><path d="M9 1.5v4h4"/></svg>',
-    search: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.5" cy="6.5" r="4.5"/><line x1="10" y1="10" x2="14.5" y2="14.5"/></svg>',
-    format: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="13" x2="10" y2="2"/><path d="M10 2l1.5 3"/><path d="M1 6l2-2 2 2"/><circle cx="12.5" cy="3.5" r="0.75" fill="currentColor" stroke="none"/></svg>',
-    expand: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="10,2 14,2 14,6"/><polyline points="6,14 2,14 2,10"/><line x1="14" y1="2" x2="9.5" y2="6.5"/><line x1="2" y1="14" x2="6.5" y2="9.5"/></svg>',
-    save: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 1.5h9.5L14 4v10.5H2V1.5z"/><rect x="4.5" y="1.5" width="5" height="4"/><rect x="4.5" y="9.5" width="7" height="5"/></svg>',
-    close: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg>',
-    dock: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="2" width="13" height="12" rx="1"/><line x1="10" y1="2" x2="10" y2="14"/></svg>',
-    refresh: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3v4H9"/><path d="M3 13v-4h4"/><path d="M4.1 6.1A5 5 0 0 1 13 7"/><path d="M11.9 9.9A5 5 0 0 1 3 9"/></svg>',
-    eye: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z"/><circle cx="8" cy="8" r="2"/></svg>',
-    pencil: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 1.5l3 3-9 9H2.5v-3l9-9z"/></svg>',
-    move: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="8" x2="14" y2="8"/><polyline points="10,4 14,8 10,12"/></svg>',
-    check: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,8.5 6.5,12 13,4"/></svg>',
-    checkCircle: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><polyline points="5,8.5 7,10.5 11,5.5"/></svg>',
-    xCircle: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><line x1="5.5" y1="5.5" x2="10.5" y2="10.5"/><line x1="10.5" y1="5.5" x2="5.5" y2="10.5"/></svg>',
-    info: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><line x1="8" y1="7.5" x2="8" y2="11.5"/><circle cx="8" cy="5" r="0.75" fill="currentColor" stroke="none"/></svg>',
-    warning: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5L1 14h14L8 1.5z"/><line x1="8" y1="6" x2="8" y2="10"/><circle cx="8" cy="12" r="0.75" fill="currentColor" stroke="none"/></svg>',
-    folderPlus: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5h4l2 2h7v8h-13v-10z"/><line x1="8" y1="7.5" x2="8" y2="11.5"/><line x1="6" y1="9.5" x2="10" y2="9.5"/></svg>',
-    folderMinus: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5h4l2 2h7v8h-13v-10z"/><line x1="6" y1="9.5" x2="10" y2="9.5"/></svg>',
-    // File Type Icons
-    fileHtml: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><ellipse cx="8" cy="8" rx="3" ry="6.5"/><path d="M1.5 8h13"/></svg>',
-    fileCss: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 14l-1-4 3-2-3-2 1-4"/><circle cx="12" cy="4" r="2"/><line x1="12" y1="6" x2="12" y2="12"/><path d="M10 12a2 2 0 1 0 4 0"/></svg>',
-    fileJs: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,4 1.5,8 4,12"/><polyline points="12,4 14.5,8 12,12"/></svg>',
-    fileJson: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2c-2 0-2 2-2 3v1.5c0 1-1 1.5-1.5 1.5 .5 0 1.5.5 1.5 1.5V11c0 1 0 3 2 3"/><path d="M11 2c2 0 2 2 2 3v1.5c0 1 1 1.5 1.5 1.5-.5 0-1.5.5-1.5 1.5V11c0 1 0 3-2 3"/></svg>',
-    fileXml: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 1.5h5.5L13 5v9.5H4V1.5z"/><path d="M9 1.5v4h4"/><polyline points="6,9 5,11 6,13"/><polyline points="10,9 11,11 10,13"/></svg>',
-    fileMarkdown: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 1.5h5.5L13 5v9.5H4V1.5z"/><path d="M9 1.5v4h4"/><path d="M6.5 9v4h1v-2.5L9 12l1.5-1.5V13h1V9"/></svg>',
-    fileText: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 1.5h5.5L13 5v9.5H4V1.5z"/><path d="M9 1.5v4h4"/><line x1="6" y1="8" x2="11" y2="8"/><line x1="6" y1="10.5" x2="11" y2="10.5"/><line x1="6" y1="13" x2="9" y2="13"/></svg>',
-    fileImage: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="2" width="13" height="12" rx="1"/><circle cx="5" cy="5.5" r="1.5"/><path d="M1.5 12l4-4 3 3 2-2 4 4"/></svg>',
-    fileAudio: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6v4h3l4 3V3L5 6H2z"/><path d="M11 5.5a3.5 3.5 0 0 1 0 5"/><path d="M12.5 3.5a6 6 0 0 1 0 9"/></svg>',
-    fileVideo: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="3" width="13" height="10" rx="1"/><path d="M6 6.5v3l3-1.5-3-1.5z"/></svg>',
-    fileFont: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14l4-12 4 12"/><line x1="5.5" y1="10" x2="10.5" y2="10"/><line x1="3" y1="14" x2="5" y2="14"/><line x1="11" y1="14" x2="13" y2="14"/></svg>',
-    filePdf: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 1.5h5.5L13 5v9.5H4V1.5z"/><path d="M9 1.5v4h4"/><path d="M6 9h1.5a1.25 1.25 0 0 0 0-2.5H6v6"/></svg>',
-    fileBinary: '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1L14 4v8l-6 3L2 12V4l6-3z"/><path d="M8 8v7"/><path d="M2 4l6 4 6-4"/></svg>',
-};
-
-// ============================================================================
-// STANDALONE UTILITY FUNCTIONS
-// Pure functions with no dependency on CodePreviewer instance.
-// ============================================================================
-
-const escapeHtml = (str) => {
-    if (str === null || str === undefined) return '';
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-};
-
-const base64ToUint8Array = (base64) => {
-    const binaryString = atob(base64);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-    }
-    return bytes;
-};
-
-const formatFileSize = (bytes) => {
-    const normalized = Number.isFinite(bytes) && bytes >= 0 ? bytes : 0;
-    if (normalized < 1024) return `${normalized} B`;
-    const units = ['KB', 'MB', 'GB'];
-    let size = normalized;
-    let unitIndex = -1;
-    while (size >= 1024 && unitIndex < units.length - 1) {
-        size /= 1024;
-        unitIndex += 1;
-    }
-    const roundedSize = size >= 10 ? Math.round(size) : Math.round(size * 10) / 10;
-    return `${roundedSize} ${units[unitIndex]}`;
-};
-
-const getLineCount = (content) => {
-    return content.length === 0 ? 1 : content.split(/\r\n|\r|\n/).length;
-};
-
-function createMockEditor(textarea, fontSize) {
-    if (!textarea) return null;
-    Object.assign(textarea.style, {
-        fontFamily: 'monospace', fontSize: `${fontSize}px`, lineHeight: '1.5',
-        resize: 'none', border: 'none', outline: 'none',
-        background: '#282a36', color: '#f8f8f2', padding: '1rem',
-        width: '100%', height: '400px'
-    });
-    return {
-        setValue: (value) => { textarea.value = value; },
-        getValue: () => textarea.value,
-        refresh: () => {},
-        setOption: () => {},
-        on: (eventName, handler) => {
-            if (eventName !== 'change' || !handler) return;
-            if (textarea.__changeListener) {
-                textarea.removeEventListener('input', textarea.__changeListener);
-            }
-            textarea.__changeListener = () => handler(null, { origin: '+input' });
-            textarea.addEventListener('input', textarea.__changeListener);
-        },
-    };
-}
-
-function findNextMatch(content, query, startIndex) {
-    if (!content || !query) return -1;
-    const lowerContent = content.toLowerCase();
-    const lowerQuery = query.toLowerCase();
-    let matchIndex = lowerContent.indexOf(lowerQuery, startIndex);
-    if (matchIndex === -1 && startIndex > 0) {
-        matchIndex = lowerContent.indexOf(lowerQuery);
-    }
-    return matchIndex;
-}
-
-/**
- * Recursively freezes an object and all its nested objects.
- * @param {Object} obj - The object to deep-freeze
- * @returns {Object} The frozen object
- */
-const deepFreeze = (obj) => {
-    Object.freeze(obj);
-    Object.values(obj).forEach(val => {
-        if (val && typeof val === 'object' && !Object.isFrozen(val)) {
-            deepFreeze(val);
-        }
-    });
-    return obj;
-};
-
-
-/**
- * Handles preview rendering concerns such as debouncing and runtime fallback UI.
- */
-class PreviewRenderer {
-    /**
-     * @param {typeof CodePreviewer} app
-     */
-    constructor(app) {
-        this.app = app;
-    }
-
-    /**
-     * Debounce preview refresh requests to reduce expensive iframe updates while typing.
-     */
-    scheduleRefresh() {
-        const { state } = this.app;
-        clearTimeout(state.previewRefreshTimer);
-
-        state.previewRefreshTimer = setTimeout(() => {
-            state.previewRefreshTimer = null;
-            this.safeRefreshOpenPreviews();
-        }, state.previewRefreshDelay);
-    }
-
-    /**
-     * Triggers a preview render to the requested target.
-     * Validates HTML availability before proceeding.
-     * @param {'modal'|'tab'} target - Where to display the preview
-     */
-    render(target) {
-        const availability = this.app.getPreviewAvailability();
-        if (!availability.allowed) {
-            this.app.showNotification('No HTML file found. Import or create an HTML file to preview.', 'warn');
-            this.app.updatePreviewActionButtons();
-            return;
-        }
-
-        // Always revoke previous asset URLs before generating new ones to avoid leaks.
-        this.app.revokeTrackedObjectUrls(this.app.state.previewAssetUrls);
-        this.app.state.previewBlobUrlCache.clear();
-        const content = this.app.generatePreviewContent();
-
-        if (target === 'modal') {
-            this.app.consoleBridge.clear();
-            this.safeWritePreviewFrame(content);
-            this.app.toggleModal(true);
-            return;
-        }
-
-        if (target === 'tab') {
-            try {
-                this.app.updatePreviewTab(content, true);
-                this.app.showNotification('Preview opened in a new tab.', 'success');
-            } catch (error) {
-                console.error('Failed to create or open new tab:', error);
-                this.app.showNotification('Unable to open preview tab. Check popup settings and try again.', 'error');
-            }
-        }
-    }
-
-    /**
-     * Safely refresh already-open preview targets (modal and/or tab).
-     * On failure, writes an error document to the iframe instead of silently breaking.
-     */
-    safeRefreshOpenPreviews() {
-        try {
-            this.app.refreshOpenPreviews();
-        } catch (error) {
-            console.error('Preview refresh failed:', error);
-            this.app.showNotification('Preview refresh failed. The editor content is unchanged.', 'error');
-            this.safeWritePreviewFrame(this.buildPreviewErrorDocument(error));
-        }
-    }
-
-    /**
-     * Writes an HTML string to the preview iframe's srcdoc.
-     * On failure, replaces the content with a formatted error document.
-     * @param {string} content - Complete HTML document string
-     */
-    safeWritePreviewFrame(content) {
-        if (!this.app.dom.previewFrame) return;
-
-        try {
-            this.app.dom.previewFrame.srcdoc = content;
-        } catch (error) {
-            console.error('Unable to render preview iframe:', error);
-            this.app.dom.previewFrame.srcdoc = this.buildPreviewErrorDocument(error);
-            this.app.showNotification('Unable to render preview content. See details in preview pane.', 'error');
-        }
-    }
-
-    /**
-     * Builds a self-contained HTML error document for display inside the preview iframe.
-     * @param {unknown} error - The caught error value
-     * @returns {string} A minimal HTML document string
-     */
-    buildPreviewErrorDocument(error) {
-        const errorText = escapeHtml(error instanceof Error ? error.message : String(error));
-        return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Preview Error</title></head><body style="font-family:Arial,sans-serif;background:#121219;color:#f8f8ff;padding:16px;"><h2 style="margin-top:0;">Preview rendering error</h2><p>The preview could not be generated safely.</p><pre style="white-space:pre-wrap;background:#1d1f2e;padding:12px;border-radius:8px;border:1px solid #34364d;">${errorText}</pre></body></html>`;
-    }
-}
-
-/**
- * Persists and restores user preferences via localStorage.
- * All I/O is wrapped in try/catch so a corrupt or missing entry never
- * prevents the application from starting.
- */
-class StorageHandler {
-    /**
-     * @param {typeof CodePreviewer} app
-     */
-    constructor(app) {
-        this.app = app;
-    }
-
-    /**
-     * Reads settings from localStorage and merges them into the current state.
-     * Silently ignores missing, malformed, or unreadable data.
-     * @returns {void}
-     */
-    loadSettings() {
-        try {
-            const raw = localStorage.getItem(this.app.constants.SETTINGS_STORAGE_KEY);
-            if (!raw) return;
-            const parsed = JSON.parse(raw);
-            this.app.state.settings = this.app.normalizeSettings({
-                ...this.app.state.settings,
-                ...parsed,
-            });
-        } catch (error) {
-            console.warn('Unable to load settings:', error);
-        }
-    }
-
-    /**
-     * Serializes the current settings object to localStorage.
-     * Silently ignores QuotaExceededError and other write failures.
-     * @returns {void}
-     */
-    saveSettings() {
-        try {
-            localStorage.setItem(
-                this.app.constants.SETTINGS_STORAGE_KEY,
-                JSON.stringify(this.app.state.settings)
-            );
-        } catch (error) {
-            console.warn('Unable to save settings:', error);
-        }
-    }
-}
-
-class EventManager {
-    /**
-     * @param {typeof CodePreviewer} app
-     */
-    constructor(app) {
-        this.app = app;
-    }
-
-    /**
-     * Entry point — wires every category of events.
-     * Called once during init().
-     */
-    bindAll() {
-        this.bindPrimaryActions();
-        this.bindConsoleActions();
-        this.bindPreviewDock();
-        this.bindModalOverlay();
-        this.bindKeyboard();
-        this.bindCodeModal();
-        this.bindMediaModal();
-        this.bindFileActions();
-        this.bindSettingsModal();
-        this.bindViewportResize();
-    }
-
-    // ─── Preview ──────────────────────────────────────────────────────────────
-
-    /**
-     * Binds the primary preview action buttons (modal / tab).
-     */
-    bindPrimaryActions() {
-        this.app.dom.modalBtn.addEventListener('click', () => this.app.renderPreview('modal'));
-        this.app.dom.tabBtn.addEventListener('click', () => this.app.renderPreview('tab'));
-        this.app.dom.closeModalBtn.addEventListener('click', () => this.app.toggleModal(false));
-        this.app.dom.refreshPreviewBtn?.addEventListener('click', () => this.app.refreshModalPreview());
-    }
-
-    // ─── Console ──────────────────────────────────────────────────────────────
-
-    /**
-     * Binds console toggle button and console resize divider.
-     */
-    bindConsoleActions() {
-        this.app.dom.toggleConsoleBtn.addEventListener('click', () => this.app.toggleConsole());
-        this.app.dom.consoleResizeDivider?.addEventListener(
-            'pointerdown',
-            (e) => this.app.startConsoleResize(e)
-        );
-    }
-
-    // ─── Preview Dock ─────────────────────────────────────────────────────────
-
-    /**
-     * Binds dock toggle and resize-divider drag events.
-     */
-    bindPreviewDock() {
-        this.app.dom.dockPreviewBtn?.addEventListener('click', () => this.app.togglePreviewDock());
-        this.app.dom.previewDockDivider?.addEventListener(
-            'pointerdown',
-            (e) => this.app.startPreviewDockResize(e)
-        );
-    }
-
-    // ─── Modal Overlay ────────────────────────────────────────────────────────
-
-    /**
-     * Closes the preview modal when the backdrop is clicked (undocked mode only).
-     */
-    bindModalOverlay() {
-        this.app.dom.modalOverlay.addEventListener('click', (e) => {
-            if (this.app.state.isPreviewDocked) return;
-            if (e.target === this.app.dom.modalOverlay) this.app.toggleModal(false);
-        });
-    }
-
-    // ─── Global Keyboard ──────────────────────────────────────────────────────
-
-    /**
-     * Binds application-wide keyboard shortcuts.
-     */
-    bindKeyboard() {
-        document.addEventListener('keydown', (e) => {
-            const { app } = this;
-            const activePanel = app.getActiveEditorPanel();
-
-            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                e.preventDefault();
-                app.renderPreview('modal');
-                return;
-            }
-
-            if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'k') {
-                e.preventDefault();
-                app.focusSidebarSearch();
-                return;
-            }
-
-            if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'f') {
-                const codeModal = app.dom.codeModal;
-                const isCodeModalOpen = codeModal?.getAttribute('aria-hidden') === 'false';
-                if (isCodeModalOpen) {
-                    e.preventDefault();
-                    app.openCodeModalSearch();
-                } else if (activePanel) {
-                    e.preventDefault();
-                    app.openPanelSearch(activePanel);
-                }
-                return;
-            }
-
-            if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'e' && activePanel) {
-                e.preventDefault();
-                app.expandCode(activePanel);
-                return;
-            }
-
-            if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'f' && activePanel) {
-                e.preventDefault();
-                app.formatPanelCode(activePanel, false);
-                return;
-            }
-
-            if (e.key === 'Escape') {
-                if (app.dom.modalOverlay.getAttribute('aria-hidden') === 'false') {
-                    app.toggleModal(false);
-                }
-                app.toggleSettingsModal(false);
-                if (app.dom.codeModal?.getAttribute('aria-hidden') === 'false') {
-                    app.closeCodeModal();
-                }
-                if (app.dom.mediaModal?.getAttribute('aria-hidden') === 'false') {
-                    app.closeMediaModal();
-                }
-            }
-        });
-    }
-
-    // ─── Code Modal ───────────────────────────────────────────────────────────
-
-    /**
-     * Binds code-view modal close and search actions.
-     */
-    bindCodeModal() {
-        const { app } = this;
-        const codeModalCloseBtn = app.dom.codeModal?.querySelector('.close-btn');
-
-        if (codeModalCloseBtn) {
-            codeModalCloseBtn.addEventListener('click', () => app.closeCodeModal());
-        }
-
-        if (app.dom.codeModal) {
-            app.dom.codeModal.addEventListener('click', (e) => {
-                if (e.target === app.dom.codeModal) app.closeCodeModal();
-            });
-        }
-
-        if (app.dom.codeModalDockBtn) {
-            app.dom.codeModalDockBtn.addEventListener('click', () => app.toggleCodeModalDockLeft());
-        }
-
-        if (app.dom.codeModalSearchBtn) {
-            app.dom.codeModalSearchBtn.addEventListener('click', () => app.toggleCodeModalSearch());
-        }
-
-        if (app.dom.codeModalSearchInput) {
-            app.dom.codeModalSearchInput.addEventListener('input', () => app.searchInCodeModal(false));
-            app.dom.codeModalSearchInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    app.searchInCodeModal(true);
-                }
-            });
-        }
-
-        if (app.dom.codeModalSearchNextBtn) {
-            app.dom.codeModalSearchNextBtn.addEventListener('click', () => app.searchInCodeModal(true));
-        }
-
-        if (app.dom.codeModalSearchCloseBtn) {
-            app.dom.codeModalSearchCloseBtn.addEventListener('click', () => app.closeCodeModalSearch());
-        }
-
-    }
-
-    // ─── Media Modal ──────────────────────────────────────────────────────────
-
-    /**
-     * Binds media preview modal close action.
-     */
-    bindMediaModal() {
-        const { app } = this;
-        const mediaModalCloseBtn = app.dom.mediaModal?.querySelector('.close-btn');
-
-        if (mediaModalCloseBtn) {
-            mediaModalCloseBtn.addEventListener('click', () => app.closeMediaModal());
-        }
-
-        if (app.dom.mediaModal) {
-            app.dom.mediaModal.addEventListener('click', (e) => {
-                if (e.target === app.dom.mediaModal) app.closeMediaModal();
-            });
-        }
-    }
-
-    // ─── File Actions ─────────────────────────────────────────────────────────
-
-    /**
-     * Binds file management toolbar buttons (add, import, export, clear).
-     */
-    bindFileActions() {
-        const { app } = this;
-
-        app.dom.addFileBtn.addEventListener('click', () => app.addNewFile());
-        app.dom.addFolderBtn?.addEventListener('click', () => app.addNewFolder());
-        app.dom.clearAllFilesBtn?.addEventListener('click', () => app.clearAllFiles());
-        app.dom.importFileBtn.addEventListener('click', () => app.importFile());
-        app.dom.importFolderBtn?.addEventListener('click', () => app.importFolder());
-        app.dom.importZipBtn.addEventListener('click', () => app.importArchive());
-        app.dom.exportZipBtn.addEventListener('click', () => app.exportZip());
-
-        app.setupMainHtmlDropdownEvents();
-
-        // Close custom dropdowns when clicking outside their boundaries
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.file-type-dropdown')) app.closeAllFileTypeDropdowns();
-            if (!e.target.closest('.settings-select-dropdown')) app.closeAllSettingsSelectDropdowns();
-        });
-    }
-
-    // ─── Settings Modal ───────────────────────────────────────────────────────
-
-    /**
-     * Binds settings button, settings modal close/backdrop, and all setting controls.
-     * Uses a declarative binding table to eliminate repetitive handler blocks.
-     */
-    bindSettingsModal() {
-        const { app } = this;
-
-        app.dom.settingsBtn?.addEventListener('click', () => app.toggleSettingsModal(true));
-
-        if (!app.dom.settingsModal) return;
-
-        // Close on backdrop click
-        app.dom.settingsModal.addEventListener('click', (e) => {
-            if (e.target === app.dom.settingsModal) app.toggleSettingsModal(false);
-        });
-
-        // Custom dropdown: open/select
-        app.dom.settingsModal.addEventListener('click', (e) => {
-            const trigger = e.target.closest('.settings-select-dropdown-trigger');
-            if (trigger) {
-                app.toggleSettingsSelectDropdown(trigger.closest('.settings-select-dropdown'));
-                return;
-            }
-            const option = e.target.closest('.settings-select-dropdown-option');
-            if (option) {
-                app.selectSettingsDropdownOption(option.closest('.settings-select-dropdown'), option);
-            }
-        });
-
-        // Custom dropdown: keyboard navigation
-        app.dom.settingsModal.addEventListener('keydown', (e) => {
-            const dropdown = e.target.closest('.settings-select-dropdown');
-            if (!dropdown) return;
-
-            if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                app.toggleSettingsSelectDropdown(dropdown, true);
-                app.moveSettingsDropdownFocus(dropdown, 1);
-            } else if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                app.toggleSettingsSelectDropdown(dropdown, true);
-                app.moveSettingsDropdownFocus(dropdown, -1);
-            } else if (e.key === 'Enter' || e.key === ' ') {
-                const option = e.target.closest('.settings-select-dropdown-option');
-                if (option) {
-                    e.preventDefault();
-                    app.selectSettingsDropdownOption(dropdown, option);
-                } else if (e.target.closest('.settings-select-dropdown-trigger')) {
-                    e.preventDefault();
-                    app.toggleSettingsSelectDropdown(dropdown);
-                }
-            }
-        });
-
-        // Close button
-        const settingsCloseBtn = app.dom.settingsModal.querySelector('.close-btn');
-        if (settingsCloseBtn) {
-            settingsCloseBtn.addEventListener('click', () => app.toggleSettingsModal(false));
-        }
-
-        // ESC to close (registered once on document to avoid duplicates)
-        if (!app.state.settingsEscHandler) {
-            app.state.settingsEscHandler = (e) => {
-                if (e.key === 'Escape' && app.isSettingsModalOpen()) {
-                    const hasOpenDropdown = !!app.dom.settingsModal?.querySelector(
-                        '.settings-select-dropdown-trigger[aria-expanded="true"]'
-                    );
-                    if (hasOpenDropdown) {
-                        app.closeAllSettingsSelectDropdowns();
-                        return;
-                    }
-                    app.toggleSettingsModal(false);
-                }
-            };
-            document.addEventListener('keydown', app.state.settingsEscHandler);
-        }
-
-        this._bindSettingControls();
-    }
-
-    /**
-     * Declarative table-driven binding for individual setting controls.
-     * Each entry maps a DOM element to a state property and a value reader.
-     * This replaces nine near-identical if-block handlers.
-     * @private
-     */
-    _bindSettingControls() {
-        const { app } = this;
-
-        /** @type {Array<{domKey: string, stateKey: string, readValue: function, refreshEditors?: boolean}>} */
-        const SETTING_BINDINGS = [
-            { domKey: 'settingLineNumbers',    stateKey: 'lineNumbers',       readValue: (el) => el.checked,                  refreshEditors: true  },
-            { domKey: 'settingLineWrap',        stateKey: 'lineWrapping',      readValue: (el) => el.checked,                  refreshEditors: true  },
-            { domKey: 'settingAutoFormat',      stateKey: 'autoFormatOnType',  readValue: (el) => el.checked,                  refreshEditors: false },
-            { domKey: 'settingFontSize',        stateKey: 'fontSize',          readValue: (el) => Number(el.value) || 14,      refreshEditors: true  },
-            { domKey: 'settingEditorTheme',     stateKey: 'theme',             readValue: (el) => el.value || 'dracula',       refreshEditors: true  },
-            { domKey: 'settingTabSize',         stateKey: 'tabSize',           readValue: (el) => Number(el.value) || 4,       refreshEditors: true  },
-            { domKey: 'settingIndentWithTabs',  stateKey: 'indentWithTabs',    readValue: (el) => el.checked,                  refreshEditors: true  },
-            { domKey: 'settingAutoCloseBrackets', stateKey: 'autoCloseBrackets', readValue: (el) => el.checked,               refreshEditors: true  },
-            { domKey: 'settingMatchBrackets',   stateKey: 'matchBrackets',     readValue: (el) => el.checked,                  refreshEditors: true  },
-        ];
-
-        const applySetting = (updateFn, { refreshEditors = false } = {}) => {
-            updateFn();
-            app.state.settings = app.normalizeSettings(app.state.settings);
-            app.syncSettingsUI();
-            if (refreshEditors) app.applyEditorSettingsToAllEditors();
-            app.saveSettings();
-        };
-
-        SETTING_BINDINGS.forEach(({ domKey, stateKey, readValue, refreshEditors }) => {
-            const el = app.dom[domKey];
-            if (!el) return;
-            el.addEventListener('change', () => {
-                applySetting(() => { app.state.settings[stateKey] = readValue(el); }, { refreshEditors });
-            });
-        });
-    }
-
-    // ─── Viewport Resize ──────────────────────────────────────────────────────
-
-    /**
-     * Registers debounced window-resize and visualViewport-resize handlers.
-     * Guards against duplicate registration.
-     */
-    bindViewportResize() {
-        const { app } = this;
-
-        if (!app.state.viewportResizeHandler) {
-            app.state.viewportResizeHandler = () => {
-                clearTimeout(app.state.viewportResizeTimer);
-                app.state.viewportResizeTimer = setTimeout(() => {
-                    app.updatePanelMoveButtonDirections();
-                    app.updateCodeModalHeaderAndButtons();
-                    app.updateAdaptiveLayoutMode();
-                    app.updateDockedModalCompactModes();
-                }, 80);
-            };
-
-            // A single named handler avoids creating a second anonymous wrapper for dock resize.
-            const onWindowResize = () => {
-                app.state.viewportResizeHandler();
-                app.handleDockViewportResize();
-            };
-            window.addEventListener('resize', onWindowResize);
-        }
-
-        if (!app.state.visualViewportResizeHandler && window.visualViewport) {
-            app.state.visualViewportResizeHandler = () => {
-                app.updatePreviewViewportHeight();
-                app.handleDockViewportResize();
-            };
-            window.visualViewport.addEventListener('resize', app.state.visualViewportResizeHandler);
-            window.visualViewport.addEventListener('scroll', app.state.visualViewportResizeHandler);
-        }
-    }
-}
-
-class FileTypeUtils {
-    constructor(constants) {
-        this.constants = constants;
-        this.BINARY_MIME_PREFIXES = ['image/', 'audio/', 'video/', 'application/', 'font/'];
-        this.JS_MIME_TYPES = new Set(['text/javascript', 'application/javascript', 'application/x-javascript', 'text/ecmascript', 'application/ecmascript']);
-        this.MODULE_FILENAME_SUFFIXES = ['.mjs', '.esm.js', '.module.js'];
-    }
-
-    getBaseName(filename) {
-        if (typeof filename !== 'string') return '';
-
-        const normalizedPath = filename.trim().replace(/\\/g, '/');
-        if (!normalizedPath) return '';
-
-        const pathSegments = normalizedPath.split('/');
-        return (pathSegments.pop() || '').toLowerCase();
-    }
-
-    getExtension(filename) {
-        const baseName = this.getBaseName(filename);
-        if (!baseName || baseName === '.' || baseName === '..') return '';
-
-        const lastDotIndex = baseName.lastIndexOf('.');
-        if (lastDotIndex === -1) return '';
-        if (lastDotIndex === 0) return baseName.slice(1).toLowerCase();
-
-        return baseName.slice(lastDotIndex + 1).toLowerCase();
-    }
-
-    normalizeMimeType(mimeType) {
-        if (!mimeType || typeof mimeType !== 'string') return '';
-        return mimeType.toLowerCase().split(';')[0].trim();
-    }
-
-    getTypeFromExtension(filename) {
-        const extension = this.getExtension(filename);
-        return this.constants.EXTENSIONS[extension] || 'binary';
-    }
-
-    getMimeTypeFromExtension(extension) {
-        const normalizedExtension = extension?.toLowerCase();
-        return this.constants.EXTENSION_MIME_MAP[normalizedExtension] || 'application/octet-stream';
-    }
-
-    getMimeTypeFromFileType(fileType) {
-        return this.constants.MIME_TYPES[fileType] || 'text/plain';
-    }
-
-    getTypeFromMimeType(mimeType) {
-        const normalizedMimeType = this.normalizeMimeType(mimeType);
-        if (!normalizedMimeType) return null;
-        if (this.JS_MIME_TYPES.has(normalizedMimeType)) return 'javascript';
-        if (normalizedMimeType === 'text/html') return 'html';
-        if (normalizedMimeType === 'text/css') return 'css';
-        if (normalizedMimeType === 'application/json' || normalizedMimeType.endsWith('+json')) return 'json';
-        if (normalizedMimeType === 'application/xml' || normalizedMimeType === 'text/xml') return 'xml';
-        if (normalizedMimeType === 'text/markdown') return 'markdown';
-        if (normalizedMimeType === 'image/svg+xml') return 'svg';
-        if (normalizedMimeType.startsWith('image/')) return 'image';
-        if (normalizedMimeType.startsWith('audio/')) return 'audio';
-        if (normalizedMimeType.startsWith('video/')) return 'video';
-        if (normalizedMimeType.startsWith('font/')) return 'font';
-        if (normalizedMimeType === 'application/pdf') return 'pdf';
-        if (normalizedMimeType.startsWith('text/')) return 'text';
-        return null;
-    }
-
-    hasBinaryMimePrefix(mimeType) {
-        return this.BINARY_MIME_PREFIXES.some(prefix => mimeType.startsWith(prefix));
-    }
-
-    isBinaryExtension(extension) {
-        return this.constants.BINARY_EXTENSIONS.has(extension?.toLowerCase());
-    }
-
-    isJavaScriptMimeType(mimeType) {
-        return this.JS_MIME_TYPES.has(this.normalizeMimeType(mimeType));
-    }
-
-    hasModuleFilenameHint(filename) {
-        if (!filename || typeof filename !== 'string') return false;
-        const lowerName = filename.toLowerCase();
-        return this.MODULE_FILENAME_SUFFIXES.some(suffix => lowerName.endsWith(suffix));
-    }
-
-    hasModuleMimeHint(mimeType) {
-        return typeof mimeType === 'string' && /(?:^|;)\s*module(?:\s*=\s*(?:1|true))?\s*(?:;|$)/i.test(mimeType);
-    }
-
-    isJavaScriptModule(content, filename, mimeType) {
-        if (this.hasModuleFilenameHint(filename) || this.hasModuleMimeHint(mimeType)) {
-            return true;
-        }
-
-        if (!content || typeof content !== 'string') {
-            return false;
-        }
-
-        const modulePatterns = [
-            /^\s*import\s+/m,
-            /^\s*export\s+/m,
-            /import\s*\(/,
-            /export\s*\{/,
-            /export\s+default\s+/,
-            /export\s+\*/
-        ];
-
-        return modulePatterns.some(pattern => pattern.test(content));
-    }
-
-    detectJavaScriptType(content, filename, mimeType) {
-        return this.isJavaScriptModule(content, filename, mimeType) ? 'javascript-module' : 'javascript';
-    }
-
-    isBinaryFile(filename, mimeType) {
-        if (!filename) return false;
-
-        const extension = this.getExtension(filename);
-        if (this.isBinaryExtension(extension)) {
-            return true;
-        }
-
-        const normalizedMimeType = this.normalizeMimeType(mimeType);
-        if (!normalizedMimeType) return false;
-
-        if (normalizedMimeType === 'image/svg+xml' || normalizedMimeType === 'application/json' || normalizedMimeType.endsWith('+json')) {
-            return false;
-        }
-
-        return this.hasBinaryMimePrefix(normalizedMimeType);
-    }
-
-    isEditableType(fileType) {
-        return this.constants.EDITABLE_TYPES.includes(fileType);
-    }
-
-    isPreviewableType(fileType) {
-        return this.constants.PREVIEWABLE_TYPES.includes(fileType);
-    }
-
-    getCodeMirrorMode(fileType) {
-        return this.constants.CODEMIRROR_MODES[fileType] || 'text';
-    }
-
-    detectTypeFromContent(content, filename, mimeType = '') {
-        const extensionType = this.getTypeFromExtension(filename);
-        if (!content) {
-            if (extensionType === 'javascript' || extensionType === 'javascript-module') {
-                return this.detectJavaScriptType(content, filename, mimeType);
-            }
-            return extensionType;
-        }
-
-        if (/<\s*html/i.test(content)) return 'html';
-        if (this.isJavaScriptModule(content, filename, mimeType)) return 'javascript-module';
-        if (/^\s*[\.\#\@]|\s*\w+\s*\{/m.test(content)) return 'css';
-        if (extensionType === 'javascript' || extensionType === 'javascript-module') {
-            return this.detectJavaScriptType(content, filename, mimeType);
-        }
-
-        return extensionType;
-    }
-
-    detectFileType(filename, content, mimeType) {
-        if (!filename) return 'text';
-
-        const extensionType = this.getTypeFromExtension(filename);
-        const mimeTypeType = this.getTypeFromMimeType(mimeType);
-
-        if (this.isBinaryExtension(this.getExtension(filename))) {
-            return extensionType === 'binary' && mimeTypeType ? mimeTypeType : extensionType;
-        }
-
-        if (mimeTypeType && mimeTypeType !== 'javascript') {
-            return mimeTypeType;
-        }
-
-        if (mimeTypeType === 'javascript') {
-            return this.detectJavaScriptType(content, filename, mimeType);
-        }
-
-        return this.detectTypeFromContent(content, filename, mimeType);
-    }
-}
-
-class FileSystemUtils {
-    constructor(fileTypeUtils) {
-        this.fileTypeUtils = fileTypeUtils;
-    }
-
-    isExternalAssetPath(path) {
-        return /^(?:[a-z][a-z\d+.-]*:|\/\/|#)/i.test(path || '');
-    }
-
-    splitPathSuffix(path) {
-        const rawPath = String(path || '').trim();
-        const suffixMatch = rawPath.match(/([?#].*)$/);
-        return {
-            path: suffixMatch ? rawPath.slice(0, -suffixMatch[1].length) : rawPath,
-            suffix: suffixMatch ? suffixMatch[1] : ''
-        };
-    }
-
-    safeDecodePath(path) {
-        return String(path || '')
-            .split('/')
-            .map((segment) => {
-                try {
-                    return decodeURIComponent(segment);
-                } catch (error) {
-                    return segment;
-                }
-            })
-            .join('/');
-    }
-
-    normalizePath(path) {
-        const parts = this.safeDecodePath(path)
-            .replace(/\\/g, '/')
-            .replace(/^\/+/, '')
-            .split('/');
-        const normalizedParts = [];
-
-        for (const part of parts) {
-            if (!part || part === '.') continue;
-            if (part === '..') {
-                normalizedParts.pop();
-                continue;
-            }
-            normalizedParts.push(part);
-        }
-
-        return normalizedParts.join('/');
-    }
-
-    normalizeRequestPath(path, currentFilePath = '') {
-        if (typeof path !== 'string' || !path.trim() || this.isExternalAssetPath(path.trim())) {
-            return '';
-        }
-
-        const { path: requestPath } = this.splitPathSuffix(path);
-        const normalizedRequestPath = this.normalizePath(requestPath);
-        if (!normalizedRequestPath) return '';
-
-        if (requestPath.trim().startsWith('/')) {
-            return normalizedRequestPath;
-        }
-
-        return currentFilePath
-            ? this.resolvePath(currentFilePath, normalizedRequestPath)
-            : normalizedRequestPath;
-    }
-
-    getBasename(path) {
-        const normalizedPath = this.normalizePath(path);
-        if (!normalizedPath) return '';
-        return normalizedPath.includes('/')
-            ? normalizedPath.substring(normalizedPath.lastIndexOf('/') + 1)
-            : normalizedPath;
-    }
-
-    getCandidatePaths(targetPath) {
-        const normalizedTarget = this.normalizePath(targetPath);
-        if (!normalizedTarget) return [];
-
-        const candidates = [normalizedTarget];
-        const parts = normalizedTarget.split('/');
-        if (parts.length > 1) {
-            for (let i = 1; i < parts.length - 1; i++) {
-                candidates.push(parts.slice(i).join('/'));
-            }
-        }
-
-        return Array.from(new Set(candidates));
-    }
-
-    getFileSystemEntries(fileSystem) {
-        if (fileSystem instanceof Map) {
-            return Array.from(fileSystem.entries());
-        }
-        if (fileSystem && typeof fileSystem === 'object') {
-            return Object.entries(fileSystem);
-        }
-        return [];
-    }
-
-    findUniqueByBasename(entries, targetPath) {
-        const targetBasename = this.getBasename(targetPath);
-        if (!targetBasename) return null;
-
-        const targetBasenameLower = targetBasename.toLowerCase();
-        const matches = entries.filter(([filename]) => this.getBasename(filename).toLowerCase() === targetBasenameLower);
-
-        return matches.length === 1
-            ? { path: matches[0][0], file: matches[0][1] }
-            : null;
-    }
-
-    /**
-     * Resolves a relative path against a base path
-     * @param {string} basePath - The base file path
-     * @param {string} relativePath - The relative path to resolve
-     * @returns {string} The resolved absolute path
-     */
-    resolvePath(basePath, relativePath) {
-        const normalizedRelativePath = this.normalizePath(relativePath);
-        if (!normalizedRelativePath) return '';
-
-        if (String(relativePath || '').trim().startsWith('/')) {
-            return normalizedRelativePath;
-        }
-
-        const normalizedBasePath = this.normalizePath(basePath);
-        const baseDir = normalizedBasePath.includes('/')
-            ? normalizedBasePath.substring(0, normalizedBasePath.lastIndexOf('/'))
-            : '';
-
-        const baseParts = baseDir ? baseDir.split('/') : [];
-        const relativeParts = normalizedRelativePath.split('/');
-        const resultParts = [...baseParts];
-
-        for (const part of relativeParts) {
-            if (part === '..') {
-                if (resultParts.length > 0) {
-                    resultParts.pop();
-                }
-            } else if (part !== '.' && part !== '') {
-                resultParts.push(part);
-            }
-        }
-
-        return resultParts.join('/');
-    }
-
-    findFileRecord(fileSystem, targetFilename, currentFilePath = '') {
-        const targetPath = this.normalizeRequestPath(targetFilename, currentFilePath);
-        if (!targetPath) return null;
-
-        const entries = this.getFileSystemEntries(fileSystem);
-        if (entries.length === 0) return null;
-
-        const directCandidates = this.getCandidatePaths(targetPath);
-        for (const candidate of directCandidates) {
-            const exactMatch = fileSystem instanceof Map ? fileSystem.get(candidate) : fileSystem[candidate];
-            if (exactMatch) {
-                return { path: candidate, file: exactMatch };
-            }
-        }
-
-        const lowerCandidates = new Set(directCandidates.map((candidate) => candidate.toLowerCase()));
-        for (const [filename, file] of entries) {
-            if (lowerCandidates.has(this.normalizePath(filename).toLowerCase())) {
-                return { path: filename, file };
-            }
-        }
-
-        if (targetPath.includes('/')) {
-            const targetSuffix = `/${targetPath}`;
-            const targetSuffixLower = targetSuffix.toLowerCase();
-            for (const [filename, file] of entries) {
-                const normalizedFilename = this.normalizePath(filename);
-                if (normalizedFilename.endsWith(targetSuffix) || normalizedFilename.toLowerCase().endsWith(targetSuffixLower)) {
-                    return { path: filename, file };
-                }
-            }
-        }
-
-        return this.findUniqueByBasename(entries, targetPath);
-    }
-
-    /**
-     * Finds a file in the virtual file system
-     * @param {Map} fileSystem - The virtual file system map
-     * @param {string} targetFilename - The filename to find
-     * @param {string} currentFilePath - The current file context for relative paths
-     * @returns {Object|null} The file data or null if not found
-     */
-    findFile(fileSystem, targetFilename, currentFilePath = '') {
-        return this.findFileRecord(fileSystem, targetFilename, currentFilePath)?.file || null;
-    }
-
-    /**
-     * Gets a data URL for a file (handles both binary and text files)
-     * @param {Object} fileData - The file data object
-     * @param {string} defaultMimeType - Default MIME type for non-binary files
-     * @returns {string} The data URL or content
-     */
-    getFileDataUrl(fileData, defaultMimeType = 'text/plain') {
-        if (fileData.isBinary) {
-            return fileData.content;
-        }
-
-        // Handle SVG specially
-        if (fileData.type === 'svg') {
-            return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(fileData.content)}`;
-        }
-
-        // For other text files, create a proper data URL
-        const mimeType = this.fileTypeUtils.getMimeTypeFromFileType(fileData.type) || defaultMimeType;
-        return `data:${mimeType};charset=utf-8,${encodeURIComponent(fileData.content)}`;
-    }
-}
-
-class PreviewScriptGenerator {
-    /**
-     * Generates JavaScript code for path resolution (used in injected scripts)
-     * @returns {string} JavaScript code for the resolvePath function
-     */
-    generateResolvePathCode() {
-        return `
-    function isExternalPreviewUrl(value) {
-    return /^(?:[a-z][a-z\\d+.-]*:|\\/\\/|#)/i.test(value || "");
-    }
-    function splitPathSuffix(value) {
-    const rawValue = String(value || "").trim();
-    const match = rawValue.match(/([?#].*)$/);
-    return {
-        path: match ? rawValue.slice(0, -match[1].length) : rawValue,
-        suffix: match ? match[1] : ""
-    };
-    }
-    function safeDecodePath(path) {
-    return String(path || "").split("/").map(function(segment) {
-        try {
-            return decodeURIComponent(segment);
-        } catch (error) {
-            return segment;
-        }
-    }).join("/");
-    }
-    function normalizePath(path) {
-    const parts = safeDecodePath(path).replace(/\\\\/g, "/").replace(/^\\/+/,"").split("/");
-    const normalizedParts = [];
-    for (const part of parts) {
-        if (!part || part === ".") continue;
-        if (part === "..") {
-            normalizedParts.pop();
-            continue;
-        }
-        normalizedParts.push(part);
-    }
-    return normalizedParts.join("/");
-    }
-    function resolvePath(basePath, relativePath) {
-    const normalizedRelativePath = normalizePath(relativePath);
-    if (!normalizedRelativePath) return "";
-    if (String(relativePath || "").trim().startsWith("/")) {
-        return normalizedRelativePath;
-    }
-    const normalizedBasePath = normalizePath(basePath);
-    const baseDir = normalizedBasePath.includes("/") ? normalizedBasePath.substring(0, normalizedBasePath.lastIndexOf("/")) : "";
-    const baseParts = baseDir ? baseDir.split("/") : [];
-    const relativeParts = normalizedRelativePath.split("/");
-    const resultParts = [...baseParts];
-    for (const part of relativeParts) {
-        if (part === "..") {
-            if (resultParts.length > 0) resultParts.pop();
-        } else if (part !== "." && part !== "") {
-            resultParts.push(part);
-        }
-    }
-    return resultParts.join("/");
-    }`;
-    }
-
-    /**
-     * Generates JavaScript code for file lookup (used in injected scripts)
-     * @returns {string} JavaScript code for the findFileInSystem function
-     */
-    generateFindFileCode() {
-        return `
-    function normalizeRequestPath(path, currentFilePath = "") {
-    if (typeof path !== "string" || !path.trim() || isExternalPreviewUrl(path.trim())) return "";
-    const requestPath = splitPathSuffix(path).path;
-    const normalizedRequestPath = normalizePath(requestPath);
-    if (!normalizedRequestPath) return "";
-    if (requestPath.trim().startsWith("/")) return normalizedRequestPath;
-    return currentFilePath ? resolvePath(currentFilePath, normalizedRequestPath) : normalizedRequestPath;
-    }
-    function getBasename(path) {
-    const normalizedPath = normalizePath(path);
-    if (!normalizedPath) return "";
-    return normalizedPath.includes("/") ? normalizedPath.substring(normalizedPath.lastIndexOf("/") + 1) : normalizedPath;
-    }
-    function getCandidatePaths(targetPath) {
-    const normalizedTarget = normalizePath(targetPath);
-    if (!normalizedTarget) return [];
-    const candidates = [normalizedTarget];
-    const parts = normalizedTarget.split("/");
-    if (parts.length > 1) {
-        for (let i = 1; i < parts.length - 1; i++) {
-            candidates.push(parts.slice(i).join("/"));
-        }
-    }
-    return Array.from(new Set(candidates));
-    }
-    function findFileRecordInSystem(targetFilename, currentFilePath = "") {
-    const targetPath = normalizeRequestPath(targetFilename, currentFilePath);
-    if (!targetPath) return null;
-    const entries = Object.entries(virtualFileSystem);
-    if (entries.length === 0) return null;
-    const directCandidates = getCandidatePaths(targetPath);
-    for (const candidate of directCandidates) {
-        const exactMatch = virtualFileSystem[candidate];
-        if (exactMatch) return { path: candidate, file: exactMatch };
-    }
-    const lowerCandidates = new Set(directCandidates.map(function(candidate) { return candidate.toLowerCase(); }));
-    for (const [filename, file] of entries) {
-        if (lowerCandidates.has(normalizePath(filename).toLowerCase())) return { path: filename, file };
-    }
-    if (targetPath.includes("/")) {
-        const targetSuffix = "/" + targetPath;
-        const targetSuffixLower = targetSuffix.toLowerCase();
-        for (const [filename, file] of entries) {
-            const normalizedFilename = normalizePath(filename);
-            if (normalizedFilename.endsWith(targetSuffix) || normalizedFilename.toLowerCase().endsWith(targetSuffixLower)) {
-                return { path: filename, file };
-            }
-        }
-    }
-    const targetBasename = getBasename(targetPath);
-    if (targetBasename) {
-        const targetBasenameLower = targetBasename.toLowerCase();
-        const matches = entries.filter(function(entry) {
-            return getBasename(entry[0]).toLowerCase() === targetBasenameLower;
-        });
-        if (matches.length === 1) {
-            return { path: matches[0][0], file: matches[0][1] };
-        }
-    }
-    return null;
-    }
-    function findFileInSystem(targetFilename, currentFilePath = "") {
-    return findFileRecordInSystem(targetFilename, currentFilePath)?.file || null;
-    }`;
-    }
-
-    generateAssetResolverCode() {
-        return `
-    function getDataUrlForFile(fileData) {
-    if (!fileData) return null;
-    if (fileData.isBinary) return fileData.content;
-    if (fileData.type === "svg") {
-        return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(fileData.content);
-    }
-    const typeMap = {
-        "html": "text/html",
-        "css": "text/css",
-        "javascript": "text/javascript",
-        "javascript-module": "text/javascript",
-        "json": "application/json",
-        "xml": "application/xml",
-        "markdown": "text/markdown",
-        "text": "text/plain"
-    };
-    const mimeType = typeMap[fileData.type] || "text/plain";
-    return "data:" + mimeType + ";charset=utf-8," + encodeURIComponent(fileData.content);
-    }
-    function resolveVirtualAssetUrl(value, typeCheck, currentFilePath = getCurrentFilePath()) {
-    if (typeof value !== "string" || !value || isExternalPreviewUrl(value)) return null;
-    const fileData = findFileInSystem(value, currentFilePath);
-    if (!fileData || (typeof typeCheck === "function" && !typeCheck(fileData))) return null;
-    const dataUrl = getDataUrlForFile(fileData);
-    return dataUrl || null;
-    }
-    function rewriteVirtualCssContent(cssContent, currentFilePath = getCurrentFilePath()) {
-    if (typeof cssContent !== "string" || !cssContent.includes("url(")) return cssContent;
-    return cssContent.replace(/url\\(\\s*(["']?)([^"')]+)\\1\\s*\\)/gi, function(match, quote, url) {
-        const resolved = resolveVirtualAssetUrl(url, function(fileData) {
-            return isImageLikeFile(fileData) || fileData.type === "font";
-        }, currentFilePath);
-        return resolved ? 'url("' + resolved + '")' : match;
-    });
-    }
-    function getVirtualFileText(fileData, currentFilePath = getCurrentFilePath()) {
-    if (!fileData) return "";
-    if (fileData.type === "css" && !fileData.isBinary) {
-        return rewriteVirtualCssContent(fileData.content, currentFilePath);
-    }
-    return fileData.content;
-    }
-    function isImageLikeFile(fileData) {
-    return fileData && (fileData.type === "image" || fileData.type === "svg");
-    }
-    function isMediaLikeFile(fileData) {
-    return fileData && (fileData.type === "audio" || fileData.type === "video" || isImageLikeFile(fileData));
-    }
-    function isLinkLikeFile(fileData) {
-    return fileData && (fileData.type === "css" || fileData.type === "html" || fileData.type === "font" || isImageLikeFile(fileData));
-    }
-    function isScriptLikeFile(fileData) {
-    return fileData && (fileData.type === "javascript" || fileData.type === "javascript-module");
-    }`;
-    }
-
-    /**
-     * Generates JavaScript code for getting current file path (used in injected scripts)
-     * @returns {string} JavaScript code for the getCurrentFilePath function
-     */
-    generateGetCurrentFilePathCode() {
-        return `
-    function getCurrentFilePath() {
-    try {
-        if (window.__currentExecutionContext) return window.__currentExecutionContext;
-        return mainHtmlPath;
-    } catch (e) {
-        return mainHtmlPath;
-    }
-    }`;
-    }
-
-    /**
-     * Generates JavaScript code for a shared base64-to-Uint8Array helper (used in injected scripts)
-     * Eliminates duplicate byte-conversion loops in fetch, XHR, and other overrides
-     * @returns {string} JavaScript code for the base64ToUint8Array function
-     */
-    generateBase64HelperCode() {
-        return `
-    function base64ToUint8Array(base64) {
-    const binaryString = atob(base64);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-    }
-    return bytes;
-    }`;
-    }
-
-    /**
-     * Generates JavaScript code for the fetch override (used in injected scripts)
-     * Intercepts fetch requests to serve files from the virtual file system
-     * @returns {string} JavaScript code for the fetch override
-     */
-    generateFetchOverrideCode() {
-        return `
-    const originalFetch = window.fetch;
-    window.fetch = function(input, init) {
-    let url = input;
-    if (typeof input === "object" && input.url) {
-        url = input.url;
-    }
-
-    const currentFilePath = getCurrentFilePath();
-    if (typeof url !== "string" || isExternalPreviewUrl(url)) {
-        return originalFetch.apply(this, arguments);
-    }
-    const fileRecord = findFileRecordInSystem(url, currentFilePath);
-    const fileData = fileRecord ? fileRecord.file : null;
-
-    if (fileData) {
-        const textContent = getVirtualFileText(fileData, fileRecord.path);
-        const response = {
-            ok: true,
-            status: 200,
-            statusText: "OK",
-            headers: new Headers({
-                "Content-Type": fileData.type === "json" ? "application/json" :
-                               fileData.type === "html" ? "text/html" :
-                               fileData.type === "css" ? "text/css" :
-                               fileData.type === "javascript" ? "text/javascript" :
-                               fileData.type === "xml" ? "application/xml" :
-                               "text/plain"
-            }),
-            url: url,
-            text: () => Promise.resolve(textContent),
-            json: () => {
-                try {
-                    return Promise.resolve(JSON.parse(textContent));
-                } catch (e) {
-                    return Promise.reject(new Error("Invalid JSON"));
-                }
-            },
-            blob: () => {
-                if (fileData.isBinary && fileData.content.startsWith("data:")) {
-                    const [header, base64] = fileData.content.split(",");
-                    const mimeType = header.match(/data:([^;]+)/)[1];
-                    return Promise.resolve(new Blob([base64ToUint8Array(base64)], { type: mimeType }));
-                } else {
-                    return Promise.resolve(new Blob([textContent], { type: fileData.type === "css" ? "text/css" : "text/plain" }));
-                }
-            },
-            arrayBuffer: () => {
-                if (fileData.isBinary && fileData.content.startsWith("data:")) {
-                    const [header, base64] = fileData.content.split(",");
-                    return Promise.resolve(base64ToUint8Array(base64).buffer);
-                } else {
-                    const encoder = new TextEncoder();
-                    return Promise.resolve(encoder.encode(textContent).buffer);
-                }
-            }
-        };
-
-        return Promise.resolve(response);
-    }
-
-    return originalFetch.apply(this, arguments);
-    };`;
-    }
-
-    /**
-     * Generates JavaScript code for the XMLHttpRequest override (used in injected scripts)
-     * Intercepts XHR requests to serve files from the virtual file system
-     * @returns {string} JavaScript code for the XMLHttpRequest override
-     */
-    generateXHROverrideCode() {
-        return `
-    const OriginalXMLHttpRequest = window.XMLHttpRequest;
-    window.XMLHttpRequest = function() {
-    const xhr = new OriginalXMLHttpRequest();
-    const originalOpen = xhr.open;
-    const originalSend = xhr.send;
-
-    let isVirtualRequest = false;
-    let virtualFileData = null;
-    let virtualFilePath = "";
-
-    xhr.open = function(method, url, async, user, password) {
-        try {
-            if (method.toUpperCase() === "GET") {
-                const currentFilePath = getCurrentFilePath();
-                if (typeof url !== "string" || isExternalPreviewUrl(url)) {
-                    isVirtualRequest = false;
-                    virtualFileData = null;
-                    virtualFilePath = "";
-                    return originalOpen.call(this, method, url, async, user, password);
-                }
-                const fileRecord = findFileRecordInSystem(url, currentFilePath);
-                const fileData = fileRecord ? fileRecord.file : null;
-
-                if (fileData) {
-                    isVirtualRequest = true;
-                    virtualFileData = fileData;
-                    virtualFilePath = fileRecord.path;
-                    xhr.setRequestHeader = function() {};
-                    xhr.overrideMimeType = function() {};
-                    return;
-                }
-            }
-
-            isVirtualRequest = false;
-            virtualFileData = null;
-            virtualFilePath = "";
-            return originalOpen.call(this, method, url, async, user, password);
-        } catch (e) {
-            isVirtualRequest = false;
-            virtualFileData = null;
-            virtualFilePath = "";
-            return originalOpen.call(this, method, url, async, user, password);
-        }
-    };
-
-    xhr.send = function(data) {
-        if (isVirtualRequest && virtualFileData) {
-            try {
-                setTimeout(() => {
-                    try {
-                        Object.defineProperty(xhr, "readyState", { value: 4, configurable: true });
-                        Object.defineProperty(xhr, "status", { value: 200, configurable: true });
-                        Object.defineProperty(xhr, "statusText", { value: "OK", configurable: true });
-
-                        const textContent = getVirtualFileText(virtualFileData, virtualFilePath);
-
-                        if (virtualFileData.isBinary && virtualFileData.content.startsWith("data:")) {
-                            if (xhr.responseType === "arraybuffer") {
-                                const [header, base64] = virtualFileData.content.split(",");
-                                Object.defineProperty(xhr, "response", { value: base64ToUint8Array(base64).buffer, configurable: true });
-                            } else if (xhr.responseType === "blob") {
-                                const [header, base64] = virtualFileData.content.split(",");
-                                const mimeType = header.match(/data:([^;]+)/)[1];
-                                Object.defineProperty(xhr, "response", { value: new Blob([base64ToUint8Array(base64)], { type: mimeType }), configurable: true });
-                            } else {
-                                Object.defineProperty(xhr, "response", { value: virtualFileData.content, configurable: true });
-                                Object.defineProperty(xhr, "responseText", { value: virtualFileData.content, configurable: true });
-                            }
-                        } else {
-                            Object.defineProperty(xhr, "responseText", { value: textContent, configurable: true });
-                            Object.defineProperty(xhr, "response", { value: textContent, configurable: true });
-                        }
-
-                        xhr.getResponseHeader = function(name) {
-                            const lowerName = name.toLowerCase();
-                            if (lowerName === "content-type") {
-                                const typeMap = {
-                                    "image": "image/png",
-                                    "audio": "audio/mpeg",
-                                    "video": "video/mp4",
-                                    "json": "application/json",
-                                    "css": "text/css",
-                                    "javascript": "text/javascript",
-                                    "html": "text/html"
-                                };
-                                return typeMap[virtualFileData.type] || "text/plain";
-                            }
-                            return null;
-                        };
-
-                        xhr.getAllResponseHeaders = function() {
-                            const contentType = xhr.getResponseHeader("content-type");
-                            return "content-type: " + contentType + "\\r\\n";
-                        };
-
-                        xhr.dispatchEvent(new Event("readystatechange"));
-                        xhr.dispatchEvent(new ProgressEvent("load"));
-                        xhr.dispatchEvent(new ProgressEvent("loadend"));
-                    } catch (e) {
-                        xhr.dispatchEvent(new ProgressEvent("error"));
-                        xhr.dispatchEvent(new ProgressEvent("loadend"));
-                    }
-                }, 1);
-            } catch (e) {
-                xhr.dispatchEvent(new ProgressEvent("error"));
-                xhr.dispatchEvent(new ProgressEvent("loadend"));
-            }
-            return;
-        }
-
-        return originalSend.call(this, data);
-    };
-
-    return xhr;
-    };`;
-    }
-
-    /**
-     * Generates JavaScript code for the Image constructor override (used in injected scripts)
-     * Intercepts Image src assignments to serve images from the virtual file system
-     * @returns {string} JavaScript code for the Image constructor override
-     */
-    /**
-     * Generates JavaScript code for a media constructor override (used in injected scripts).
-     * Intercepts src assignments to serve files from the virtual file system.
-     * Used to generate both Image and Audio overrides.
-     * @param {Object} options - Configuration for the override
-     * @param {string} options.name - Constructor name (e.g., 'Image', 'Audio')
-     * @param {string} options.typeCheck - JS expression for matching file types
-     * @param {string} options.resolveExpr - JS expression to resolve the src value
-     * @param {boolean} options.hasInitialSrc - Whether the constructor accepts an initial src argument
-     * @returns {string} JavaScript code for the constructor override
-     */
-    generateMediaOverrideCode({ name, typeCheck, resolveExpr, hasInitialSrc }) {
-        const paramList = hasInitialSrc ? 'src' : '';
-        const initSrc = hasInitialSrc ? `
-    if (src !== undefined) {
-        el.src = src;
-    }` : '';
-        return `
-    const Original${name} = window.${name};
-    window.${name} = function(${paramList}) {
-    const el = new Original${name}();
-
-    let _originalSrc = "";
-    let _resolvedSrc = "";
-
-    Object.defineProperty(el, "src", {
-        get: function() {
-            return _resolvedSrc || _originalSrc;
-        },
-        set: function(value) {
-            _originalSrc = value;
-
-            const currentFilePath = getCurrentFilePath();
-            if (typeof value !== "string" || isExternalPreviewUrl(value)) {
-                _resolvedSrc = value;
-                el.setAttribute("src", value);
-                return;
-            }
-            const fileData = findFileInSystem(value, currentFilePath);
-
-            if (fileData && (${typeCheck})) {
-                const resolved = ${resolveExpr};
-                _resolvedSrc = resolved;
-                el.setAttribute("src", resolved);
-            } else {
-                _resolvedSrc = value;
-                el.setAttribute("src", value);
-            }
-        },
-        enumerable: true,
-        configurable: true
-    });
-    ${initSrc}
-    return el;
-    };`;
-    }
-
-    generateImageOverrideCode() {
-        return this.generateMediaOverrideCode({
-            name: 'Image',
-            typeCheck: 'fileData.type === "image" || fileData.type === "svg"',
-            resolveExpr: 'fileData.isBinary ? fileData.content : "data:image/svg+xml;charset=utf-8," + encodeURIComponent(fileData.content)',
-            hasInitialSrc: false
-        });
-    }
-
-    generateAudioOverrideCode() {
-        return this.generateMediaOverrideCode({
-            name: 'Audio',
-            typeCheck: 'fileData.type === "audio"',
-            resolveExpr: 'fileData.content',
-            hasInitialSrc: true
-        });
-    }
-
-    /**
-     * Generates JavaScript code for intercepting dynamic CSS url() property assignments
-     * Resolves virtual file paths in style properties like backgroundImage
-     * @returns {string} JavaScript code for the CSS URL override
-     */
-    generateCSSURLOverrideCode() {
-        return `
-    (function() {
-    function resolveUrlsInValue(value) {
-        if (typeof value !== 'string' || !value.includes('url(')) return value;
-        return value.replace(/url\\(["']?([^"')]+)["']?\\)/g, function(match, url) {
-            if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('//')) {
-                return match;
-            }
-            const currentFilePath = getCurrentFilePath();
-            const resolved = resolveVirtualAssetUrl(url, isImageLikeFile, currentFilePath);
-            if (resolved) {
-                return 'url("' + resolved + '")';
-            }
-            return match;
-        });
-    }
-    const urlProps = new Set(['backgroundImage', 'background', 'listStyleImage', 'borderImage', 'borderImageSource', 'cursor', 'content',
-        'background-image', 'list-style-image', 'border-image', 'border-image-source']);
-    const origSetProperty = CSSStyleDeclaration.prototype.setProperty;
-    CSSStyleDeclaration.prototype.setProperty = function(prop, value, priority) {
-        if (urlProps.has(prop)) value = resolveUrlsInValue(value);
-        return origSetProperty.call(this, prop, value, priority);
-    };
-    const styleDesc = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'style');
-    if (styleDesc && styleDesc.get) {
-        const origStyleGet = styleDesc.get;
-        const proxyCache = new WeakMap();
-        Object.defineProperty(HTMLElement.prototype, 'style', {
-            get: function() {
-                const realStyle = origStyleGet.call(this);
-                if (proxyCache.has(realStyle)) return proxyCache.get(realStyle);
-                const proxy = new Proxy(realStyle, {
-                    set: function(target, prop, value) {
-                        if (typeof prop === 'string' && urlProps.has(prop)) {
-                            value = resolveUrlsInValue(value);
-                        }
-                        target[prop] = value;
-                        return true;
-                    },
-                    get: function(target, prop) {
-                        const val = target[prop];
-                        if (typeof val === 'function') return val.bind(target);
-                        return val;
-                    }
-                });
-                proxyCache.set(realStyle, proxy);
-                return proxy;
-            },
-            set: styleDesc.set,
-            enumerable: styleDesc.enumerable,
-            configurable: true
-        });
-    }
-    })();`;
-    }
-
-    /**
-     * Generates JavaScript code for intercepting .src on existing DOM image/audio elements
-     * Ensures elements created via HTML (not via new Image()/new Audio()) also resolve virtual paths
-     * @returns {string} JavaScript code for the element src override
-     */
-    generateElementSrcOverrideCode() {
-        return `
-    (function() {
-    function resolveElementAsset(el, value, typeCheck) {
-        if (typeof value !== 'string' || !value) return null;
-        return resolveVirtualAssetUrl(value, typeCheck);
-    }
-    function getTypeCheckForElement(el, attrName) {
-        if (attrName === 'href') return isLinkLikeFile;
-        if (attrName === 'poster') return isImageLikeFile;
-        if (attrName === 'srcset') return isImageLikeFile;
-        if (el instanceof HTMLImageElement) return isImageLikeFile;
-        if (el instanceof HTMLSourceElement) return isMediaLikeFile;
-        if (el instanceof HTMLMediaElement) return function(f) { return f.type === "audio" || f.type === "video"; };
-        if (el instanceof HTMLScriptElement) return isScriptLikeFile;
-        return null;
-    }
-    function resolveSrcsetValue(value) {
-        if (typeof value !== 'string' || !value || isExternalPreviewUrl(value.trim())) return null;
-        let changed = false;
-        const resolvedCandidates = value.split(',').map(function(candidate) {
-            const trimmed = candidate.trim();
-            if (!trimmed) return candidate;
-            const parts = trimmed.split(/\\s+/);
-            const resolved = resolveVirtualAssetUrl(parts[0], isImageLikeFile);
-            if (!resolved) return candidate;
-            changed = true;
-            return [resolved].concat(parts.slice(1)).join(' ');
-        });
-        return changed ? resolvedCandidates.join(', ') : null;
-    }
-    function overrideUrlProperty(proto, propertyName, typeCheck) {
-        const descriptor = Object.getOwnPropertyDescriptor(proto, propertyName);
-        if (!descriptor || !descriptor.set) return;
-        const origSet = descriptor.set;
-        const origGet = descriptor.get;
-        Object.defineProperty(proto, propertyName, {
-            set: function(value) {
-                const resolved = propertyName === 'srcset'
-                    ? resolveSrcsetValue(value)
-                    : resolveElementAsset(this, value, typeCheck);
-                if (resolved) {
-                    origSet.call(this, resolved);
-                    return;
-                }
-                origSet.call(this, value);
-            },
-            get: origGet ? function() { return origGet.call(this); } : undefined,
-            enumerable: descriptor.enumerable,
-            configurable: true
-        });
-    }
-    overrideUrlProperty(HTMLImageElement.prototype, 'src', isImageLikeFile);
-    overrideUrlProperty(HTMLMediaElement.prototype, 'src', function(f) { return f.type === "audio" || f.type === "video"; });
-    overrideUrlProperty(HTMLSourceElement.prototype, 'src', isMediaLikeFile);
-    overrideUrlProperty(HTMLLinkElement.prototype, 'href', isLinkLikeFile);
-    overrideUrlProperty(HTMLScriptElement.prototype, 'src', isScriptLikeFile);
-    overrideUrlProperty(HTMLImageElement.prototype, 'srcset', isImageLikeFile);
-    overrideUrlProperty(HTMLSourceElement.prototype, 'srcset', isImageLikeFile);
-    overrideUrlProperty(HTMLVideoElement.prototype, 'poster', isImageLikeFile);
-
-    const originalSetAttribute = Element.prototype.setAttribute;
-    Element.prototype.setAttribute = function(name, value) {
-        const attrName = String(name || '').toLowerCase();
-        if (['src', 'href', 'poster', 'srcset'].includes(attrName) && typeof value === 'string') {
-            const typeCheck = getTypeCheckForElement(this, attrName);
-            if (typeCheck) {
-                const resolved = attrName === 'srcset'
-                    ? resolveSrcsetValue(value)
-                    : resolveElementAsset(this, value, typeCheck);
-                if (resolved) {
-                    return originalSetAttribute.call(this, name, resolved);
-                }
-            }
-        }
-        return originalSetAttribute.call(this, name, value);
-    };
-
-    function resolveExistingElement(el) {
-        if (!el || typeof el.getAttribute !== 'function') return;
-        for (const attrName of ['src', 'href', 'poster', 'srcset']) {
-            if (!el.hasAttribute(attrName)) continue;
-            const originalValue = el.getAttribute(attrName);
-            if (!originalValue || (attrName !== 'srcset' && isExternalPreviewUrl(originalValue))) continue;
-            const typeCheck = getTypeCheckForElement(el, attrName);
-            if (!typeCheck) continue;
-            const resolved = attrName === 'srcset'
-                ? resolveSrcsetValue(originalValue)
-                : resolveElementAsset(el, originalValue, typeCheck);
-            if (resolved && resolved !== originalValue) {
-                originalSetAttribute.call(el, attrName, resolved);
-                const mediaEl = el instanceof HTMLMediaElement
-                    ? el
-                    : (el instanceof HTMLSourceElement && el.parentElement instanceof HTMLMediaElement ? el.parentElement : null);
-                if (mediaEl && typeof mediaEl.load === 'function') {
-                    try { mediaEl.load(); } catch (e) {}
-                }
-            }
-        }
-    }
-    function resolveExistingAssets(root) {
-        if (!root || typeof root.querySelectorAll !== 'function') return;
-        if (root.matches && root.matches('img,video,audio,source,link,script')) resolveExistingElement(root);
-        root.querySelectorAll('img,video,audio,source,link,script').forEach(resolveExistingElement);
-    }
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function() { resolveExistingAssets(document); }, { once: true });
-    } else {
-        resolveExistingAssets(document);
-    }
-    const observer = new MutationObserver(function(mutations) {
-        for (const mutation of mutations) {
-            if (mutation.type === 'childList') {
-                mutation.addedNodes.forEach(function(node) {
-                    if (node.nodeType === 1) resolveExistingAssets(node);
-                });
-            } else if (mutation.type === 'attributes') {
-                resolveExistingElement(mutation.target);
-            }
-        }
-    });
-    observer.observe(document.documentElement, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['src', 'href', 'poster', 'srcset']
-    });
-    })();`;
-    }
-
-    /**
-     * Generates JavaScript code for console capture and error handling (used in injected scripts)
-     * Overrides console methods to post messages to the parent window and captures errors
-     * @param {string} messageType - The message type identifier for postMessage communication
-     * @returns {string} JavaScript code for console capture
-     */
-
-    /**
-     * Generates JavaScript code that safely handles Service Worker registration in preview contexts.
-     * @returns {string} JavaScript code for service worker override
-     */
-    generateServiceWorkerOverrideCode() {
-        return `
-    try {
-    const serviceWorkerContainer = navigator && navigator.serviceWorker;
-    const isPreviewLikeProtocol = /^(about:|data:|blob:)/i.test(window.location.protocol || '') || window.location.href === 'about:srcdoc';
-    if (serviceWorkerContainer && typeof serviceWorkerContainer.register === 'function' && isPreviewLikeProtocol) {
-        const unsupportedError = () => {
-            const error = new Error('Service Worker registration is not supported in preview mode (about:srcdoc/data/blob contexts).');
-            error.name = 'PreviewServiceWorkerUnsupportedError';
-            return error;
-        };
-        Object.defineProperty(serviceWorkerContainer, 'register', {
-            configurable: true,
-            writable: true,
-            value: function registerServiceWorkerInPreview() {
-                const err = unsupportedError();
-                if (window && window.console && typeof window.console.warn === 'function') {
-                    window.console.warn('[Preview] ' + err.message);
-                }
-                return Promise.reject(err);
-            }
-        });
-    }
-    } catch (serviceWorkerOverrideError) {
-    // no-op: preview safety override should never break page execution
-    }`;
-    }
-
-    generateConsoleOverrideCode(messageType) {
-        return `
-    const normalizeSourcePath = (source) => {
-    if (!source || typeof source !== 'string') return '';
-    try {
-        const parsed = new URL(source, window.location.href);
-        if (parsed.protocol === 'blob:' || parsed.protocol === 'data:' || parsed.href === 'about:srcdoc') {
-            return source;
-        }
-        const path = parsed.pathname || '';
-        return path.startsWith('/') ? path.slice(1) : path;
-    } catch (error) {
-        return source.startsWith('/') ? source.slice(1) : source;
-    }
-    };
-    const classifySourceOrigin = (source) => {
-    if (!source) return 'unknown';
-    if (typeof source !== 'string') return 'unknown';
-
-    const normalizedPath = normalizeSourcePath(source);
-    if (normalizedPath && Object.prototype.hasOwnProperty.call(virtualFileSystem, normalizedPath)) {
-        return 'virtual-file';
-    }
-
-    if (source.startsWith('http://') || source.startsWith('https://') || source.startsWith('//')) {
-        return 'external-url';
-    }
-
-    if (/^(blob:|data:|about:srcdoc)/i.test(source)) {
-        return 'virtual-file';
-    }
-
-    return 'unknown';
-    };
-    const serializeArg = (arg) => {
-    if (arg instanceof Error) {
-        return {
-            message: arg.message,
-            stack: arg.stack,
-            name: arg.name
-        };
-    }
-    try {
-        return JSON.parse(JSON.stringify(arg));
-    } catch (e) {
-        return 'Unserializable Object';
-    }
-    };
-    const postLog = (level, args) => {
-    const formattedArgs = Array.isArray(args) ? args.map(serializeArg) : [serializeArg(args)];
-    window.parent.postMessage({ type: '${messageType}', level, message: formattedArgs }, '*');
-    };
-    const postStructuredError = (payload) => {
-    window.parent.postMessage({
-        type: '${messageType}',
-        level: 'error',
-        message: [{
-            kind: 'runtime-error',
-            message: payload.message || 'Unknown runtime error',
-            source: payload.source || '',
-            line: Number(payload.line) || 0,
-            column: Number(payload.column) || 0,
-            stack: payload.stack || '',
-            originType: classifySourceOrigin(payload.source)
-        }]
-    }, '*');
-    };
-    const originalConsole = { ...window.console };
-    ['log', 'info', 'warn', 'error'].forEach(level => {
-    window.console[level] = (...args) => {
-        postLog(level, Array.from(args));
-        originalConsole[level](...args);
-    };
-    });
-    window.onerror = (message, source, lineno, colno, error) => {
-    if (message === 'Script error.' && !source) return true;
-    postStructuredError({
-        message: message,
-        source: source,
-        line: lineno,
-        column: colno,
-        stack: error && error.stack ? error.stack : ''
-    });
-    return true;
-    };
-    window.addEventListener('unhandledrejection', e => {
-    const reason = e && Object.prototype.hasOwnProperty.call(e, 'reason') ? e.reason : 'Unknown rejection reason';
-    postStructuredError({
-        message: 'Unhandled promise rejection',
-        source: (e && e.reason && e.reason.sourceURL) || '',
-        line: (e && e.reason && e.reason.line) || 0,
-        column: (e && e.reason && e.reason.column) || 0,
-        stack: reason && reason.stack ? reason.stack : ''
-    });
-    postLog('error', ['Unhandled promise rejection:', reason]);
-    });`;
-    }
-}
-
-class HtmlGenerators {
-    toolbarButton(icon, text, className, ariaLabel, title) {
-        return `<button class="toolbar-btn ${className}" aria-label="${ariaLabel}" title="${title}">
-            <span class="btn-icon">${icon}</span> ${text}
-        </button>`;
-    }
-
-    fileTypeOption(value, label, selected = false) {
-        return `<option value="${value}" ${selected ? 'selected' : ''}>${label}</option>`;
-    }
-
-    filePreview(type, content, fileName = '') {
-        const previews = {
-            image: `<div class="file-preview image-preview">
-                <img src="${content}" alt="Preview">
-            </div>`,
-            audio: `<div class="file-preview audio-preview">
-                <audio controls>
-                    <source src="${content}">
-                    Your browser does not support the audio element.
-                </audio>
-            </div>`,
-            video: `<div class="file-preview video-preview">
-                <video controls>
-                    <source src="${content}">
-                    Your browser does not support the video element.
-                </video>
-            </div>`,
-            pdf: `<div class="file-preview pdf-preview">
-                <object data="${content}" type="application/pdf">
-                    <p>PDF failed to load. <a href="${content}" target="_blank">Open in new tab</a></p>
-                </object>
-            </div>`,
-            default: `<div class="file-preview binary-preview">
-                <p>${SVG_ICONS.fileBinary} Binary file: Cannot display content</p>
-                <p>File can be referenced in HTML code</p>
-            </div>`
-        };
-        return previews[type] || previews.default;
-    }
-
-    mediaPreviewContent(type, content, fileName) {
-        const safeFileName = escapeHtml(fileName);
-        const safeContent = escapeHtml(content);
-        const containers = {
-            image: `<div class="media-preview-container">
-                <img src="${safeContent}" alt="${safeFileName}">
-            </div>`,
-            audio: `<div class="media-preview-container">
-                <h3>${safeFileName}</h3>
-                <audio controls>
-                    <source src="${safeContent}">
-                    Your browser does not support the audio element.
-                </audio>
-            </div>`,
-            video: `<div class="media-preview-container">
-                <h3>${safeFileName}</h3>
-                <video controls>
-                    <source src="${safeContent}">
-                    Your browser does not support the video element.
-                </video>
-            </div>`,
-            pdf: `<div class="media-preview-container">
-                <h3>${safeFileName}</h3>
-                <object data="${safeContent}" type="application/pdf">
-                    <p>PDF failed to load. <a href="${safeContent}" target="_blank">Open in new tab</a></p>
-                </object>
-            </div>`,
-            svg: (content, fileName, isBinary) => {
-                const svgDataUrl = isBinary ? content : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(content)}`;
-                const safeSvgUrl = escapeHtml(svgDataUrl);
-                return `<div class="media-preview-container">
-                    <h3>${safeFileName}</h3>
-                    <img src="${safeSvgUrl}" alt="${safeFileName}">
-                </div>`;
-            },
-            default: `<div class="media-preview-container">
-                <h3>${safeFileName}</h3>
-                <p>Preview not available for this file type.</p>
-            </div>`
-        };
-        return typeof containers[type] === 'function' ? containers[type](content, fileName) : (containers[type] || containers.default);
-    }
-}
-
-class NotificationSystem {
-    constructor() {
-        this.container = null;
-        this.progressId = 0;
-    }
-
-
-    /**
-     * Returns (and lazily creates) the notification container element.
-     * The container is appended once to document.body and reused for all notifications.
-     * @returns {HTMLElement}
-     */
-    getContainer() {
-        if (!this.container) {
-            this.container = document.createElement('div');
-            this.container.className = 'notification-container';
-            this.container.setAttribute('role', 'status');
-            this.container.setAttribute('aria-live', 'polite');
-            this.container.setAttribute('aria-atomic', 'false');
-            document.body.appendChild(this.container);
-        }
-        return this.container;
-    }
-
-    show(message, type = 'info') {
-        const container = this.getContainer();
-
-        const notification = document.createElement('div');
-        notification.className = `notification notification-${type}`;
-        notification.innerHTML = `
-            <div class="notification-header">
-                <span class="notification-message">${escapeHtml(message)}</span>
-                <button class="notification-close-btn" aria-label="Close notification" title="Close">${SVG_ICONS.close}</button>
-            </div>
-        `;
-
-        container.appendChild(notification);
-
-        // Define dismiss before attaching the close-button listener so the
-        // reference is unambiguously resolved (avoids temporal dead zone).
-        const dismiss = () => {
-            if (notification.classList.contains('notification-hiding')) return;
-            notification.classList.add('notification-hiding');
-            notification.addEventListener('animationend', () => {
-                notification.remove();
-            }, { once: true });
-        };
-
-        const closeBtn = notification.querySelector('.notification-close-btn');
-        if (closeBtn) {
-            closeBtn.addEventListener('click', dismiss);
-        }
-
-        setTimeout(dismiss, 3000);
-    }
-
-    showProgress(message, { type = 'info', total = 100 } = {}) {
-        const container = this.getContainer();
-        const notification = document.createElement('div');
-        notification.className = `notification notification-${type} notification-progress`;
-        notification.dataset.progressId = String(++this.progressId);
-
-        notification.innerHTML = `
-            <div class="notification-header">
-                <span class="notification-message">${escapeHtml(message)}</span>
-                <button class="notification-close-btn" aria-label="Close notification" title="Close">${SVG_ICONS.close}</button>
-            </div>
-            <div class="notification-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="${Math.max(total, 1)}" aria-valuenow="0">
-                <div class="notification-progress-fill"></div>
-            </div>
-        `;
-
-        container.appendChild(notification);
-
-        const messageEl = notification.querySelector('.notification-message');
-        const progressBar = notification.querySelector('.notification-progress-track');
-        const progressFill = notification.querySelector('.notification-progress-fill');
-        const closeBtn = notification.querySelector('.notification-close-btn');
-        let maxValue = Math.max(total, 1);
-        let currentValue = 0;
-
-        const dismiss = () => {
-            if (notification.classList.contains('notification-hiding')) return;
-            notification.classList.add('notification-hiding');
-            notification.addEventListener('animationend', () => notification.remove(), { once: true });
-        };
-
-        if (closeBtn) {
-            closeBtn.addEventListener('click', () => dismiss());
-        }
-
-        const update = ({ current, total: nextTotal, message: nextMessage, type: nextType } = {}) => {
-            if (typeof nextTotal === 'number' && nextTotal >= 1) {
-                maxValue = nextTotal;
-                progressBar.setAttribute('aria-valuemax', String(maxValue));
-            }
-            if (typeof current === 'number') {
-                currentValue = Math.max(0, Math.min(current, maxValue));
-                const percentage = (currentValue / maxValue) * 100;
-                progressFill.style.width = `${percentage}%`;
-                progressBar.setAttribute('aria-valuenow', String(currentValue));
-            }
-            if (typeof nextMessage === 'string' && messageEl) {
-                messageEl.textContent = nextMessage;
-            }
-            if (typeof nextType === 'string') {
-                notification.classList.remove('notification-info', 'notification-success', 'notification-warn', 'notification-error');
-                notification.classList.add(`notification-${nextType}`);
-            }
-        };
-
-        update({ current: 0, message });
-
-        return {
-            update,
-            complete: (doneMessage = 'Completed') => {
-                update({ current: maxValue, message: doneMessage, type: 'success' });
-                setTimeout(dismiss, 1200);
-            },
-            fail: (errorMessage = 'Failed') => {
-                update({ message: errorMessage, type: 'error' });
-                setTimeout(dismiss, 3000);
-            },
-            dismiss
-        };
-    }
-}
-
-class ConsoleBridge {
-    constructor(consoleMessageType, previewScriptGenerator) {
-        this.consoleMessageType = consoleMessageType;
-        this.previewScriptGenerator = previewScriptGenerator;
-        this.logCounts = { log: 0, warn: 0, error: 0, info: 0 };
-        this.filters = { log: true, warn: true, error: true, info: true };
-        this.OBJECT_COLLAPSE_THRESHOLD = 100;
-        this.COPY_FEEDBACK_DURATION = 1000;
-    }
-
-
-    /**
-     * Wires the console capture bridge to its DOM output element and the preview iframe.
-     * Must be called once after the DOM is fully cached.
-     * @param {HTMLElement} outputEl - The container element for rendered log messages
-     * @param {HTMLElement} clearBtn - The "Clear console" button
-     * @param {HTMLIFrameElement} previewFrame - The preview iframe (used to filter incoming messages)
-     */
-    init(outputEl, clearBtn, previewFrame) {
-        this.outputEl = outputEl;
-        this.previewFrame = previewFrame;
-        clearBtn.addEventListener('click', () => this.clear());
-        window.addEventListener('message', (e) => this.handleMessage(e));
-        this.initFilterButtons();
-    }
-
-    initFilterButtons() {
-        const consoleHeader = this.outputEl.parentElement.querySelector('.console-header');
-        if (!consoleHeader) return;
-
-        // Create filter container
-        const filterContainer = document.createElement('div');
-        filterContainer.className = 'console-filters';
-        filterContainer.innerHTML = `
-            <button class="console-filter-btn active" data-filter="log" title="Show logs">
-                <span class="filter-icon">${SVG_ICONS.pencil}</span>
-                <span class="filter-count" data-count="log">0</span>
-            </button>
-            <button class="console-filter-btn active" data-filter="info" title="Show info">
-                <span class="filter-icon">${SVG_ICONS.info}</span>
-                <span class="filter-count" data-count="info">0</span>
-            </button>
-            <button class="console-filter-btn active" data-filter="warn" title="Show warnings">
-                <span class="filter-icon">${SVG_ICONS.warning}</span>
-                <span class="filter-count" data-count="warn">0</span>
-            </button>
-            <button class="console-filter-btn active" data-filter="error" title="Show errors">
-                <span class="filter-icon">${SVG_ICONS.xCircle}</span>
-                <span class="filter-count" data-count="error">0</span>
-            </button>
-        `;
-
-        // Insert before clear button
-        const clearButton = consoleHeader.querySelector('.clear-btn');
-        if (clearButton) {
-            consoleHeader.insertBefore(filterContainer, clearButton);
-        } else {
-            consoleHeader.appendChild(filterContainer);
-        }
-
-        // Add filter click handlers
-        filterContainer.querySelectorAll('.console-filter-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const filterType = btn.dataset.filter;
-                this.filters[filterType] = !this.filters[filterType];
-                btn.classList.toggle('active', this.filters[filterType]);
-                this.applyFilters();
-            });
-        });
-    }
-
-    applyFilters() {
-        const messages = this.outputEl.querySelectorAll('.log-message');
-        messages.forEach(msg => {
-            const types = ['log', 'info', 'warn', 'error'];
-            for (const type of types) {
-                if (msg.classList.contains(`log-type-${type}`)) {
-                    msg.style.display = this.filters[type] ? '' : 'none';
-                    break;
-                }
-            }
-        });
-    }
-
-    updateFilterCounts() {
-        Object.keys(this.logCounts).forEach(type => {
-            const countEl = document.querySelector(`.filter-count[data-count="${type}"]`);
-            if (countEl) {
-                countEl.textContent = this.logCounts[type];
-                countEl.classList.toggle('has-count', this.logCounts[type] > 0);
-            }
-        });
-    }
-
-    /**
-     * Clears all logged messages from the output element and resets all log counters.
-     */
-    clear() {
-        this.outputEl.innerHTML = '';
-        this.logCounts = { log: 0, warn: 0, error: 0, info: 0 };
-        this.updateFilterCounts();
-    }
-
-    formatValue(arg) {
-        if (arg === null) return '<span class="console-null">null</span>';
-        if (arg === undefined) return '<span class="console-undefined">undefined</span>';
-        if (typeof arg === 'boolean') return `<span class="console-boolean">${arg}</span>`;
-        if (typeof arg === 'number') return `<span class="console-number">${arg}</span>`;
-        if (typeof arg === 'string') return escapeHtml(arg);
-        if (typeof arg === 'object' && arg !== null) {
-            try {
-                const json = JSON.stringify(arg, null, 2);
-                const isLarge = json.length > this.OBJECT_COLLAPSE_THRESHOLD || json.includes('\n');
-                if (isLarge) {
-                    return `<details class="console-object"><summary>${Array.isArray(arg) ? `Array(${arg.length})` : 'Object'}</summary><pre>${escapeHtml(json)}</pre></details>`;
-                }
-                return `<span class="console-object-inline">${escapeHtml(json)}</span>`;
-            } catch (e) {
-                return '<span class="console-error">[Unserializable Object]</span>';
-            }
-        }
-        return String(arg);
-    }
-
-    getIcon(level) {
-        const icons = {
-            log: SVG_ICONS.pencil,
-            info: SVG_ICONS.info,
-            warn: SVG_ICONS.warning,
-            error: SVG_ICONS.xCircle
-        };
-        return icons[level] || SVG_ICONS.pencil;
-    }
-
-    getTimestamp() {
-        const now = new Date();
-        return now.toLocaleTimeString('en-US', {
-            hour12: false,
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            fractionalSecondDigits: 3
-        });
-    }
-
-    formatRuntimeErrorEntry(entry) {
-        const source = entry.source || '(unknown source)';
-        const line = Number(entry.line) || 0;
-        const column = Number(entry.column) || 0;
-        const location = line || column ? `${source}:${line}:${column}` : source;
-        const origin = entry.originType || 'unknown';
-        const stack = entry.stack
-            ? `<details class="console-object"><summary>Stack trace</summary><pre>${escapeHtml(entry.stack)}</pre></details>`
-            : '';
-
-        return `<span class="console-runtime-error"><strong>${escapeHtml(String(entry.message || 'Runtime error'))}</strong> <span class="console-object-inline">(${escapeHtml(origin)})</span><br><span class="console-object-inline">${escapeHtml(location)}</span>${stack}</span>`;
-    }
-
-    normalizeMessage(message) {
-        if (Array.isArray(message)) return message;
-        if (message === undefined) return [];
-        return [message];
-    }
-
-    isStructuredRuntimeErrorEntry(arg) {
-        return !!(
-            arg &&
-            typeof arg === 'object' &&
-            !Array.isArray(arg) &&
-            arg.kind === 'runtime-error' &&
-            Object.prototype.hasOwnProperty.call(arg, 'message') &&
-            Object.prototype.hasOwnProperty.call(arg, 'source') &&
-            Object.prototype.hasOwnProperty.call(arg, 'originType')
-        );
-    }
-
-    formatMessageEntries(messageEntries) {
-        return messageEntries.map(arg => {
-            if (this.isStructuredRuntimeErrorEntry(arg)) {
-                return this.formatRuntimeErrorEntry(arg);
-            }
-            return this.formatValue(arg);
-        }).join(' ');
-    }
-
-    log(logData) {
-        const level = logData.level || 'log';
-        this.logCounts[level] = (this.logCounts[level] || 0) + 1;
-        this.updateFilterCounts();
-
-        const el = document.createElement('div');
-        el.className = `log-message log-type-${level}`;
-
-        // Apply current filter
-        if (!this.filters[level]) {
-            el.style.display = 'none';
-        }
-
-        const messageEntries = this.normalizeMessage(logData.message);
-        const messageContent = this.formatMessageEntries(messageEntries);
-
-        el.innerHTML = `
-            <span class="log-icon" aria-hidden="true">${this.getIcon(level)}</span>
-            <span class="log-timestamp">${this.getTimestamp()}</span>
-            <span class="log-content">${messageContent}</span>
-            <button class="log-copy-btn" title="Copy message" aria-label="Copy message to clipboard">${SVG_ICONS.clipboard}</button>
-        `;
-
-        // Add copy functionality with accessibility support
-        const copyBtn = el.querySelector('.log-copy-btn');
-        copyBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const text = messageEntries.map(arg => {
-                if (this.isStructuredRuntimeErrorEntry(arg)) {
-                    const source = arg.source || '(unknown source)';
-                    const line = Number(arg.line) || 0;
-                    const column = Number(arg.column) || 0;
-                    const location = line || column ? `${source}:${line}:${column}` : source;
-                    return `[RuntimeError/${arg.originType}] ${arg.message} @ ${location}${arg.stack ? `
-${arg.stack}` : ''}`;
-                }
-                if (typeof arg === 'object') {
-                    try { return JSON.stringify(arg, null, 2); } catch (e) { return String(arg); }
-                }
-                return String(arg);
-            }).join(' ');
-            navigator.clipboard.writeText(text).then(() => {
-                copyBtn.innerHTML = SVG_ICONS.checkCircle;
-                copyBtn.setAttribute('aria-label', 'Copied to clipboard');
-                setTimeout(() => {
-                    copyBtn.innerHTML = SVG_ICONS.clipboard;
-                    copyBtn.setAttribute('aria-label', 'Copy message to clipboard');
-                }, this.COPY_FEEDBACK_DURATION);
-            }).catch(() => {
-                copyBtn.innerHTML = SVG_ICONS.xCircle;
-                copyBtn.setAttribute('aria-label', 'Failed to copy');
-                setTimeout(() => {
-                    copyBtn.innerHTML = SVG_ICONS.clipboard;
-                    copyBtn.setAttribute('aria-label', 'Copy message to clipboard');
-                }, this.COPY_FEEDBACK_DURATION);
-            });
-        });
-
-        this.outputEl.appendChild(el);
-        this.outputEl.scrollTop = this.outputEl.scrollHeight;
-    }
-
-    /**
-     * Handles postMessage events from the preview iframe.
-     * Filters to only process console capture messages from the active preview frame.
-     * @param {MessageEvent} event
-     */
-    handleMessage(event) {
-        const CONSOLE_MESSAGE_TYPE = this.consoleMessageType;
-        // Guard: event.data may be null (e.g. from browser extensions).
-        if (
-            event.data &&
-            event.source === this.previewFrame?.contentWindow &&
-            event.data.type === CONSOLE_MESSAGE_TYPE
-        ) {
-            this.log(event.data);
-        }
-    }
-    getCaptureScript(fileSystem = null, mainHtmlPath = 'index.html') {
-        const MESSAGE_TYPE = this.consoleMessageType;
-
-        // Generate file system initialization script
-        let fileSystemScript = '';
-        if (fileSystem && fileSystem instanceof Map) {
-            const fileObj = {};
-            fileSystem.forEach((fileData, filename) => {
-                fileObj[filename] = {
-                    content: fileData.content,
-                    type: fileData.type,
-                    isBinary: fileData.isBinary || false
-                };
-            });
-            const jsonString = JSON.stringify(fileObj);
-            const bytes = new TextEncoder().encode(jsonString);
-            const binaryChars = new Array(bytes.length);
-            for (let i = 0; i < bytes.length; i++) binaryChars[i] = String.fromCharCode(bytes[i]);
-            const base64Data = btoa(binaryChars.join(''));
-            fileSystemScript = `
-                const virtualFileSystemData = "${base64Data}";
-                const virtualFileSystem = JSON.parse(new TextDecoder().decode(base64ToUint8Array(virtualFileSystemData)));
-                const mainHtmlPath = "${mainHtmlPath}";
-            `;
-        } else {
-            fileSystemScript = `
-                const virtualFileSystem = {};
-                const mainHtmlPath = "index.html";
-            `;
-        }
-
-        // Use the centralized code generators from previewScriptGenerator
-        const fsUtils = this.previewScriptGenerator;
-        const base64HelperCode = fsUtils.generateBase64HelperCode();
-        const resolvePathCode = fsUtils.generateResolvePathCode();
-        const findFileCode = fsUtils.generateFindFileCode();
-        const getCurrentFilePathCode = fsUtils.generateGetCurrentFilePathCode();
-        const assetResolverCode = fsUtils.generateAssetResolverCode();
-        const fetchOverrideCode = fsUtils.generateFetchOverrideCode();
-        const xhrOverrideCode = fsUtils.generateXHROverrideCode();
-        const imageOverrideCode = fsUtils.generateImageOverrideCode();
-        const audioOverrideCode = fsUtils.generateAudioOverrideCode();
-        const cssURLOverrideCode = fsUtils.generateCSSURLOverrideCode();
-        const elementSrcOverrideCode = fsUtils.generateElementSrcOverrideCode();
-        const serviceWorkerOverrideCode = fsUtils.generateServiceWorkerOverrideCode();
-        const consoleOverrideCode = fsUtils.generateConsoleOverrideCode(MESSAGE_TYPE);
-
-        return `<script>
-(function() {
-    ${fileSystemScript}
-    ${base64HelperCode}
-    ${resolvePathCode}
-    ${findFileCode}
-    ${getCurrentFilePathCode}
-    ${assetResolverCode}
-    ${fetchOverrideCode}
-    ${xhrOverrideCode}
-    ${imageOverrideCode}
-    ${audioOverrideCode}
-    ${cssURLOverrideCode}
-    ${elementSrcOverrideCode}
-    ${serviceWorkerOverrideCode}
-    ${consoleOverrideCode}
-})();
-</script>`;
-    }
-}
-
-class AssetReplacers {
-    constructor(app) {
-        this.app = app;
-    }
-
-    isExternalAssetPath(path) {
-        return this.app.fileSystemUtils.isExternalAssetPath(path);
-    }
-
-    withScriptBlocksPreserved(htmlContent, transform) {
-        if (typeof htmlContent !== 'string' || typeof transform !== 'function') {
-            return htmlContent;
-        }
-
-        const preservedBlocks = [];
-        const placeholderPrefixBase = '\uE000PREVIEWER_SCRIPT_BLOCK_';
-        let placeholderPrefix = placeholderPrefixBase;
-        while (htmlContent.includes(placeholderPrefix)) {
-            placeholderPrefix += '_';
-        }
-
-        const htmlWithoutScripts = htmlContent.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, (match) => {
-            const placeholder = `${placeholderPrefix}${preservedBlocks.length}__`;
-            preservedBlocks.push(match);
-            return placeholder;
-        });
-
-        if (preservedBlocks.length === 0) {
-            return transform(htmlContent);
-        }
-
-        const transformedHtml = transform(htmlWithoutScripts);
-        if (typeof transformedHtml !== 'string') {
-            return htmlContent;
-        }
-
-        const placeholderPattern = new RegExp(`${placeholderPrefix}(\\d+)__`, 'g');
-        return transformedHtml.replace(placeholderPattern, (match, index) => {
-            const scriptBlock = preservedBlocks[Number(index)];
-            return typeof scriptBlock === 'string' ? scriptBlock : match;
-        });
-    }
-
-    createMissingAssetConsoleScript(assetLabel, requestedPath, currentFilePath, options = {}) {
-        const safeRequestedPath = JSON.stringify(requestedPath || '');
-        const safeSourcePath = JSON.stringify(currentFilePath || 'index.html');
-        const deferUntilDomReady = Boolean(options.deferUntilDomReady);
-        const scriptAttributes = typeof options.scriptAttributes === 'string' ? options.scriptAttributes : '';
-        const logSnippet = `console.error('[Preview] ${assetLabel} not found:', ${safeRequestedPath}, 'from', ${safeSourcePath});`;
-
-        if (!deferUntilDomReady) {
-            return `<script${scriptAttributes}>${logSnippet}</script>`;
-        }
-
-        const deferredSnippet = `(function() {
-            const logMissingAsset = () => { ${logSnippet} };
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', logMissingAsset, { once: true });
-            } else {
-                logMissingAsset();
-            }
-        })();`;
-
-        return `<script${scriptAttributes}>${deferredSnippet}</script>`;
-    }
-
-    /**
-     * Configuration for different asset replacement patterns
-     * Each entry defines: regex pattern, allowed file types, and replacement strategy
-     */
-    get REPLACEMENT_CONFIGS() {
-        return {
-            css: {
-                pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.css)["']([^>]*?)>/gi,
-                types: ['css'],
-                replace: (file, match, before, filename, after, currentFilePath, resolvedPath, fileSystem) => {
-                    const cssPath = resolvedPath || filename;
-                    return `<style>${this.app.replaceCSSAssetReferences(file.content, fileSystem, cssPath)}</style>`;
-                },
-                onMissing: (match, before, filename, after, currentFilePath) => {
-                    if (this.isExternalAssetPath(filename)) {
-                        return match;
-                    }
-                    return this.createMissingAssetConsoleScript('Stylesheet', filename, currentFilePath, {
-                        deferUntilDomReady: true,
-                    });
-                }
-            },
-            images: {
-                pattern: /<img([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
-                types: ['image', 'svg'],
-                replace: (file, match) => {
-                    const src = this.app.getPreviewAssetUrl(file, 'image/png');
-                    return match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${src}"`);
-                }
-            },
-            video: {
-                pattern: /<video([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
-                types: ['video'],
-                replace: (file, match) => match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${this.app.getPreviewAssetUrl(file, 'video/mp4')}"`)
-            },
-            source: {
-                pattern: /<source([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
-                types: ['video', 'audio'],
-                replace: (file, match) => match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${this.app.getPreviewAssetUrl(file, 'application/octet-stream')}"`)
-            },
-            audio: {
-                pattern: /<audio([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
-                types: ['audio'],
-                replace: (file, match) => match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${this.app.getPreviewAssetUrl(file, 'audio/mpeg')}"`)
-            },
-            favicon: {
-                pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.ico)["']([^>]*?)>/gi,
-                types: ['image'],
-                replace: (file, match) => match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${this.app.getPreviewAssetUrl(file, 'image/x-icon')}"`)
-            },
-            font: {
-                pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.(?:woff|woff2|ttf|otf|eot))["']([^>]*?)>/gi,
-                types: ['font'],
-                replace: (file, match, before, filename, after) => `<link${before}href="${this.app.getPreviewAssetUrl(file, 'font/woff2')}"${after}>`
-            }
-        };
-    }
-
-    /**
-     * Generic replacement handler using configuration
-     * @param {string} htmlContent - The HTML content to process
-     * @param {Map} fileSystem - The virtual file system
-     * @param {string} currentFilePath - Current file path for relative resolution
-     * @param {Object} config - Replacement configuration object
-     * @returns {string} Processed HTML content
-     */
-    applyReplacement(htmlContent, fileSystem, currentFilePath, config) {
-        return htmlContent.replace(config.pattern, (match, before, filename, after) => {
-            const resolved = this.app.fileSystemUtils.findFileRecord(fileSystem, filename, currentFilePath);
-            const file = resolved?.file || null;
-            if (file && config.types.includes(file.type)) {
-                return config.replace(file, match, before, filename, after, currentFilePath, resolved.path, fileSystem);
-            }
-            if (typeof config.onMissing === 'function') {
-                return config.onMissing(match, before, filename, after, currentFilePath);
-            }
-            return match;
-        });
-    }
-
-    /**
-     * Applies all config-driven replacements (CSS, images, video, source, audio, favicon, font)
-     * in a single pass over the configuration map.
-     * Iteration follows insertion order of REPLACEMENT_CONFIGS, matching the original call sequence.
-     * @param {string} htmlContent - The HTML content to process
-     * @param {Map} fileSystem - The virtual file system
-     * @param {string} currentFilePath - Current file path for relative resolution
-     * @returns {string} Processed HTML content
-     */
-    replaceAllConfigBased(htmlContent, fileSystem, currentFilePath) {
-        for (const config of Object.values(this.REPLACEMENT_CONFIGS)) {
-            htmlContent = this.applyReplacement(htmlContent, fileSystem, currentFilePath, config);
-        }
-        return htmlContent;
-    }
-
-    replaceDownloadLinks(htmlContent, fileSystem, currentFilePath, processedHtmlFiles) {
-        if (!processedHtmlFiles) processedHtmlFiles = new Map();
-        return htmlContent.replace(/<a([^>]*?)href\s*=\s*["']([^"']+)["']([^>]*?)>/gi, (match, before, filename, after) => {
-            if (match.includes('download') || !filename.includes('://')) {
-                const resolved = this.app.fileSystemUtils.findFileRecord(fileSystem, filename, currentFilePath);
-                const file = resolved?.file || null;
-                if (file) {
-                    if (file.type === 'html' && !match.includes('download')) {
-                        const resolvedPath = resolved.path;
-                        const cachedUrl = processedHtmlFiles.get(resolvedPath);
-                        if (cachedUrl) {
-                            return match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${cachedUrl}"`);
-                        }
-                        if (!processedHtmlFiles.has(resolvedPath)) {
-                            processedHtmlFiles.set(resolvedPath, null);
-                            let processedContent = this.app.replaceAssetReferences(file.content, fileSystem, resolvedPath, processedHtmlFiles);
-                            processedContent = this.app.injectConsoleScript(processedContent, fileSystem, resolvedPath);
-                            const blob = new Blob([processedContent], { type: 'text/html' });
-                            const blobUrl = URL.createObjectURL(blob);
-                            this.app.state.previewAssetUrls.add(blobUrl);
-                            processedHtmlFiles.set(resolvedPath, blobUrl);
-                            return match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${blobUrl}"`);
-                        }
-                    }
-                    const href = this.app.getPreviewAssetUrl(file);
-                    return match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${href}"`);
-                }
-            }
-            return match;
-        });
-    }
-
-    replaceStyleTags(htmlContent, fileSystem, currentFilePath) {
-        return htmlContent.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (match, cssContent) => {
-            const updatedCSS = this.app.replaceCSSAssetReferences(cssContent, fileSystem, currentFilePath);
-            return match.replace(cssContent, updatedCSS);
-        });
-    }
-
-    replaceScriptTags(htmlContent, fileSystem, currentFilePath, workerFileSet) {
-        return htmlContent.replace(/<script([^>]*?)src\s*=\s*["']([^"']+\.(?:js|mjs))["']([^>]*?)><\/script>/gi, (match, before, filename, after) => {
-            if (workerFileSet.has(filename)) {
-                return '';
-            }
-
-            const isExternalScript = this.isExternalAssetPath(filename);
-            if (isExternalScript) {
-                return match;
-            }
-
-            const scriptHasModuleType = /\btype\s*=\s*["']module["']/i.test(`${before} ${after}`);
-            const resolved = this.app.fileSystemUtils.findFileRecord(fileSystem, filename, currentFilePath);
-            const file = resolved?.file || null;
-            if (file && (file.type === 'javascript' || file.type === 'javascript-module')) {
-                const blobUrl = this.app.createModuleAssetUrl(fileSystem, resolved.path);
-                if (blobUrl) {
-                    return match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${blobUrl}"`);
-                }
-
-                const escapedContent = file.content.replace(/<\/script>/gi, '<\\/script>');
-                return `<script>${escapedContent}</script>`;
-            }
-
-            const scriptAttributes = scriptHasModuleType ? ' type="module"' : '';
-            return this.createMissingAssetConsoleScript('Script', filename, currentFilePath, {
-                scriptAttributes,
-            });
-        });
-    }
-}
-
 class CodePreviewer {
     constructor() {
         // ============================================================================
@@ -2740,8 +26,7 @@ class CodePreviewer {
             codeModalEditor: null,
             currentCodeModalSource: null,
             codeModalSearchState: { query: '', cursorIndex: -1 },
-            activePanelId: 'default-html',
-            autoFormatTimers: new Map(),
+            activePanelId: null,
             formattingEditors: new Set(),
             mainHtmlFile: '',
             viewportResizeHandler: null,
@@ -2766,10 +51,13 @@ class CodePreviewer {
             codeModalPlaintextInputHandlerBound: false,
             settingsCloseHandler: null,
             settingsEscHandler: null,
+            settingsTooltip: {
+                activeBtn: null,
+                isPinned: false
+            },
             settings: {
                 lineNumbers: true,
                 lineWrapping: false,
-                autoFormatOnType: false,
                 fontSize: 14,
                 theme: 'dracula',
                 tabSize: 4,
@@ -2810,7 +98,6 @@ class CodePreviewer {
                 SETTINGS_MODAL: 'settings-modal',
                 SETTINGS_LINE_NUMBERS: 'setting-line-numbers',
                 SETTINGS_LINE_WRAP: 'setting-line-wrap',
-                SETTINGS_AUTO_FORMAT: 'setting-auto-format',
                 SETTINGS_FONT_SIZE: 'setting-font-size',
                 SETTINGS_EDITOR_THEME: 'setting-editor-theme',
                 SETTINGS_TAB_SIZE: 'setting-tab-size',
@@ -2973,6 +260,7 @@ class CodePreviewer {
         this.ensureDefaultContentFile();
         this.applyEditorSettingsToAllEditors();
         this.syncSettingsUI();
+        this.adjustKeyboardShortcutsForPlatform();
 
         // Initialize the console capture bridge with constants and previewScriptGenerator for injection script generation.
         this.consoleBridge = new ConsoleBridge(this.constants.CONSOLE_MESSAGE_TYPE, this.previewScriptGenerator);
@@ -3009,9 +297,9 @@ class CodePreviewer {
             exportZipBtn: document.getElementById(CONTROL_IDS.EXPORT_ZIP_BTN),
             settingsBtn: document.getElementById(CONTROL_IDS.SETTINGS_BTN),
             settingsModal: document.getElementById(CONTROL_IDS.SETTINGS_MODAL),
+            settingsTooltip: document.getElementById('settings-tooltip'),
             settingLineNumbers: document.getElementById(CONTROL_IDS.SETTINGS_LINE_NUMBERS),
             settingLineWrap: document.getElementById(CONTROL_IDS.SETTINGS_LINE_WRAP),
-            settingAutoFormat: document.getElementById(CONTROL_IDS.SETTINGS_AUTO_FORMAT),
             settingFontSize: document.getElementById(CONTROL_IDS.SETTINGS_FONT_SIZE),
             settingEditorTheme: document.getElementById(CONTROL_IDS.SETTINGS_EDITOR_THEME),
             settingTabSize: document.getElementById(CONTROL_IDS.SETTINGS_TAB_SIZE),
@@ -3452,7 +740,6 @@ This content is loaded from a markdown file.
             ...nextSettings,
             lineNumbers: typeof nextSettings.lineNumbers === 'boolean' ? nextSettings.lineNumbers : true,
             lineWrapping: typeof nextSettings.lineWrapping === 'boolean' ? nextSettings.lineWrapping : false,
-            autoFormatOnType: typeof nextSettings.autoFormatOnType === 'boolean' ? nextSettings.autoFormatOnType : false,
             fontSize: allowedFontSizes.has(fontSize) ? fontSize : 14,
             theme: allowedThemes.has(nextSettings.theme) ? nextSettings.theme : 'dracula',
             tabSize: allowedTabSizes.has(tabSize) ? tabSize : 4,
@@ -3465,7 +752,6 @@ This content is loaded from a markdown file.
     syncSettingsUI() {
         if (this.dom.settingLineNumbers) this.dom.settingLineNumbers.checked = !!this.state.settings.lineNumbers;
         if (this.dom.settingLineWrap) this.dom.settingLineWrap.checked = !!this.state.settings.lineWrapping;
-        if (this.dom.settingAutoFormat) this.dom.settingAutoFormat.checked = !!this.state.settings.autoFormatOnType;
         if (this.dom.settingFontSize) this.dom.settingFontSize.value = String(this.state.settings.fontSize);
         if (this.dom.settingEditorTheme) this.dom.settingEditorTheme.value = this.state.settings.theme;
         if (this.dom.settingTabSize) this.dom.settingTabSize.value = String(this.state.settings.tabSize);
@@ -3476,6 +762,15 @@ This content is loaded from a markdown file.
         [this.dom.settingFontSize, this.dom.settingEditorTheme, this.dom.settingTabSize]
             .filter(Boolean)
             .forEach((select) => this.updateSettingsSelectDropdownUI(select));
+    }
+
+    adjustKeyboardShortcutsForPlatform() {
+        const isMac = /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent);
+        if (isMac && this.dom.settingsModal) {
+            this.dom.settingsModal.querySelectorAll('.shortcut-key-ctrl').forEach((el) => {
+                el.textContent = '⌘';
+            });
+        }
     }
 
     initSettingsCustomDropdowns() {
@@ -3555,8 +850,105 @@ This content is loaded from a markdown file.
             if (trigger && list) {
                 trigger.setAttribute('aria-expanded', 'false');
                 list.hidden = true;
+                this.resetCustomDropdownPosition(list);
             }
         });
+    }
+
+    resetCustomDropdownPosition(list) {
+        if (!list) {
+            return;
+        }
+
+        list.style.position = '';
+        list.style.left = '';
+        list.style.right = '';
+        list.style.top = '';
+        list.style.bottom = '';
+        list.style.width = '';
+        list.style.minWidth = '';
+        list.style.maxWidth = '';
+        list.classList.remove('opens-upward', 'opens-leftward');
+    }
+
+    positionCustomDropdownList(trigger, list) {
+        if (!trigger || !list || list.hidden) {
+            return;
+        }
+
+        const viewport = window.visualViewport;
+        const viewportLeft = viewport?.offsetLeft ?? 0;
+        const viewportTop = viewport?.offsetTop ?? 0;
+        const viewportWidth = viewport?.width ?? window.innerWidth;
+        const viewportHeight = viewport?.height ?? window.innerHeight;
+        const padding = 8;
+        const gap = 6;
+
+        this.resetCustomDropdownPosition(list);
+
+        list.style.position = 'fixed';
+        list.style.right = 'auto';
+        list.style.bottom = 'auto';
+
+        const triggerRect = trigger.getBoundingClientRect();
+        const listRect = list.getBoundingClientRect();
+        const listWidth = Math.min(
+            listRect.width || triggerRect.width,
+            Math.max(triggerRect.width, viewportWidth - padding * 2)
+        );
+        const listHeight = listRect.height || 0;
+        const viewportRight = viewportLeft + viewportWidth;
+        const viewportBottom = viewportTop + viewportHeight;
+
+        let left = triggerRect.left;
+        let top = triggerRect.bottom + gap;
+        const opensLeftward = left + listWidth + padding > viewportRight;
+        if (opensLeftward) {
+            left = triggerRect.right - listWidth;
+        }
+
+        left = Math.max(viewportLeft + padding, Math.min(left, viewportRight - listWidth - padding));
+
+        const spaceBelow = viewportBottom - triggerRect.bottom - gap - padding;
+        const spaceAbove = triggerRect.top - viewportTop - gap - padding;
+        const opensUpward = listHeight > spaceBelow && spaceAbove > spaceBelow;
+        if (opensUpward) {
+            top = triggerRect.top - listHeight - gap;
+        }
+
+        if (opensUpward && top < viewportTop + padding) {
+            top = viewportTop + padding;
+        } else if (!opensUpward && top + listHeight + padding > viewportBottom) {
+            top = Math.max(viewportTop + padding, viewportBottom - listHeight - padding);
+        }
+
+        list.style.left = `${left}px`;
+        list.style.top = `${top}px`;
+        list.style.width = `${listWidth}px`;
+        list.style.minWidth = `${Math.min(triggerRect.width, listWidth)}px`;
+        list.style.maxWidth = `${viewportWidth - padding * 2}px`;
+        list.classList.toggle('opens-leftward', opensLeftward);
+        list.classList.toggle('opens-upward', opensUpward);
+    }
+
+    positionOpenCustomDropdowns() {
+        document.querySelectorAll('.file-type-dropdown-trigger[aria-expanded="true"]').forEach((trigger) => {
+            const list = trigger.closest('.file-type-dropdown')?.querySelector('.file-type-dropdown-list');
+            if (list) {
+                this.positionCustomDropdownList(trigger, list);
+            }
+        });
+
+        document.querySelectorAll('.settings-select-dropdown-trigger[aria-expanded="true"]').forEach((trigger) => {
+            const list = trigger.closest('.settings-select-dropdown')?.querySelector('.settings-select-dropdown-list');
+            if (list) {
+                this.positionCustomDropdownList(trigger, list);
+            }
+        });
+
+        if (this.dom.mainHtmlDropdownTrigger?.getAttribute('aria-expanded') === 'true' && this.dom.mainHtmlDropdownList) {
+            this.positionCustomDropdownList(this.dom.mainHtmlDropdownTrigger, this.dom.mainHtmlDropdownList);
+        }
     }
 
     toggleSettingsSelectDropdown(dropdown, forceOpen = null) {
@@ -3578,9 +970,12 @@ This content is loaded from a markdown file.
         list.hidden = !shouldOpen;
 
         if (shouldOpen) {
+            this.positionCustomDropdownList(trigger, list);
             const selectedOption = dropdown.querySelector('.settings-select-dropdown-option.is-selected')
                 || dropdown.querySelector('.settings-select-dropdown-option');
             selectedOption?.focus();
+        } else {
+            this.resetCustomDropdownPosition(list);
         }
     }
 
@@ -3679,10 +1074,204 @@ This content is loaded from a markdown file.
 
         if (!shouldOpen) {
             this.closeAllSettingsSelectDropdowns();
+            this.hideSettingsTooltip();
         }
 
         this.updateDockDividerVisibility();
         this.updateBackgroundScrollLock();
+    }
+
+    // ============================================================================
+    // SETTINGS HELP TOOLTIPS
+    // ============================================================================
+    settingsHelpData = {
+        'line-numbers': {
+            title: 'Line Numbers',
+            what: 'Displays numbers along the side of the editor code window.',
+            means: 'Helps you keep track of which line of code you are looking at or editing.',
+            does: 'Shows line numbers on the left edge of each file when enabled, and hides them when disabled.'
+        },
+        'line-wrap': {
+            title: 'Line Wrap',
+            what: 'Automatic text wrapping.',
+            means: 'Wraps long lines of code to the next line so they fit within the editor window.',
+            does: 'Prevents horizontal scrolling. If enabled, long lines wrap down; if disabled, lines continue off-screen to the right.'
+        },
+        'font-size': {
+            title: 'Font Size',
+            what: 'Editor text size.',
+            means: 'The visual scale of the characters in the editor.',
+            does: 'Increases or decreases text readability. Changing this updates how large the code text appears immediately.'
+        },
+        'editor-theme': {
+            title: 'Editor Theme',
+            what: 'Syntax color scheme.',
+            means: 'The color palette used for highlighting different code elements (keywords, strings, variables).',
+            does: 'Changes the editor\'s visual style. Choose a theme that is comfortable for your eyes in different lighting.'
+        },
+        'tab-size': {
+            title: 'Tab Size',
+            what: 'Indentation spacing.',
+            means: 'The number of space characters that a single press of the Tab key represents.',
+            does: 'Controls code alignment. You can set it to 2, 4, or 8 spaces depending on your coding style preference.'
+        },
+        'indent-with-tabs': {
+            title: 'Indent with Tabs',
+            what: 'Tab character indentation.',
+            means: 'Using physical Tab characters instead of spaces for indenting code.',
+            does: 'Saves a Tab character rather than spaces. When enabled, pressing Tab inserts a literal tab; when disabled, it inserts spaces.'
+        },
+        'auto-close-brackets': {
+            title: 'Auto-Close Brackets',
+            what: 'Automatic character pairing.',
+            means: 'Automatically inserting the matching closing character when you type an opening bracket, quote, or parenthesis.',
+            does: 'Speeds up coding and prevents syntax errors by ensuring brackets (e.g., (, [, {, ") are always closed.'
+        },
+        'match-brackets': {
+            title: 'Match Brackets',
+            what: 'Bracket highlight helper.',
+            means: 'Visually highlighting the corresponding matching bracket when the cursor is next to one.',
+            does: 'Helps you navigate code structure. Moving your cursor next to a bracket (like }) instantly highlights its partner (like {).'
+        }
+    };
+
+    showSettingsTooltip(btn, pinned = false) {
+        if (!this.dom.settingsTooltip) return;
+
+        const settingKey = btn.dataset.settingHelp;
+        const helpData = this.settingsHelpData[settingKey];
+        if (!helpData) return;
+
+        // Check if it's already showing this one and pinned state matches or increases
+        if (this.state.settingsTooltip.activeBtn === btn && (pinned ? this.state.settingsTooltip.isPinned : true)) {
+            // Already showing, just update pinned status if it was increased to true
+            if (pinned && !this.state.settingsTooltip.isPinned) {
+                this.state.settingsTooltip.isPinned = true;
+                btn.classList.add('is-active');
+                btn.setAttribute('aria-expanded', 'true');
+            }
+            return;
+        }
+
+        // Clear active class from previous button
+        if (this.state.settingsTooltip.activeBtn) {
+            this.state.settingsTooltip.activeBtn.classList.remove('is-active');
+            this.state.settingsTooltip.activeBtn.setAttribute('aria-expanded', 'false');
+        }
+
+        this.state.settingsTooltip.activeBtn = btn;
+        this.state.settingsTooltip.isPinned = pinned;
+
+        btn.classList.toggle('is-active', pinned);
+        btn.setAttribute('aria-expanded', 'true');
+
+        // Fill content using escapeHtml helper
+        this.dom.settingsTooltip.innerHTML = `
+            <div class="settings-tooltip-title">${escapeHtml(helpData.title)}</div>
+            <div class="settings-tooltip-row">
+                <span class="settings-tooltip-label">What it is:</span>
+                <span class="settings-tooltip-desc">${escapeHtml(helpData.what)}</span>
+            </div>
+            <div class="settings-tooltip-row">
+                <span class="settings-tooltip-label">What it means:</span>
+                <span class="settings-tooltip-desc">${escapeHtml(helpData.means)}</span>
+            </div>
+            <div class="settings-tooltip-row">
+                <span class="settings-tooltip-label">What it does:</span>
+                <span class="settings-tooltip-desc">${escapeHtml(helpData.does)}</span>
+            </div>
+        `;
+
+        this.dom.settingsTooltip.hidden = false;
+        this.dom.settingsTooltip.setAttribute('aria-hidden', 'false');
+
+        // Position tooltip
+        this.positionSettingsTooltip(btn);
+    }
+
+    positionSettingsTooltip(btn) {
+        if (!this.dom.settingsTooltip || !this.dom.settingsModal) return;
+
+        const btnRect = btn.getBoundingClientRect();
+        const modalContent = this.dom.settingsModal.querySelector('.settings-modal-content');
+        if (!modalContent) return;
+
+        const parentRect = modalContent.getBoundingClientRect();
+        const tooltipRect = this.dom.settingsTooltip.getBoundingClientRect();
+
+        const tooltipWidth = tooltipRect.width || 280;
+        const tooltipHeight = tooltipRect.height || 180;
+        const parentWidth = parentRect.width;
+
+        // Button center relative to settings-modal-content
+        const btnCenterRelativeX = btnRect.left - parentRect.left + btnRect.width / 2;
+        const btnTopRelativeY = btnRect.top - parentRect.top;
+
+        // Ideal left position for the tooltip (centered on the button)
+        let tooltipLeft = btnCenterRelativeX - tooltipWidth / 2;
+        
+        // Prevent going off-screen / off-modal boundaries (with 12px padding)
+        const minLeft = 12;
+        const maxLeft = Math.max(minLeft, parentWidth - tooltipWidth - 12);
+        
+        if (tooltipLeft < minLeft) {
+            tooltipLeft = minLeft;
+        } else if (tooltipLeft > maxLeft) {
+            tooltipLeft = maxLeft;
+        }
+
+        // Calculate arrow offset relative to the tooltip box
+        const arrowLeft = btnCenterRelativeX - tooltipLeft;
+
+        // Position the tooltip box
+        this.dom.settingsTooltip.style.left = `${tooltipLeft}px`;
+        
+        // Check if there is enough space above the button.
+        // If the button is too close to the top of the modal content, we can position the tooltip below the button.
+        const spaceAbove = btnTopRelativeY;
+        const threshold = tooltipHeight + 16; // height + spacing
+        
+        if (spaceAbove < threshold) {
+            // Position below the button
+            this.dom.settingsTooltip.style.top = `${btnTopRelativeY + btnRect.height + 8}px`;
+            this.dom.settingsTooltip.classList.add('position-below');
+            this.dom.settingsTooltip.classList.remove('position-above');
+        } else {
+            // Position above the button
+            this.dom.settingsTooltip.style.top = `${btnTopRelativeY - 8}px`;
+            this.dom.settingsTooltip.classList.add('position-above');
+            this.dom.settingsTooltip.classList.remove('position-below');
+        }
+
+        // Set the arrow variable
+        this.dom.settingsTooltip.style.setProperty('--arrow-left', `${arrowLeft}px`);
+    }
+
+    hideSettingsTooltip() {
+        if (!this.dom.settingsTooltip) return;
+
+        // Clear active class from button
+        if (this.state.settingsTooltip.activeBtn) {
+            this.state.settingsTooltip.activeBtn.classList.remove('is-active');
+            this.state.settingsTooltip.activeBtn.setAttribute('aria-expanded', 'false');
+        }
+
+        this.state.settingsTooltip.activeBtn = null;
+        this.state.settingsTooltip.isPinned = false;
+
+        this.dom.settingsTooltip.hidden = true;
+        this.dom.settingsTooltip.setAttribute('aria-hidden', 'true');
+    }
+
+    toggleSettingsTooltip(btn) {
+        const isCurrent = this.state.settingsTooltip.activeBtn === btn;
+        const isPinned = this.state.settingsTooltip.isPinned;
+
+        if (isCurrent && isPinned) {
+            this.hideSettingsTooltip();
+        } else {
+            this.showSettingsTooltip(btn, true);
+        }
     }
 
     updatePreviewViewportHeight() {
@@ -4232,7 +1821,6 @@ This content is loaded from a markdown file.
         openFileIds.forEach(fileId => {
             const panel = this.getEditorPanel(fileId);
             if (panel) {
-                this.clearPendingAutoFormat(fileId);
                 panel.style.display = 'none';
             }
             this.state.openPanels.delete(fileId);
@@ -4292,7 +1880,7 @@ This content is loaded from a markdown file.
         this.dom.fileTreeContainer.innerHTML = `
             ${toolbarHtml}
             <div class="file-tree-content">
-                ${treeHtml || '<div class="file-tree-empty">No matching files found. Try a different search.</div>'}
+                ${treeHtml || `<div class="file-tree-empty">${this.state.sidebarSearchQuery ? 'No matching files found. Try a different search.' : 'No files yet. Click <strong>+ Add File</strong> to get started.'}</div>`}
             </div>
         `;
 
@@ -4722,6 +2310,9 @@ This content is loaded from a markdown file.
         
         const panel = this.getEditorPanel(fileId);
         this.bindFilePanelEvents(panel);
+        if (panel) {
+            this.setActiveEditorPanel(panel);
+        }
         
         this.refreshPanelAndFileTreeUI();
     }
@@ -5325,6 +2916,9 @@ This content is loaded from a markdown file.
         }
 
         this.bindFilePanelEvents(createdPanel);
+        if (autoOpenPanel && createdPanel) {
+            this.setActiveEditorPanel(createdPanel);
+        }
         
         this.refreshPanelAndFileTreeUI();
     }
@@ -5427,7 +3021,7 @@ This content is loaded from a markdown file.
                             ${fileTypeOptions}
                         </select>
                     </div>
-                    <button class="remove-file-btn" aria-label="Close panel" title="Close panel (file stays in sidebar)">&times;</button>
+                    <button class="remove-file-btn" aria-label="Close panel" title="Close panel (file stays in sidebar)">${SVG_ICONS.close}</button>
                 </div>
                 ${this.generateToolbarHTML(fileType)}
                 <label for="${fileId}" class="sr-only">${this.getFileTypeLabel(fileType)}</label>
@@ -5490,7 +3084,11 @@ This content is loaded from a markdown file.
             const expandTitle = isEditable ? "Expand" : "View";
             toolbarHTML += this.htmlGenerators.toolbarButton(SVG_ICONS.expand, expandTitle, 'expand-btn', expandLabel, expandTitle);
         }
-        
+
+        if (fileType === 'svg') {
+            toolbarHTML += this.htmlGenerators.toolbarButton(SVG_ICONS.expand, 'View', 'view-svg-btn', 'View rendered SVG image', 'View');
+        }
+
         toolbarHTML += this.htmlGenerators.toolbarButton(SVG_ICONS.save, 'Export', 'export-btn', 'Export file', 'Export');
         toolbarHTML += this.htmlGenerators.toolbarButton(SVG_ICONS.folder, 'Collapse', 'collapse-btn', 'Collapse/Expand editor', 'Collapse/Expand');
 
@@ -5570,6 +3168,7 @@ This content is loaded from a markdown file.
             if (trigger && list) {
                 trigger.setAttribute('aria-expanded', 'false');
                 list.hidden = true;
+                this.resetCustomDropdownPosition(list);
             }
         });
     }
@@ -5684,6 +3283,11 @@ This content is loaded from a markdown file.
                 this.closeAllFileTypeDropdowns(panel);
                 fileTypeTrigger.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
                 fileTypeDropdownList.hidden = isOpen;
+                if (isOpen) {
+                    this.resetCustomDropdownPosition(fileTypeDropdownList);
+                } else {
+                    this.positionCustomDropdownList(fileTypeTrigger, fileTypeDropdownList);
+                }
             });
 
             fileTypeDropdownList.addEventListener('click', (event) => {
@@ -5700,6 +3304,7 @@ This content is loaded from a markdown file.
                     this.closeAllFileTypeDropdowns(panel);
                     fileTypeTrigger.setAttribute('aria-expanded', 'true');
                     fileTypeDropdownList.hidden = false;
+                    this.positionCustomDropdownList(fileTypeTrigger, fileTypeDropdownList);
                 }
                 if (event.key === 'Escape') {
                     event.preventDefault();
@@ -5995,7 +3600,6 @@ This content is loaded from a markdown file.
             const isUserInput = ['+input', '+delete', 'paste', 'cut'].includes(origin);
             if (!isUserInput) return;
 
-            this.scheduleAutoFormat(fileId, editor, fileType);
             this.schedulePreviewRefresh();
         });
     }
@@ -6005,15 +3609,6 @@ This content is loaded from a markdown file.
      * @param {string} fileId - The file ID to close
      */
 
-    clearPendingAutoFormat(fileId) {
-        const timer = this.state.autoFormatTimers.get(fileId);
-        if (timer) {
-            clearTimeout(timer);
-            this.state.autoFormatTimers.delete(fileId);
-        }
-        this.state.formattingEditors.delete(fileId);
-    }
-
     schedulePreviewRefresh() {
         this.previewRenderer.scheduleRefresh();
     }
@@ -6022,12 +3617,21 @@ This content is loaded from a markdown file.
         // Use .editor-panel selector to avoid matching tree-file elements
         const panel = this.getEditorPanel(fileId);
         if (panel) {
-            this.clearPendingAutoFormat(fileId);
             panel.style.display = 'none';
             this.state.openPanels.delete(fileId);
             this.renderFileTree();
             this.updatePanelMoveButtonsVisibility();
             this.updatePreviewActionButtons();
+
+            if (fileId === this.state.activePanelId) {
+                const fallback = Array.from(document.querySelectorAll('.editor-panel[data-file-id]'))
+                    .find(p => this.state.openPanels.has(p.dataset.fileId));
+                if (fallback) {
+                    this.setActiveEditorPanel(fallback);
+                } else {
+                    this.clearActiveEditorPanel();
+                }
+            }
         }
     }
 
@@ -6052,6 +3656,7 @@ This content is loaded from a markdown file.
             panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
             panel.classList.add('file-selected');
             setTimeout(() => panel.classList.remove('file-selected'), 2000);
+            this.setActiveEditorPanel(panel);
         }
         this.renderFileTree();
         this.updatePanelMoveButtonsVisibility();
@@ -6070,7 +3675,6 @@ This content is loaded from a markdown file.
         }
 
         this.revokeFilePanelPreviewUrl(fileId);
-        this.clearPendingAutoFormat(fileId);
         
         this.state.files = this.state.files.filter(f => f.id !== fileId);
         this.state.openPanels.delete(fileId);
@@ -6088,6 +3692,16 @@ This content is loaded from a markdown file.
             this.state.editors.js = null;
         }
         
+        if (fileId === this.state.activePanelId) {
+            const fallback = Array.from(document.querySelectorAll('.editor-panel[data-file-id]'))
+                .find(p => this.state.openPanels.has(p.dataset.fileId));
+            if (fallback) {
+                this.setActiveEditorPanel(fallback);
+            } else {
+                this.clearActiveEditorPanel();
+            }
+        }
+
         this.refreshPanelAndFileTreeUI();
     }
 
@@ -6130,8 +3744,6 @@ This content is loaded from a markdown file.
             }
         });
 
-        // Clear pending auto-format timers
-        this.state.files.forEach(file => this.clearPendingAutoFormat(file.id));
         this.revokeAllFilePanelPreviewUrls();
 
         // Clear the files array
@@ -6194,7 +3806,7 @@ This content is loaded from a markdown file.
         actualPanels.forEach(panel => {
             const removeBtn = panel.querySelector('.remove-file-btn');
             if (removeBtn) {
-                removeBtn.style.display = 'block';
+                removeBtn.style.display = 'flex';
             }
         });
     }
@@ -6248,6 +3860,7 @@ This content is loaded from a markdown file.
         const copyBtn = panel.querySelector('.copy-btn');
         const formatBtn = panel.querySelector('.format-btn');
         const expandBtn = panel.querySelector('.expand-btn');
+        const viewSvgBtn = panel.querySelector('.view-svg-btn');
         const exportBtn = panel.querySelector('.export-btn');
         const collapseBtn = panel.querySelector('.collapse-btn');
         const { searchBtn, searchInput, searchNextBtn, searchCloseBtn } = this.getPanelSearchElements(panel);
@@ -6286,7 +3899,14 @@ This content is loaded from a markdown file.
                 this.expandCode(panel);
             });
         }
-        
+
+        if (viewSvgBtn) {
+            viewSvgBtn.addEventListener('click', () => {
+                this.setActiveEditorPanel(panel);
+                this.showMediaPreview(panel);
+            });
+        }
+
         if (exportBtn) {
             exportBtn.addEventListener('click', () => {
                 this.setActiveEditorPanel(panel);
@@ -6342,17 +3962,24 @@ This content is loaded from a markdown file.
         panel.classList.add('is-active');
     }
 
+    clearActiveEditorPanel() {
+        this.state.activePanelId = null;
+        document.querySelectorAll('.editor-panel.is-active').forEach((active) => {
+            active.classList.remove('is-active');
+        });
+    }
+
     getActiveEditorPanel() {
         if (this.state.activePanelId) {
             const panel = this.getEditorPanel(this.state.activePanelId);
-            if (panel) return panel;
+            if (panel && this.state.openPanels.has(this.state.activePanelId)) {
+                if (!panel.classList.contains('is-active')) {
+                    panel.classList.add('is-active');
+                }
+                return panel;
+            }
         }
-
-        const fallback = document.querySelector('.editor-panel[data-file-id]');
-        if (fallback) {
-            this.setActiveEditorPanel(fallback);
-        }
-        return fallback;
+        return null;
     }
 
     openPanelSearch(panel) {
@@ -6362,7 +3989,7 @@ This content is loaded from a markdown file.
     }
 
 
-    formatPanelCode(panel, isAutomatic = false) {
+    formatPanelCode(panel) {
         if (!panel) return false;
 
         const fileId = panel.dataset.fileId;
@@ -6371,29 +3998,8 @@ This content is loaded from a markdown file.
         if (!fileId || !editor || !this.fileTypeUtils.isEditableType(fileType) || !this.supportsFormattingForType(fileType)) return false;
 
         return this.formatEditorContent(fileId, editor, fileType, {
-            isAutomatic,
-            silent: isAutomatic,
             preserveCursor: true,
         });
-    }
-
-    scheduleAutoFormat(fileId, editor, fileType) {
-        if (!this.state.settings.autoFormatOnType) return;
-        if (!fileId || !editor || !this.fileTypeUtils.isEditableType(fileType) || !this.supportsFormattingForType(fileType)) return;
-
-        const existingTimer = this.state.autoFormatTimers.get(fileId);
-        if (existingTimer) clearTimeout(existingTimer);
-
-        const timer = setTimeout(() => {
-            this.state.autoFormatTimers.delete(fileId);
-            this.formatEditorContent(fileId, editor, fileType, {
-                isAutomatic: true,
-                silent: true,
-                preserveCursor: true,
-            });
-        }, 900);
-
-        this.state.autoFormatTimers.set(fileId, timer);
     }
 
     formatEditorContent(fileId, editor, fileType, options = {}) {
@@ -6421,7 +4027,7 @@ This content is loaded from a markdown file.
                 editor.setCursor(editor.posFromIndex(safeIndex));
             }
 
-            if (!options.silent && !options.isAutomatic) {
+            if (!options.silent) {
                 this.showNotification('Code formatted', 'success');
             }
 
@@ -8351,12 +5957,14 @@ This content is loaded from a markdown file.
         if (!this.dom.mainHtmlDropdownList || !this.dom.mainHtmlDropdownTrigger) return;
         this.dom.mainHtmlDropdownList.hidden = false;
         this.dom.mainHtmlDropdownTrigger.setAttribute('aria-expanded', 'true');
+        this.positionCustomDropdownList(this.dom.mainHtmlDropdownTrigger, this.dom.mainHtmlDropdownList);
     }
 
     closeMainHtmlDropdown(focusTrigger = false) {
         if (!this.dom.mainHtmlDropdownList || !this.dom.mainHtmlDropdownTrigger) return;
         this.dom.mainHtmlDropdownList.hidden = true;
         this.dom.mainHtmlDropdownTrigger.setAttribute('aria-expanded', 'false');
+        this.resetCustomDropdownPosition(this.dom.mainHtmlDropdownList);
         if (focusTrigger) {
             this.dom.mainHtmlDropdownTrigger.focus();
         }
@@ -8436,8 +6044,3 @@ This content is loaded from a markdown file.
     }
 
 }
-
-document.addEventListener('DOMContentLoaded', () => {
-    const app = new CodePreviewer();
-    app.init();
-});

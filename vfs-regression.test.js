@@ -3,8 +3,23 @@ const path = require('path');
 const vm = require('vm');
 const assert = require('assert');
 
-const scriptPath = path.join(__dirname, 'script.js');
-const source = fs.readFileSync(scriptPath, 'utf8') + `
+const filesToLoad = [
+    'js/utils/Globals.js',
+    'js/preview/PreviewRenderer.js',
+    'js/core/StorageHandler.js',
+    'js/core/EventManager.js',
+    'js/utils/FileTypeUtils.js',
+    'js/utils/FileSystemUtils.js',
+    'js/preview/PreviewScriptGenerator.js',
+    'js/preview/HtmlGenerators.js',
+    'js/ui/NotificationSystem.js',
+    'js/ui/ConsoleBridge.js',
+    'js/preview/AssetReplacers.js',
+    'js/core/CodePreviewer.js'
+];
+
+let source = filesToLoad.map(f => fs.readFileSync(path.join(__dirname, f), 'utf8')).join('\n');
+source += `
 globalThis.FileTypeUtils = FileTypeUtils;
 globalThis.FileSystemUtils = FileSystemUtils;
 globalThis.PreviewScriptGenerator = PreviewScriptGenerator;
