@@ -2651,6 +2651,41 @@ body.is-resizing-console {
     color: var(--accent-color);
 }
 
+body.preview-dock-compact-controls .console-header {
+    gap: var(--space-xs);
+    padding: 0.3rem var(--space-sm);
+}
+
+body.preview-dock-compact-controls .console-header > span {
+    display: none;
+}
+
+body.preview-dock-compact-controls .console-filters {
+    gap: 0.25rem;
+    margin-right: 0;
+}
+
+body.preview-dock-compact-controls .console-filter-btn {
+    gap: 0.2rem;
+    padding: 0.2rem 0.32rem;
+    font-size: var(--text-xs);
+}
+
+body.preview-dock-compact-controls .filter-icon {
+    font-size: var(--text-sm);
+}
+
+body.preview-dock-compact-controls .filter-count {
+    min-width: 1rem;
+    padding: 0.05rem 0.25rem;
+    font-size: 0.62rem;
+}
+
+body.preview-dock-compact-controls .console-header .clear-btn {
+    padding: 2px 7px;
+    flex-shrink: 0;
+}
+
 #console-output .log-message {
     display: flex;
     align-items: flex-start;
@@ -3302,40 +3337,6 @@ body.is-resizing-console {
         font-size: var(--text-sm);
     }
 
-    .console-header {
-        gap: var(--space-xs);
-        padding: 0.3rem var(--space-sm);
-    }
-
-    .console-header > span {
-        display: none;
-    }
-
-    .console-filters {
-        gap: 0.25rem;
-        margin-right: 0;
-    }
-
-    .console-filter-btn {
-        gap: 0.2rem;
-        padding: 0.2rem 0.32rem;
-        font-size: var(--text-xs);
-    }
-
-    .filter-icon {
-        font-size: var(--text-sm);
-    }
-
-    .filter-count {
-        min-width: 1rem;
-        padding: 0.05rem 0.25rem;
-        font-size: 0.62rem;
-    }
-
-    .console-header .clear-btn {
-        padding: 2px 7px;
-        flex-shrink: 0;
-    }
 }
 
 
