@@ -351,7 +351,20 @@ class CodePreviewer {
      * @returns {HTMLElement|null}
      */
     getEditorPanel(fileId) {
-        return document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+        if (!this.state.editorPanelsCache) {
+            this.state.editorPanelsCache = new Map();
+        }
+        let panel = this.state.editorPanelsCache.get(fileId);
+        if (panel && document.body.contains(panel)) {
+            return panel;
+        }
+        panel = document.querySelector(`.editor-panel[data-file-id="${fileId}"]`);
+        if (panel) {
+            this.state.editorPanelsCache.set(fileId, panel);
+        } else {
+            this.state.editorPanelsCache.delete(fileId);
+        }
+        return panel;
     }
 
     /**
@@ -1594,8 +1607,10 @@ This content is loaded from a markdown file.
     getFileNameFromPanel(fileId) {
         const panel = this.getEditorPanel(fileId);
         if (panel) {
-            const nameInput = panel.querySelector('.file-name-input');
-            return nameInput ? nameInput.value : null;
+            if (!panel._nameInput || !panel.contains(panel._nameInput)) {
+                panel._nameInput = panel.querySelector('.file-name-input');
+            }
+            return panel._nameInput ? panel._nameInput.value : null;
         }
         return null;
     }
@@ -2827,11 +2842,13 @@ This content is loaded from a markdown file.
             const fileData = await this.readFileContent(file);
             const detectedType = this.detectFileTypeForFilename(result.fileName, fileData.isBinary ? null : fileData.content, file.type);
             this.addNewFileWithContent(result.fileName, detectedType, fileData.content, fileData.isBinary, {
-                autoOpenPanel: this.shouldAutoOpenImportedPanel(result.fileName, importedFileNames)
+                autoOpenPanel: this.shouldAutoOpenImportedPanel(result.fileName, importedFileNames),
+                skipUiRefresh: true
             });
             importedFileNames.push(result.fileName);
             importedCount++;
         }
+        this.refreshPanelAndFileTreeUI();
 
         if (progress) {
             progress.complete('Import complete.');
@@ -2878,7 +2895,7 @@ This content is loaded from a markdown file.
     }
 
     addNewFileWithContent(fileName, fileType, content, isBinary = false, options = {}) {
-        const { autoOpenPanel = true } = options;
+        const { autoOpenPanel = true, skipUiRefresh = false } = options;
         const fileId = `file-${this.state.nextFileId++}`;
         
         // Automatically create folder if file has path
@@ -2935,7 +2952,9 @@ This content is loaded from a markdown file.
             this.setActiveEditorPanel(createdPanel);
         }
         
-        this.refreshPanelAndFileTreeUI();
+        if (!skipUiRefresh) {
+            this.refreshPanelAndFileTreeUI();
+        }
     }
 
     /**
@@ -5734,11 +5753,13 @@ This content is loaded from a markdown file.
 
                 const fileType = this.detectFileTypeForFilename(result.fileName, isBinary ? null : content, mimeType);
                 this.addNewFileWithContent(result.fileName, fileType, content, isBinary, {
-                    autoOpenPanel: this.shouldAutoOpenImportedPanel(result.fileName, importedFileNames)
+                    autoOpenPanel: this.shouldAutoOpenImportedPanel(result.fileName, importedFileNames),
+                    skipUiRefresh: true
                 });
                 importedFileNames.push(result.fileName);
                 importedCount++;
             }
+            this.refreshPanelAndFileTreeUI();
 
             progress.complete(label + ' import complete.');
             this._showImportSummary(importedCount, skippedCount, label + ' imported successfully!');

@@ -147,40 +147,104 @@ class FileSystemUtils {
         return resultParts.join('/');
     }
 
+    buildFileSystemCache(fileSystem) {
+        const entries = this.getFileSystemEntries(fileSystem);
+        const cache = {
+            entries: [],
+            normalizedMap: new Map(),
+            lowerNormalizedMap: new Map(),
+            basenameMap: new Map()
+        };
+
+        for (const [filename, file] of entries) {
+            const norm = this.normalizePath(filename);
+            const normLower = norm.toLowerCase();
+            const basenameLower = this.getBasename(filename).toLowerCase();
+            
+            const entryObj = {
+                filename,
+                file,
+                normalized: norm,
+                normalizedLower: normLower
+            };
+            cache.entries.push(entryObj);
+
+            cache.normalizedMap.set(norm, file);
+            
+            if (!cache.lowerNormalizedMap.has(normLower)) {
+                cache.lowerNormalizedMap.set(normLower, { path: filename, file });
+            }
+
+            if (!cache.basenameMap.has(basenameLower)) {
+                cache.basenameMap.set(basenameLower, []);
+            }
+            cache.basenameMap.get(basenameLower).push({ path: filename, file });
+        }
+
+        return cache;
+    }
+
     findFileRecord(fileSystem, targetFilename, currentFilePath = '') {
         const targetPath = this.normalizeRequestPath(targetFilename, currentFilePath);
         if (!targetPath) return null;
 
-        const entries = this.getFileSystemEntries(fileSystem);
-        if (entries.length === 0) return null;
+        let cache;
+        if (fileSystem instanceof Map) {
+            if (!fileSystem.__cache) {
+                fileSystem.__cache = this.buildFileSystemCache(fileSystem);
+            }
+            cache = fileSystem.__cache;
+        } else if (fileSystem && typeof fileSystem === 'object') {
+            if (!Object.prototype.hasOwnProperty.call(fileSystem, '__cache')) {
+                Object.defineProperty(fileSystem, '__cache', {
+                    value: this.buildFileSystemCache(fileSystem),
+                    writable: true,
+                    enumerable: false,
+                    configurable: true
+                });
+            }
+            cache = fileSystem.__cache;
+        } else {
+            return null;
+        }
+
+        if (cache.entries.length === 0) return null;
 
         const directCandidates = this.getCandidatePaths(targetPath);
         for (const candidate of directCandidates) {
-            const exactMatch = fileSystem instanceof Map ? fileSystem.get(candidate) : fileSystem[candidate];
+            const exactMatch = cache.normalizedMap.get(candidate);
             if (exactMatch) {
                 return { path: candidate, file: exactMatch };
             }
         }
 
-        const lowerCandidates = new Set(directCandidates.map((candidate) => candidate.toLowerCase()));
-        for (const [filename, file] of entries) {
-            if (lowerCandidates.has(this.normalizePath(filename).toLowerCase())) {
-                return { path: filename, file };
+        for (const candidate of directCandidates) {
+            const match = cache.lowerNormalizedMap.get(candidate.toLowerCase());
+            if (match) {
+                return match;
             }
         }
 
         if (targetPath.includes('/')) {
             const targetSuffix = `/${targetPath}`;
             const targetSuffixLower = targetSuffix.toLowerCase();
-            for (const [filename, file] of entries) {
-                const normalizedFilename = this.normalizePath(filename);
-                if (normalizedFilename.endsWith(targetSuffix) || normalizedFilename.toLowerCase().endsWith(targetSuffixLower)) {
-                    return { path: filename, file };
+            for (const entry of cache.entries) {
+                if (entry.normalized.endsWith(targetSuffix) || entry.normalizedLower.endsWith(targetSuffixLower)) {
+                    return { path: entry.filename, file: entry.file };
                 }
             }
         }
 
-        return this.findUniqueByBasename(entries, targetPath);
+        const targetBasename = this.getBasename(targetPath);
+        if (targetBasename) {
+            const basenameLower = targetBasename.toLowerCase();
+            const matches = cache.basenameMap.get(basenameLower);
+            if (matches && matches.length === 1) {
+                return matches[0];
+            }
+        }
+
+        return null;
     }
 
     /**

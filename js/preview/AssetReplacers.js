@@ -1,6 +1,57 @@
 class AssetReplacers {
     constructor(app) {
         this.app = app;
+        this._replacementConfigs = {
+            css: {
+                pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.css)["']([^>]*?)>/gi,
+                types: ['css'],
+                replace: (file, match, before, filename, after, currentFilePath, resolvedPath, fileSystem) => {
+                    const cssPath = resolvedPath || filename;
+                    return `<style>${this.app.replaceCSSAssetReferences(file.content, fileSystem, cssPath)}</style>`;
+                },
+                onMissing: (match, before, filename, after, currentFilePath) => {
+                    if (this.isExternalAssetPath(filename)) {
+                        return match;
+                    }
+                    return this.createMissingAssetConsoleScript('Stylesheet', filename, currentFilePath, {
+                        deferUntilDomReady: true,
+                    });
+                }
+            },
+            images: {
+                pattern: /<img([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
+                types: ['image', 'svg'],
+                replace: (file, match) => {
+                    const src = this.app.getPreviewAssetUrl(file, 'image/png');
+                    return match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${src}"`);
+                }
+            },
+            video: {
+                pattern: /<video([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
+                types: ['video'],
+                replace: (file, match) => match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${this.app.getPreviewAssetUrl(file, 'video/mp4')}"`)
+            },
+            source: {
+                pattern: /<source([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
+                types: ['video', 'audio'],
+                replace: (file, match) => match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${this.app.getPreviewAssetUrl(file, 'application/octet-stream')}"`)
+            },
+            audio: {
+                pattern: /<audio([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
+                types: ['audio'],
+                replace: (file, match) => match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${this.app.getPreviewAssetUrl(file, 'audio/mpeg')}"`)
+            },
+            favicon: {
+                pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.ico)["']([^>]*?)>/gi,
+                types: ['image'],
+                replace: (file, match) => match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${this.app.getPreviewAssetUrl(file, 'image/x-icon')}"`)
+            },
+            font: {
+                pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.(?:woff|woff2|ttf|otf|eot))["']([^>]*?)>/gi,
+                types: ['font'],
+                replace: (file, match, before, filename, after) => `<link${before}href="${this.app.getPreviewAssetUrl(file, 'font/woff2')}"${after}>`
+            }
+        };
     }
 
     isExternalAssetPath(path) {
@@ -69,57 +120,7 @@ class AssetReplacers {
      * Each entry defines: regex pattern, allowed file types, and replacement strategy
      */
     get REPLACEMENT_CONFIGS() {
-        return {
-            css: {
-                pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.css)["']([^>]*?)>/gi,
-                types: ['css'],
-                replace: (file, match, before, filename, after, currentFilePath, resolvedPath, fileSystem) => {
-                    const cssPath = resolvedPath || filename;
-                    return `<style>${this.app.replaceCSSAssetReferences(file.content, fileSystem, cssPath)}</style>`;
-                },
-                onMissing: (match, before, filename, after, currentFilePath) => {
-                    if (this.isExternalAssetPath(filename)) {
-                        return match;
-                    }
-                    return this.createMissingAssetConsoleScript('Stylesheet', filename, currentFilePath, {
-                        deferUntilDomReady: true,
-                    });
-                }
-            },
-            images: {
-                pattern: /<img([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
-                types: ['image', 'svg'],
-                replace: (file, match) => {
-                    const src = this.app.getPreviewAssetUrl(file, 'image/png');
-                    return match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${src}"`);
-                }
-            },
-            video: {
-                pattern: /<video([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
-                types: ['video'],
-                replace: (file, match) => match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${this.app.getPreviewAssetUrl(file, 'video/mp4')}"`)
-            },
-            source: {
-                pattern: /<source([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
-                types: ['video', 'audio'],
-                replace: (file, match) => match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${this.app.getPreviewAssetUrl(file, 'application/octet-stream')}"`)
-            },
-            audio: {
-                pattern: /<audio([^>]*?)src\s*=\s*["']([^"']+)["']([^>]*?)>/gi,
-                types: ['audio'],
-                replace: (file, match) => match.replace(/src\s*=\s*["'][^"']*["']/i, `src="${this.app.getPreviewAssetUrl(file, 'audio/mpeg')}"`)
-            },
-            favicon: {
-                pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.ico)["']([^>]*?)>/gi,
-                types: ['image'],
-                replace: (file, match) => match.replace(/href\s*=\s*["'][^"']*["']/i, `href="${this.app.getPreviewAssetUrl(file, 'image/x-icon')}"`)
-            },
-            font: {
-                pattern: /<link([^>]*?)href\s*=\s*["']([^"']+\.(?:woff|woff2|ttf|otf|eot))["']([^>]*?)>/gi,
-                types: ['font'],
-                replace: (file, match, before, filename, after) => `<link${before}href="${this.app.getPreviewAssetUrl(file, 'font/woff2')}"${after}>`
-            }
-        };
+        return this._replacementConfigs;
     }
 
     /**

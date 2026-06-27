@@ -94,35 +94,73 @@ class PreviewScriptGenerator {
     function findFileRecordInSystem(targetFilename, currentFilePath = "") {
     const targetPath = normalizeRequestPath(targetFilename, currentFilePath);
     if (!targetPath) return null;
-    const entries = Object.entries(virtualFileSystem);
-    if (entries.length === 0) return null;
+    if (!virtualFileSystem.__cache) {
+        const entries = Object.entries(virtualFileSystem);
+        const cache = {
+            entries: [],
+            normalizedMap: {},
+            lowerNormalizedMap: {},
+            basenameMap: {},
+            hasEntries: entries.length > 0
+        };
+        for (let i = 0; i < entries.length; i++) {
+            const entry = entries[i];
+            const filename = entry[0];
+            const file = entry[1];
+            const norm = normalizePath(filename);
+            const normLower = norm.toLowerCase();
+            const basenameLower = getBasename(filename).toLowerCase();
+            
+            const entryObj = {
+                filename: filename,
+                file: file,
+                normalized: norm,
+                normalizedLower: normLower
+            };
+            cache.entries.push(entryObj);
+            
+            cache.normalizedMap[norm] = file;
+            
+            if (!cache.lowerNormalizedMap[normLower]) {
+                cache.lowerNormalizedMap[normLower] = { path: filename, file: file };
+            }
+            
+            if (!cache.basenameMap[basenameLower]) {
+                cache.basenameMap[basenameLower] = [];
+            }
+            cache.basenameMap[basenameLower].push({ path: filename, file: file });
+        }
+        virtualFileSystem.__cache = cache;
+    }
+    const cache = virtualFileSystem.__cache;
+    if (!cache.hasEntries) return null;
     const directCandidates = getCandidatePaths(targetPath);
-    for (const candidate of directCandidates) {
-        const exactMatch = virtualFileSystem[candidate];
+    for (let i = 0; i < directCandidates.length; i++) {
+        const candidate = directCandidates[i];
+        const exactMatch = cache.normalizedMap[candidate] || virtualFileSystem[candidate];
         if (exactMatch) return { path: candidate, file: exactMatch };
     }
-    const lowerCandidates = new Set(directCandidates.map(function(candidate) { return candidate.toLowerCase(); }));
-    for (const [filename, file] of entries) {
-        if (lowerCandidates.has(normalizePath(filename).toLowerCase())) return { path: filename, file };
+    for (let i = 0; i < directCandidates.length; i++) {
+        const candidateLower = directCandidates[i].toLowerCase();
+        const match = cache.lowerNormalizedMap[candidateLower];
+        if (match) return match;
     }
     if (targetPath.includes("/")) {
         const targetSuffix = "/" + targetPath;
         const targetSuffixLower = targetSuffix.toLowerCase();
-        for (const [filename, file] of entries) {
-            const normalizedFilename = normalizePath(filename);
-            if (normalizedFilename.endsWith(targetSuffix) || normalizedFilename.toLowerCase().endsWith(targetSuffixLower)) {
-                return { path: filename, file };
+        for (let i = 0; i < cache.entries.length; i++) {
+            const entry = cache.entries[i];
+            if (entry.normalized.endsWith(targetSuffix) || entry.normalizedLower.endsWith(targetSuffixLower)) {
+                return { path: entry.filename, file: entry.file };
             }
         }
     }
     const targetBasename = getBasename(targetPath);
     if (targetBasename) {
         const targetBasenameLower = targetBasename.toLowerCase();
-        const matches = entries.filter(function(entry) {
-            return getBasename(entry[0]).toLowerCase() === targetBasenameLower;
-        });
-        if (matches.length === 1) {
-            return { path: matches[0][0], file: matches[0][1] };
+        const matches = cache.basenameMap[targetBasenameLower];
+        if (matches && matches.length === 1) {
+            return matches[0];
         }
     }
     return null;
